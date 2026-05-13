@@ -49,7 +49,7 @@ public class ClanClogPanel extends PluginPanel
 	private final JLabel statusLabel = new JLabel(" ");
 	private final IconTextField searchBar = new IconTextField();
 	private final JLabel clanHeader = new JLabel(" ");
-	private final JPanel aggregateArea = new JPanel(new BorderLayout());
+	private final ClanAggregateGrid aggregateGrid = new ClanAggregateGrid();
 	private final ClanMembersView membersView = new ClanMembersView();
 	private final SlidePanel membersTray = new SlidePanel("members", membersView, false);
 
@@ -83,7 +83,7 @@ public class ClanClogPanel extends PluginPanel
 		c.weighty = 1;
 		c.fill = GridBagConstraints.BOTH;
 		c.insets = new Insets(0, 0, 6, 0);
-		add(buildAggregateArea(), c);
+		add(aggregateGrid, c);
 
 		c.gridy++;
 		c.weighty = 0;
@@ -135,21 +135,6 @@ public class ClanClogPanel extends PluginPanel
 		summary.add(clanHeader, BorderLayout.WEST);
 
 		return summary;
-	}
-
-	private JPanel buildAggregateArea()
-	{
-		aggregateArea.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		aggregateArea.setBorder(new EmptyBorder(8, 0, 8, 0));
-
-		JLabel placeholder = new JLabel(
-			"<html><center>collective hiscore grid<br>(kc-style aggregate, wiring in next cycle)</center></html>",
-			JLabel.CENTER);
-		placeholder.setFont(FontManager.getRunescapeSmallFont());
-		placeholder.setForeground(TEXT_DIM);
-		aggregateArea.add(placeholder, BorderLayout.CENTER);
-
-		return aggregateArea;
 	}
 
 	private static void styleSearchBar(Container c)
@@ -254,11 +239,13 @@ public class ClanClogPanel extends PluginPanel
 			{
 				setStatus("fetching hiscores · " + completed + "/" + roster.size());
 				membersView.renderRoster(roster);
+				aggregateGrid.renderRoster(roster);
 			})).whenComplete((v, batchEx) ->
 				SwingUtilities.invokeLater(() ->
 				{
 					setStatus("done · " + roster.size() + " members");
 					membersView.renderRoster(roster);
+					aggregateGrid.renderRoster(roster);
 				}));
 		});
 	}
@@ -290,11 +277,13 @@ public class ClanClogPanel extends PluginPanel
 		{
 			setStatus("in-game roster · " + completed + "/" + mutable.size());
 			membersView.renderRoster(mutable);
+			aggregateGrid.renderRoster(mutable);
 		})).whenComplete((v, batchEx) ->
 			SwingUtilities.invokeLater(() ->
 			{
 				setStatus("done · " + mutable.size() + " members");
 				membersView.renderRoster(mutable);
+				aggregateGrid.renderRoster(mutable);
 			}));
 	}
 

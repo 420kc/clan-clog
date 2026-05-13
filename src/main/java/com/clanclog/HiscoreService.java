@@ -95,9 +95,21 @@ public class HiscoreService
 	}
 
 	/** Boss names in CSV order. Used by tests to validate PanelData consistency. */
-	static String[] bossNames()
+	public static String[] bossNames()
 	{
 		return BOSS_NAMES;
+	}
+
+	/** Activity names in CSV order. */
+	public static String[] activityNames()
+	{
+		return ACTIVITY_NAMES;
+	}
+
+	/** Skill names in CSV order. */
+	public static String[] skillNames()
+	{
+		return SKILL_NAMES;
 	}
 
 	// --- SWR cache ---
