@@ -37,3 +37,9 @@ tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
     options.compilerArgs += ['-Xlint:deprecation']
 }
+
+task run(type: JavaExec) {
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.clanclog.ClanClogPluginTest'
+    jvmArgs = ['-ea']
+}
