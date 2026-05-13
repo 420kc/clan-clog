@@ -8,7 +8,10 @@ import java.io.InputStream;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -33,6 +36,9 @@ public class ClanClogPlugin extends Plugin
 
 	@Inject
 	private LocalClogCache clogCache;
+
+	@Inject
+	private InGameClanReader clanReader;
 
 	private NavigationButton navButton;
 
@@ -66,6 +72,22 @@ public class ClanClogPlugin extends Plugin
 		batch.shutdown();
 		clogCache.shutdown();
 		log.debug("clan clog: shutDown");
+	}
+
+	/**
+	 * Sync the in-game clan roster every time the user opens the clan sidepanel.
+	 * Fires on the client thread, so {@link InGameClanReader#refresh()} can read
+	 * {@code ClanSettings} directly.
+	 */
+	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded event)
+	{
+		int groupId = event.getGroupId();
+		if (groupId == InterfaceID.CLANS_SIDEPANEL
+			|| groupId == InterfaceID.CLANS_GUEST_SIDEPANEL)
+		{
+			clanReader.refresh();
+		}
 	}
 
 	/**

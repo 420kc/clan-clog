@@ -1,12 +1,18 @@
 package com.clanclog;
 
+import java.time.LocalDate;
+
 /**
- * Canonical clan clog representation of one clan member. Built once from the
- * source-of-truth roster (currently WOM) and then enriched with per-member
+ * Canonical clan clog representation of one clan member. Built from whichever
+ * roster source is supplying the data (in-game runtime via
+ * {@code ClanSettings.getMembers()}, WOM, RuneProfile, Temple, or eventually
+ * killclog.com aggregation) and then enriched with per-member
  * {@link HiscoreResult} by {@code ClanHiscoreBatch}.
  *
- * <p>Intentionally not coupled to WOM's wire shape -- the swap to a
- * killclog.com aggregation backend in phase 2 only needs a new factory.
+ * <p>Provider-dependent fields are nullable -- in-game source supplies
+ * {@code joinDate} but not {@code build} / {@code totalXp}, WOM supplies the
+ * latter pair but not {@code joinDate}, and so on. Panel code treats nulls
+ * as "data unavailable from this source" and renders accordingly.
  */
 public class ClanMember
 {
@@ -17,12 +23,14 @@ public class ClanMember
 	private final String build;
 	private final long totalXp;
 	private final String lastUpdatedAt;
+	private final LocalDate joinDate;
 
 	/** Filled in lazily after the batch hiscore fetch. Null until then. */
 	private volatile HiscoreResult hiscore;
 
 	public ClanMember(String rsn, String displayName, String role,
-		AccountType accountType, String build, long totalXp, String lastUpdatedAt)
+		AccountType accountType, String build, long totalXp, String lastUpdatedAt,
+		LocalDate joinDate)
 	{
 		this.rsn = rsn;
 		this.displayName = displayName;
@@ -31,6 +39,7 @@ public class ClanMember
 		this.build = build;
 		this.totalXp = totalXp;
 		this.lastUpdatedAt = lastUpdatedAt;
+		this.joinDate = joinDate;
 	}
 
 	public static ClanMember fromWom(WomMembership ms)
@@ -47,7 +56,46 @@ public class ClanMember
 			parseAccountType(p.type),
 			p.build,
 			p.exp,
-			p.updatedAt);
+			p.updatedAt,
+			null);
+	}
+
+	/**
+	 * Build a {@code ClanMember} from RuneLite's in-game clan data. {@code build}
+	 * and {@code totalXp} stay null/0 because the runtime doesn't expose them;
+	 * the hiscore fan-out fills account type later. {@code role} prefers the
+	 * clan's localized {@code ClanTitle.getName()} (custom rank names the owner
+	 * configured in-game) and falls back to the rank enum name.
+	 */
+	public static ClanMember fromInGame(net.runelite.api.clan.ClanMember member,
+		net.runelite.api.clan.ClanSettings settings)
+	{
+		if (member == null || member.getName() == null)
+		{
+			return null;
+		}
+		String rankTitle = null;
+		if (settings != null && member.getRank() != null)
+		{
+			net.runelite.api.clan.ClanTitle title = settings.titleForRank(member.getRank());
+			if (title != null)
+			{
+				rankTitle = title.getName();
+			}
+		}
+		if (rankTitle == null || rankTitle.isEmpty())
+		{
+			rankTitle = member.getRank() != null ? member.getRank().toString() : "";
+		}
+		return new ClanMember(
+			member.getName(),
+			member.getName(),
+			rankTitle,
+			AccountType.REGULAR,
+			null,
+			0L,
+			null,
+			member.getJoinDate());
 	}
 
 	private static AccountType parseAccountType(String womType)
@@ -108,6 +156,11 @@ public class ClanMember
 	public String getLastUpdatedAt()
 	{
 		return lastUpdatedAt;
+	}
+
+	public LocalDate getJoinDate()
+	{
+		return joinDate;
 	}
 
 	public HiscoreResult getHiscore()
