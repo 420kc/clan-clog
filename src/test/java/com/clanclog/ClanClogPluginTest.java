@@ -2,13 +2,30 @@ package com.clanclog;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
+import net.runelite.client.plugins.Plugin;
 
 public class ClanClogPluginTest
 {
 	@SuppressWarnings("unchecked")
 	public static void main(String[] args) throws Exception
 	{
-		ExternalPluginManager.loadBuiltin(ClanClogPlugin.class);
+		java.util.List<Class<? extends Plugin>> plugins = new java.util.ArrayList<>();
+		plugins.add(ClanClogPlugin.class);
+		tryLoad(plugins, "com.killclog.KillClogPlugin");
+		ExternalPluginManager.loadBuiltin(plugins.toArray(new Class[0]));
 		RuneLite.main(args);
+	}
+
+	private static void tryLoad(java.util.List<Class<? extends Plugin>> list, String className)
+	{
+		try
+		{
+			@SuppressWarnings("unchecked")
+			Class<? extends Plugin> cls = (Class<? extends Plugin>) Class.forName(className);
+			list.add(cls);
+		}
+		catch (ClassNotFoundException ignored)
+		{
+		}
 	}
 }
