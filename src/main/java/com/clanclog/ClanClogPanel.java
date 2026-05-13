@@ -3,59 +3,53 @@ package com.clanclog;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.ScrollPaneConstants;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
+import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.FlatTextField;
+import net.runelite.client.ui.components.IconTextField;
 
 /**
- * Vertical-slice surface, kc-palette polished.
+ * Native-feeling clan clog panel. Modeled on KillClogPanel patterns: RuneLite's
+ * ColorScheme + FontManager for the chrome, IconTextField for search, white /
+ * light-gray for primary text + dim gray for meta.
  *
  * <p>Input mode is single-field: digits-only -> wom group id direct load,
- * anything else -> name search shown as top-10 clickable matches. Click a
- * result to load that group; roster fills in as the hiscore fan-out resolves.
+ * anything else -> name search shown as top-10 clickable rows. Press enter or
+ * click a row to load that group; roster fills in as the hiscore fan-out
+ * resolves.
  */
 @Singleton
 public class ClanClogPanel extends PluginPanel
 {
 	private static final int SEARCH_RESULT_LIMIT = 10;
 
-	// kc palette per the 2026-05-12 typography canon. kc4 brand orange = primary,
-	// kc2 lime = secondary / hover / data points, kc3 amber = explanatory text,
-	// kc1 emerald = sparing spike. all four sit on top of RuneLite's dark panel bg.
-	private static final Color KC4 = new Color(0xFF5700);
-	private static final Color KC3 = new Color(0xFFAD00);
-	private static final Color KC2 = new Color(0xCAFF00);
-	private static final Color KC1 = new Color(0x4EF015);
-
-	private static final Font BODY = new Font("Courier New", Font.PLAIN, 12);
-	private static final Font META = new Font("Courier New", Font.PLAIN, 11);
+	private static final Color TEXT_DIM = new Color(160, 160, 160);
+	/** Light gray, kc plugin's canonical primary data color (215,215,215). */
+	private static final Color KC_TEXT = new Color(215, 215, 215);
 
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
 
-	private final JTextField queryField = new JTextField(12);
-	private final JButton lookupButton = new JButton("look up");
-	private final JLabel statusLabel = new JLabel("idle");
+	private final JLabel statusLabel = new JLabel(" ");
+	private final IconTextField searchBar = new IconTextField();
 	private final JPanel list = new JPanel();
 
 	@Inject
@@ -65,111 +59,78 @@ public class ClanClogPanel extends PluginPanel
 		this.womClient = womClient;
 		this.batch = batch;
 
-		setLayout(new BorderLayout());
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
-		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+		setBorder(new EmptyBorder(8, 8, 8, 8));
+		setLayout(new BorderLayout());
 
-		add(buildSearchBar(), BorderLayout.NORTH);
+		add(buildHeader(), BorderLayout.NORTH);
 
 		list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
 		list.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		JScrollPane scroll = new JScrollPane(list,
-			ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-			ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-		scroll.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
+			JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		scroll.setBorder(null);
+		scroll.setViewportBorder(null);
 		scroll.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
 		scroll.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		add(scroll, BorderLayout.CENTER);
 
-		statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
-		statusLabel.setFont(META);
-		statusLabel.setForeground(KC3);
-		add(statusLabel, BorderLayout.SOUTH);
-
 		showPlaceholder();
 	}
 
-	private JPanel buildSearchBar()
+	private JPanel buildHeader()
 	{
-		JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-		bar.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		JPanel header = new JPanel();
+		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		JLabel label = new JLabel("clan");
-		label.setFont(BODY);
-		label.setForeground(KC4);
+		statusLabel.setFont(FontManager.getRunescapeSmallFont());
+		statusLabel.setForeground(TEXT_DIM);
+		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		statusLabel.setBorder(new EmptyBorder(0, 4, 2, 0));
+		statusLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		header.add(statusLabel);
 
-		queryField.setFont(BODY);
-		queryField.setForeground(KC4);
-		queryField.setCaretColor(KC4);
-		queryField.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		queryField.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createLineBorder(KC4, 1),
-			BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+		searchBar.setIcon(IconTextField.Icon.SEARCH);
+		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
+		searchBar.setPreferredSize(new Dimension(0, 30));
+		searchBar.setAlignmentX(Component.LEFT_ALIGNMENT);
+		searchBar.addActionListener(e -> onSubmit());
+		styleSearchBar(searchBar);
+		header.add(searchBar);
 
-		styleButton(lookupButton);
-		lookupButton.addActionListener(e -> onSubmitClicked());
-		queryField.addActionListener(e -> onSubmitClicked());
-
-		bar.add(label);
-		bar.add(queryField);
-		bar.add(lookupButton);
-		return bar;
+		return header;
 	}
 
-	private static void styleButton(JButton b)
+	private static void styleSearchBar(Container c)
 	{
-		b.setFont(BODY);
-		b.setForeground(KC4);
-		b.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		b.setFocusPainted(false);
-		b.setContentAreaFilled(false);
-		b.setOpaque(true);
-		b.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createLineBorder(KC4, 1),
-			BorderFactory.createEmptyBorder(2, 8, 2, 8)));
-		b.addMouseListener(new MouseAdapter()
+		c.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		for (Component child : c.getComponents())
 		{
-			@Override
-			public void mouseEntered(MouseEvent e)
+			if (child instanceof FlatTextField)
 			{
-				b.setForeground(KC2);
-				b.setBorder(BorderFactory.createCompoundBorder(
-					BorderFactory.createLineBorder(KC2, 1),
-					BorderFactory.createEmptyBorder(2, 8, 2, 8)));
+				FlatTextField ftf = (FlatTextField) child;
+				ftf.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+				JTextField tf = ftf.getTextField();
+				tf.setFont(FontManager.getRunescapeFont());
+				tf.setForeground(Color.WHITE);
+				tf.setCaretColor(Color.WHITE);
+				tf.putClientProperty(
+					RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			}
-
-			@Override
-			public void mouseExited(MouseEvent e)
+			else if (child instanceof Container)
 			{
-				b.setForeground(KC4);
-				b.setBorder(BorderFactory.createCompoundBorder(
-					BorderFactory.createLineBorder(KC4, 1),
-					BorderFactory.createEmptyBorder(2, 8, 2, 8)));
+				styleSearchBar((Container) child);
 			}
-
-			@Override
-			public void mousePressed(MouseEvent e)
-			{
-				b.setForeground(KC1);
-				b.setBorder(BorderFactory.createCompoundBorder(
-					BorderFactory.createLineBorder(KC1, 1),
-					BorderFactory.createEmptyBorder(2, 8, 2, 8)));
-			}
-
-			@Override
-			public void mouseReleased(MouseEvent e)
-			{
-				b.setForeground(KC2);
-				b.setBorder(BorderFactory.createCompoundBorder(
-					BorderFactory.createLineBorder(KC2, 1),
-					BorderFactory.createEmptyBorder(2, 8, 2, 8)));
-			}
-		});
+		}
 	}
 
-	private void onSubmitClicked()
+	private void onSubmit()
 	{
-		String raw = queryField.getText().trim();
+		String raw = searchBar.getText().trim();
 		if (raw.isEmpty())
 		{
 			setStatus("type a clan name or wom group id");
@@ -193,7 +154,7 @@ public class ClanClogPanel extends PluginPanel
 		list.repaint();
 
 		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
-			SwingUtilities.invokeLater(() ->
+			javax.swing.SwingUtilities.invokeLater(() ->
 			{
 				if (results == null || results.length == 0)
 				{
@@ -222,17 +183,17 @@ public class ClanClogPanel extends PluginPanel
 		JPanel row = new JPanel(new BorderLayout(8, 0));
 		row.setOpaque(true);
 		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+		row.setBorder(new EmptyBorder(4, 6, 4, 6));
 		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
 
 		JLabel name = new JLabel(g.name != null ? g.name : "(unnamed)");
-		name.setFont(BODY);
-		name.setForeground(KC4);
+		name.setFont(FontManager.getRunescapeSmallFont());
+		name.setForeground(KC_TEXT);
 
-		JLabel meta = new JLabel(g.memberCount + " members  #" + g.id);
-		meta.setFont(META);
-		meta.setForeground(KC3);
-		meta.setHorizontalAlignment(SwingConstants.RIGHT);
+		JLabel meta = new JLabel(g.memberCount + " · #" + g.id);
+		meta.setFont(FontManager.getRunescapeSmallFont());
+		meta.setForeground(TEXT_DIM);
+		meta.setHorizontalAlignment(JLabel.RIGHT);
 
 		row.add(name, BorderLayout.WEST);
 		row.add(meta, BorderLayout.EAST);
@@ -248,16 +209,12 @@ public class ClanClogPanel extends PluginPanel
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
-				name.setForeground(KC2);
-				meta.setForeground(KC2);
-				row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				name.setForeground(KC4);
-				meta.setForeground(KC3);
 				row.setBackground(ColorScheme.DARK_GRAY_COLOR);
 			}
 		});
@@ -275,7 +232,7 @@ public class ClanClogPanel extends PluginPanel
 		{
 			if (group == null)
 			{
-				SwingUtilities.invokeLater(() -> setStatus(
+				javax.swing.SwingUtilities.invokeLater(() -> setStatus(
 					"no group returned (network, missing id, or wom timeout)"));
 				return;
 			}
@@ -289,21 +246,20 @@ public class ClanClogPanel extends PluginPanel
 				}
 			}
 
-			SwingUtilities.invokeLater(() ->
+			javax.swing.SwingUtilities.invokeLater(() ->
 			{
-				setStatus(group.name + ": " + roster.size() + " members, fetching hiscores");
+				setStatus(group.name + " · " + roster.size() + " members · loading");
 				renderRoster(roster);
 			});
 
-			batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
+			batch.fetchAll(roster, completed -> javax.swing.SwingUtilities.invokeLater(() ->
 			{
-				setStatus(group.name + ": " + completed + "/" + roster.size() + " hiscores loaded");
+				setStatus(group.name + " · " + completed + "/" + roster.size() + " loaded");
 				renderRoster(roster);
 			})).whenComplete((v, batchEx) ->
-				SwingUtilities.invokeLater(() ->
+				javax.swing.SwingUtilities.invokeLater(() ->
 				{
-					statusLabel.setForeground(KC1);
-					setStatus(group.name + ": done, " + roster.size() + " members");
+					setStatus(group.name + " · " + roster.size() + " members");
 					renderRoster(roster);
 				}));
 		});
@@ -326,35 +282,50 @@ public class ClanClogPanel extends PluginPanel
 		JPanel row = new JPanel(new GridLayout(1, 3, 8, 0));
 		row.setOpaque(true);
 		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+		row.setBorder(new EmptyBorder(2, 6, 2, 6));
 		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
 
 		JLabel name = new JLabel(m.getDisplayName());
-		name.setFont(BODY);
-		name.setForeground(KC4);
+		name.setFont(FontManager.getRunescapeSmallFont());
+		name.setForeground(KC_TEXT);
 
 		JLabel role = new JLabel(prettyRole(m.getRole()));
-		role.setFont(META);
-		role.setForeground(KC3);
+		role.setFont(FontManager.getRunescapeSmallFont());
+		role.setForeground(TEXT_DIM);
 
 		JLabel total = new JLabel();
-		total.setFont(META);
+		total.setFont(FontManager.getRunescapeSmallFont());
 		HiscoreResult hs = m.getHiscore();
 		if (hs != null)
 		{
-			total.setText("tl " + hs.getTotalLevel() + "  cb " + hs.getCombatLevel());
-			total.setForeground(KC2);
+			total.setText("tl " + hs.getTotalLevel() + " · cb " + hs.getCombatLevel());
+			total.setForeground(KC_TEXT);
 		}
 		else
 		{
-			total.setText("...");
-			total.setForeground(KC3);
+			total.setText("·");
+			total.setForeground(TEXT_DIM);
 		}
-		total.setHorizontalAlignment(SwingConstants.RIGHT);
+		total.setHorizontalAlignment(JLabel.RIGHT);
 
 		row.add(name);
 		row.add(role);
 		row.add(total);
+
+		row.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			}
+		});
 		return row;
 	}
 
@@ -370,11 +341,11 @@ public class ClanClogPanel extends PluginPanel
 	private void showPlaceholder()
 	{
 		list.removeAll();
-		JLabel hint = new JLabel("type a clan name or wom id, then look up");
-		hint.setFont(META);
-		hint.setForeground(KC3);
+		JLabel hint = new JLabel("type a clan name or wom id");
+		hint.setFont(FontManager.getRunescapeSmallFont());
+		hint.setForeground(TEXT_DIM);
 		hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-		hint.setBorder(BorderFactory.createEmptyBorder(8, 4, 4, 4));
+		hint.setBorder(new EmptyBorder(8, 4, 4, 4));
 		list.add(hint);
 		list.add(Box.createVerticalGlue());
 	}
