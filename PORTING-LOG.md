@@ -47,3 +47,21 @@ these three give clan clog its foundational data layer. with them in, the vertic
 **phase-1 usage clarification:** clan clog phase 1 fetches hiscores per member (not clog data per member). LocalClogCache is still ported because (a) hiscore + clog data both share the same cache discipline, (b) the cache will be needed when clan clog gains per-member clog detail in a later phase, and (c) shipping the foundation now means future work is layer-on, not re-port.
 
 **next step:** HiscoreService -- the 480-LOC parallelized 4-endpoint fetcher with 2-min swr cache. scout says no functional changes. probably a 5-line diff (package + a `kill-clog` user-agent string if present, otherwise zero adaptations).
+
+---
+
+## 2026-05-13 cycle 5: HiscoreService
+
+**ported:** `HiscoreService.java`
+**source commit:** kcpdev `8470a0f` (2026-03-21, "cached lookups: 1-tick reveal, zero api hits within ttl"), kcpdev HEAD `e17a291`
+**scout reuse rating:** HIGH (audit table: "Parallelized 4-endpoint fetch (UIM/HCIM/Iron/Reg) + 2min SWR cache. Reuse as-is for single-player; wrap in batch adapter for clan scope.")
+
+**adaptations:** two targeted swaps over the 480-loc body.
+1. package `com.killclog` -> `com.clanclog`
+2. user-agent header (line 446 in source): `"kill-clog-RuneLite-Plugin/1.0 (https://github.com/420kc/kill-clog-plugin)"` -> `"clan-clog-RuneLite-Plugin/0.1 (https://github.com/420kc/clan-clog)"`. honest attribution to jagex about which plugin is hitting hiscores. version bumped to 0.1 to match the gradle group version.
+
+byte-identical otherwise. all skill / activity / boss arrays + csv index math + swr ttl + retry-on-transient-fail behavior carried over without change. the boss list is canon as of the source commit and will diverge from kc only if jagex adds bosses while clan clog is unmaintained.
+
+**batch-adapter note:** the scout calls for "wrap in batch adapter for clan scope" to fan out N*4 lookups (N=100-500 clan members). this is a NEW class -- not a modification to the ported HiscoreService -- and lives outside the foundational port. expected shape: `ClanHiscoreBatch` (or similar) that takes a roster of member RSNs, calls `hiscoreService.lookup()` per member, gathers results via `CompletableFuture.allOf()`, with stagger or semaphore to respect jagex rate limits. lives in the vertical-slice phase.
+
+**port-foundation phase: complete for high-reuse tier.** all four high-reuse components (data models triplet + LocalClogCache + HiscoreService) are in. medium-reuse ClogService (628 loc, would need a `TempleApiClient` extraction) is deferred per the scout's "copy first, extract later" dev approach -- not needed for phase-1 vertical slice which is hiscore-only. status advances to phase=vertical-slice.
