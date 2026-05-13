@@ -1,11 +1,14 @@
 package com.clanclog;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
@@ -24,23 +27,32 @@ import javax.swing.SwingUtilities;
 import net.runelite.client.ui.PluginPanel;
 
 /**
- * Vertical-slice surface. Top bar takes a WOM group id, fetches the roster,
- * fans out hiscore lookups, renders a member-per-row list with running progress.
+ * Vertical-slice surface. Top bar takes a clan name (or wom group id),
+ * fetches the roster, fans out hiscore lookups, renders a member-per-row list
+ * with running progress.
  *
- * <p>Intentionally minimal: no kc-palette styling, no sortable columns, no
- * filter chips, no live overlay. Phase 1 proof that the full pipe is wired.
- * Polish ships in follow-up cycles once the slice is observably working.
+ * <p>Two input modes share one field:
+ * <ul>
+ *   <li>all-digit input -- treated as a wom group id, loads directly</li>
+ *   <li>anything else -- treated as a name query, shows the top 10 matches
+ *       as clickable rows; click one to load that group</li>
+ * </ul>
+ *
+ * <p>Phase-1 minimal: no kc-palette styling, no sortable columns, no filter
+ * chips, no live overlay. Phase-2 polish is its own track.
  */
 @Singleton
 public class ClanClogPanel extends PluginPanel
 {
+	private static final int SEARCH_RESULT_LIMIT = 10;
+
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
 
-	private final JTextField groupIdField = new JTextField(8);
+	private final JTextField queryField = new JTextField(12);
 	private final JButton lookupButton = new JButton("Look up");
 	private final JLabel statusLabel = new JLabel("idle");
-	private final JPanel memberList = new JPanel();
+	private final JPanel list = new JPanel();
 
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, WomClient womClient, ClanHiscoreBatch batch)
@@ -52,49 +64,128 @@ public class ClanClogPanel extends PluginPanel
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
-		// --- top: search row ---
 		JPanel search = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-		search.add(new JLabel("WOM group id:"));
-		search.add(groupIdField);
+		search.add(new JLabel("clan:"));
+		search.add(queryField);
 		search.add(lookupButton);
 		add(search, BorderLayout.NORTH);
 
-		// --- center: scrollable member list ---
-		memberList.setLayout(new BoxLayout(memberList, BoxLayout.Y_AXIS));
-		JScrollPane scroll = new JScrollPane(memberList,
+		list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+		JScrollPane scroll = new JScrollPane(list,
 			ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
 			ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		scroll.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
 		add(scroll, BorderLayout.CENTER);
 
-		// --- bottom: status ---
 		statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
 		add(statusLabel, BorderLayout.SOUTH);
 
-		lookupButton.addActionListener(e -> onLookupClicked());
-		groupIdField.addActionListener(e -> onLookupClicked());
+		lookupButton.addActionListener(e -> onSubmitClicked());
+		queryField.addActionListener(e -> onSubmitClicked());
 
 		showPlaceholder();
 	}
 
-	private void onLookupClicked()
+	private void onSubmitClicked()
 	{
-		String raw = groupIdField.getText().trim();
-		final int id;
-		try
+		String raw = queryField.getText().trim();
+		if (raw.isEmpty())
 		{
-			id = Integer.parseInt(raw);
-		}
-		catch (NumberFormatException nfe)
-		{
-			setStatus("group id must be a number");
+			setStatus("type a clan name or wom group id");
 			return;
 		}
+		if (raw.matches("\\d+"))
+		{
+			loadGroupById(Integer.parseInt(raw));
+		}
+		else
+		{
+			searchByName(raw);
+		}
+	}
 
+	private void searchByName(String query)
+	{
+		setStatus("searching wom for \"" + query + "\"...");
+		list.removeAll();
+		list.revalidate();
+		list.repaint();
+
+		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (results == null || results.length == 0)
+				{
+					setStatus("no clans matched \"" + query + "\"");
+					return;
+				}
+				setStatus("matched " + results.length + " -- click one to load");
+				renderSearchResults(results);
+			}));
+	}
+
+	private void renderSearchResults(WomGroup[] results)
+	{
+		list.removeAll();
+		for (WomGroup g : results)
+		{
+			list.add(buildSearchRow(g));
+		}
+		list.add(Box.createVerticalGlue());
+		list.revalidate();
+		list.repaint();
+	}
+
+	private Component buildSearchRow(WomGroup g)
+	{
+		JPanel row = new JPanel(new GridLayout(1, 2, 8, 0));
+		row.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+		row.setOpaque(true);
+		final Color idleBg = row.getBackground();
+		final Color hoverBg = idleBg != null
+			? new Color(Math.min(255, idleBg.getRed() + 16),
+				Math.min(255, idleBg.getGreen() + 16),
+				Math.min(255, idleBg.getBlue() + 16))
+			: idleBg;
+
+		JLabel name = new JLabel(g.name != null ? g.name : "(unnamed)");
+		JLabel meta = new JLabel(g.memberCount + " members  #" + g.id);
+		meta.setFont(meta.getFont().deriveFont(Font.PLAIN, 11f));
+		meta.setHorizontalAlignment(SwingConstants.RIGHT);
+
+		row.add(name);
+		row.add(meta);
+
+		row.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				loadGroupById(g.id);
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				row.setBackground(hoverBg);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				row.setBackground(idleBg);
+			}
+		});
+		return row;
+	}
+
+	private void loadGroupById(int id)
+	{
 		setStatus("fetching roster for group " + id + "...");
-		memberList.removeAll();
-		memberList.revalidate();
-		memberList.repaint();
+		list.removeAll();
+		list.revalidate();
+		list.repaint();
 
 		womClient.getGroup(id).whenComplete((group, ex) ->
 		{
@@ -113,6 +204,7 @@ public class ClanClogPanel extends PluginPanel
 					roster.add(m);
 				}
 			}
+
 			SwingUtilities.invokeLater(() ->
 			{
 				setStatus(group.name + ": " + roster.size() + " members, fetching hiscores...");
@@ -134,17 +226,17 @@ public class ClanClogPanel extends PluginPanel
 
 	private void renderRoster(List<ClanMember> roster)
 	{
-		memberList.removeAll();
+		list.removeAll();
 		for (ClanMember m : roster)
 		{
-			memberList.add(buildRow(m));
+			list.add(buildMemberRow(m));
 		}
-		memberList.add(Box.createVerticalGlue());
-		memberList.revalidate();
-		memberList.repaint();
+		list.add(Box.createVerticalGlue());
+		list.revalidate();
+		list.repaint();
 	}
 
-	private static Component buildRow(ClanMember m)
+	private static Component buildMemberRow(ClanMember m)
 	{
 		JPanel row = new JPanel(new GridLayout(1, 3, 8, 0));
 		row.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
@@ -186,12 +278,12 @@ public class ClanClogPanel extends PluginPanel
 
 	private void showPlaceholder()
 	{
-		memberList.removeAll();
-		JLabel hint = new JLabel("enter a wom group id and press look up");
+		list.removeAll();
+		JLabel hint = new JLabel("type a clan name (or wom id) and press look up");
 		hint.setAlignmentX(Component.LEFT_ALIGNMENT);
 		hint.setBorder(BorderFactory.createEmptyBorder(8, 4, 4, 4));
-		memberList.add(hint);
-		memberList.add(Box.createVerticalGlue());
+		list.add(hint);
+		list.add(Box.createVerticalGlue());
 	}
 
 	private void setStatus(String text)
