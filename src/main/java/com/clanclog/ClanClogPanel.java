@@ -5,20 +5,18 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.GridLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.RenderingHints;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -27,82 +25,131 @@ import net.runelite.client.ui.components.FlatTextField;
 import net.runelite.client.ui.components.IconTextField;
 
 /**
- * Native-feeling clan clog panel. Modeled on KillClogPanel patterns: RuneLite's
- * ColorScheme + FontManager for the chrome, IconTextField for search, white /
- * light-gray for primary text + dim gray for meta.
+ * Main clan clog surface. Mirrors kill clog's layout shape: header search bar,
+ * a clan-summary strip, then the collective hiscore aggregate area where the
+ * boss grid lives. The full member roster is hidden behind a slide-out so the
+ * primary view stays focused on the clan-wide kc-style snapshot.
  *
- * <p>Input mode is single-field: digits-only -> wom group id direct load,
- * anything else -> name search shown as top-10 clickable rows. Press enter or
- * click a row to load that group; roster fills in as the hiscore fan-out
- * resolves.
+ * <p>Data source priority per the 2026-05-13 runtime-first lock:
+ * {@link InGameClanReader} (primary, no external dependency, refreshes when
+ * the user opens their clan tab in-game), {@link WomClient} (secondary, for
+ * "look up an arbitrary clan i'm not in" searches).
  */
 @Singleton
 public class ClanClogPanel extends PluginPanel
 {
 	private static final int SEARCH_RESULT_LIMIT = 10;
-
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
-	/** Light gray, kc plugin's canonical primary data color (215,215,215). */
 	private static final Color KC_TEXT = new Color(215, 215, 215);
 
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
+	private final InGameClanReader clanReader;
 
 	private final JLabel statusLabel = new JLabel(" ");
 	private final IconTextField searchBar = new IconTextField();
-	private final JPanel list = new JPanel();
+	private final JLabel clanHeader = new JLabel(" ");
+	private final JPanel aggregateArea = new JPanel(new BorderLayout());
+	private final ClanMembersView membersView = new ClanMembersView();
+	private final SlidePanel membersTray = new SlidePanel("members", membersView, false);
 
 	@Inject
-	public ClanClogPanel(ClanClogConfig config, WomClient womClient, ClanHiscoreBatch batch)
+	public ClanClogPanel(ClanClogConfig config, WomClient womClient,
+		ClanHiscoreBatch batch, InGameClanReader clanReader)
 	{
 		super(false);
 		this.womClient = womClient;
 		this.batch = batch;
+		this.clanReader = clanReader;
 
+		setLayout(new GridBagLayout());
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 		setBorder(new EmptyBorder(8, 8, 8, 8));
-		setLayout(new BorderLayout());
 
-		add(buildHeader(), BorderLayout.NORTH);
+		GridBagConstraints c = new GridBagConstraints();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.weightx = 1;
+		c.weighty = 0;
+		c.insets = new Insets(0, 0, 6, 0);
 
-		list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-		list.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		JScrollPane scroll = new JScrollPane(list,
-			JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-		scroll.setBorder(null);
-		scroll.setViewportBorder(null);
-		scroll.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
-		scroll.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		add(scroll, BorderLayout.CENTER);
+		add(buildHeader(), c);
 
-		showPlaceholder();
+		c.gridy++;
+		add(buildClanSummary(), c);
+
+		c.gridy++;
+		c.weighty = 1;
+		c.fill = GridBagConstraints.BOTH;
+		c.insets = new Insets(0, 0, 6, 0);
+		add(buildAggregateArea(), c);
+
+		c.gridy++;
+		c.weighty = 0;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.insets = new Insets(0, 0, 0, 0);
+		add(membersTray.getHeader(), c);
+
+		c.gridy++;
+		add(membersTray.getClip(), c);
+
+		c.gridy++;
+		c.insets = new Insets(4, 0, 0, 0);
+		statusLabel.setFont(FontManager.getRunescapeSmallFont());
+		statusLabel.setForeground(TEXT_DIM);
+		statusLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		statusLabel.setText("idle");
+		add(statusLabel, c);
+
+		clanReader.addListener(roster ->
+			SwingUtilities.invokeLater(() -> onInGameRosterRefreshed(roster)));
 	}
 
 	private JPanel buildHeader()
 	{
-		JPanel header = new JPanel();
-		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+		JPanel header = new JPanel(new BorderLayout());
 		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
-
-		statusLabel.setFont(FontManager.getRunescapeSmallFont());
-		statusLabel.setForeground(TEXT_DIM);
-		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-		statusLabel.setBorder(new EmptyBorder(0, 4, 2, 0));
-		statusLabel.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		header.add(statusLabel);
 
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
 		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
 		searchBar.setPreferredSize(new Dimension(0, 30));
-		searchBar.setAlignmentX(Component.LEFT_ALIGNMENT);
 		searchBar.addActionListener(e -> onSubmit());
 		styleSearchBar(searchBar);
-		header.add(searchBar);
 
+		header.add(searchBar, BorderLayout.CENTER);
 		return header;
+	}
+
+	private JPanel buildClanSummary()
+	{
+		JPanel summary = new JPanel(new BorderLayout());
+		summary.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		summary.setBorder(new EmptyBorder(4, 4, 4, 4));
+
+		clanHeader.setFont(FontManager.getRunescapeFont());
+		clanHeader.setForeground(KC_TEXT);
+		clanHeader.setText("no clan loaded");
+		summary.add(clanHeader, BorderLayout.WEST);
+
+		return summary;
+	}
+
+	private JPanel buildAggregateArea()
+	{
+		aggregateArea.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		aggregateArea.setBorder(new EmptyBorder(8, 0, 8, 0));
+
+		JLabel placeholder = new JLabel(
+			"<html><center>collective hiscore grid<br>(kc-style aggregate, wiring in next cycle)</center></html>",
+			JLabel.CENTER);
+		placeholder.setFont(FontManager.getRunescapeSmallFont());
+		placeholder.setForeground(TEXT_DIM);
+		aggregateArea.add(placeholder, BorderLayout.CENTER);
+
+		return aggregateArea;
 	}
 
 	private static void styleSearchBar(Container c)
@@ -116,8 +163,8 @@ public class ClanClogPanel extends PluginPanel
 				ftf.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 				JTextField tf = ftf.getTextField();
 				tf.setFont(FontManager.getRunescapeFont());
-				tf.setForeground(Color.WHITE);
-				tf.setCaretColor(Color.WHITE);
+				tf.setForeground(KC_TEXT);
+				tf.setCaretColor(KC_TEXT);
 				tf.putClientProperty(
 					RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			}
@@ -149,91 +196,41 @@ public class ClanClogPanel extends PluginPanel
 	private void searchByName(String query)
 	{
 		setStatus("searching wom for \"" + query + "\"...");
-		list.removeAll();
-		list.revalidate();
-		list.repaint();
+		if (!membersTray.isExpanded())
+		{
+			membersTray.toggle();
+		}
+		membersView.showPlaceholder("searching...");
 
 		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
-			javax.swing.SwingUtilities.invokeLater(() ->
+			SwingUtilities.invokeLater(() ->
 			{
 				if (results == null || results.length == 0)
 				{
 					setStatus("no clans matched \"" + query + "\"");
+					membersView.showPlaceholder("no matches");
 					return;
 				}
 				setStatus("matched " + results.length + ", click one to load");
-				renderSearchResults(results);
+				membersView.renderSearchResults(results, this::loadGroupById);
 			}));
-	}
-
-	private void renderSearchResults(WomGroup[] results)
-	{
-		list.removeAll();
-		for (WomGroup g : results)
-		{
-			list.add(buildSearchRow(g));
-		}
-		list.add(Box.createVerticalGlue());
-		list.revalidate();
-		list.repaint();
-	}
-
-	private Component buildSearchRow(WomGroup g)
-	{
-		JPanel row = new JPanel(new BorderLayout(8, 0));
-		row.setOpaque(true);
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(new EmptyBorder(4, 6, 4, 6));
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
-
-		JLabel name = new JLabel(g.name != null ? g.name : "(unnamed)");
-		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(KC_TEXT);
-
-		JLabel meta = new JLabel(g.memberCount + " · #" + g.id);
-		meta.setFont(FontManager.getRunescapeSmallFont());
-		meta.setForeground(TEXT_DIM);
-		meta.setHorizontalAlignment(JLabel.RIGHT);
-
-		row.add(name, BorderLayout.WEST);
-		row.add(meta, BorderLayout.EAST);
-
-		row.addMouseListener(new MouseAdapter()
-		{
-			@Override
-			public void mouseClicked(MouseEvent e)
-			{
-				loadGroupById(g.id);
-			}
-
-			@Override
-			public void mouseEntered(MouseEvent e)
-			{
-				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
-			}
-
-			@Override
-			public void mouseExited(MouseEvent e)
-			{
-				row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			}
-		});
-		return row;
 	}
 
 	private void loadGroupById(int id)
 	{
 		setStatus("fetching roster for group " + id + "...");
-		list.removeAll();
-		list.revalidate();
-		list.repaint();
+		clanHeader.setText("loading clan " + id + "...");
+		membersView.showPlaceholder("loading...");
 
 		womClient.getGroup(id).whenComplete((group, ex) ->
 		{
 			if (group == null)
 			{
-				javax.swing.SwingUtilities.invokeLater(() -> setStatus(
-					"no group returned (network, missing id, or wom timeout)"));
+				SwingUtilities.invokeLater(() ->
+				{
+					setStatus("no group returned (network, missing id, or wom timeout)");
+					clanHeader.setText("no clan loaded");
+				});
 				return;
 			}
 			List<ClanMember> roster = new ArrayList<>();
@@ -246,108 +243,59 @@ public class ClanClogPanel extends PluginPanel
 				}
 			}
 
-			javax.swing.SwingUtilities.invokeLater(() ->
+			SwingUtilities.invokeLater(() ->
 			{
-				setStatus(group.name + " · " + roster.size() + " members · loading");
-				renderRoster(roster);
+				clanHeader.setText(group.name + " · " + roster.size() + " members");
+				setStatus("fetching hiscores · 0/" + roster.size());
+				membersView.renderRoster(roster);
 			});
 
-			batch.fetchAll(roster, completed -> javax.swing.SwingUtilities.invokeLater(() ->
+			batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
 			{
-				setStatus(group.name + " · " + completed + "/" + roster.size() + " loaded");
-				renderRoster(roster);
+				setStatus("fetching hiscores · " + completed + "/" + roster.size());
+				membersView.renderRoster(roster);
 			})).whenComplete((v, batchEx) ->
-				javax.swing.SwingUtilities.invokeLater(() ->
+				SwingUtilities.invokeLater(() ->
 				{
-					setStatus(group.name + " · " + roster.size() + " members");
-					renderRoster(roster);
+					setStatus("done · " + roster.size() + " members");
+					membersView.renderRoster(roster);
 				}));
 		});
 	}
 
-	private void renderRoster(List<ClanMember> roster)
+	/**
+	 * Called whenever {@link InGameClanReader} refreshes (user opens their clan
+	 * tab in-game). For now: when the panel is "idle" with no manually-loaded
+	 * clan, auto-populate from the in-game roster. Once the user has explicitly
+	 * loaded another clan via search, leave their view alone.
+	 */
+	private void onInGameRosterRefreshed(List<ClanMember> roster)
 	{
-		list.removeAll();
-		for (ClanMember m : roster)
+		if (roster == null || roster.isEmpty())
 		{
-			list.add(buildMemberRow(m));
+			return;
 		}
-		list.add(Box.createVerticalGlue());
-		list.revalidate();
-		list.repaint();
-	}
-
-	private static Component buildMemberRow(ClanMember m)
-	{
-		JPanel row = new JPanel(new GridLayout(1, 3, 8, 0));
-		row.setOpaque(true);
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(new EmptyBorder(2, 6, 2, 6));
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
-
-		JLabel name = new JLabel(m.getDisplayName());
-		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(KC_TEXT);
-
-		JLabel role = new JLabel(prettyRole(m.getRole()));
-		role.setFont(FontManager.getRunescapeSmallFont());
-		role.setForeground(TEXT_DIM);
-
-		JLabel total = new JLabel();
-		total.setFont(FontManager.getRunescapeSmallFont());
-		HiscoreResult hs = m.getHiscore();
-		if (hs != null)
+		String currentHeader = clanHeader.getText();
+		if (currentHeader != null && !currentHeader.equals("no clan loaded")
+			&& !currentHeader.startsWith("loading"))
 		{
-			total.setText("tl " + hs.getTotalLevel() + " · cb " + hs.getCombatLevel());
-			total.setForeground(KC_TEXT);
+			return;
 		}
-		else
-		{
-			total.setText("·");
-			total.setForeground(TEXT_DIM);
-		}
-		total.setHorizontalAlignment(JLabel.RIGHT);
+		clanHeader.setText("my clan · " + roster.size() + " members");
+		setStatus("in-game roster synced · fetching hiscores · 0/" + roster.size());
+		membersView.renderRoster(roster);
 
-		row.add(name);
-		row.add(role);
-		row.add(total);
-
-		row.addMouseListener(new MouseAdapter()
+		List<ClanMember> mutable = new ArrayList<>(roster);
+		batch.fetchAll(mutable, completed -> SwingUtilities.invokeLater(() ->
 		{
-			@Override
-			public void mouseEntered(MouseEvent e)
+			setStatus("in-game roster · " + completed + "/" + mutable.size());
+			membersView.renderRoster(mutable);
+		})).whenComplete((v, batchEx) ->
+			SwingUtilities.invokeLater(() ->
 			{
-				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
-			}
-
-			@Override
-			public void mouseExited(MouseEvent e)
-			{
-				row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			}
-		});
-		return row;
-	}
-
-	private static String prettyRole(String raw)
-	{
-		if (raw == null || raw.isEmpty())
-		{
-			return "";
-		}
-		return raw.replace('_', ' ');
-	}
-
-	private void showPlaceholder()
-	{
-		list.removeAll();
-		JLabel hint = new JLabel("type a clan name or wom id");
-		hint.setFont(FontManager.getRunescapeSmallFont());
-		hint.setForeground(TEXT_DIM);
-		hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-		hint.setBorder(new EmptyBorder(8, 4, 4, 4));
-		list.add(hint);
-		list.add(Box.createVerticalGlue());
+				setStatus("done · " + mutable.size() + " members");
+				membersView.renderRoster(mutable);
+			}));
 	}
 
 	private void setStatus(String text)
