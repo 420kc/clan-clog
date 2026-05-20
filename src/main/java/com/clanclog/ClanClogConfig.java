@@ -17,4 +17,26 @@ public interface ClanClogConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "tooltipMode",
+		name = "Tooltip Activation",
+		description = "How tooltips are triggered on boss and activity cells (hover or click-to-reveal)",
+		position = 1
+	)
+	default TooltipMode tooltipMode()
+	{
+		return TooltipMode.CLICK;
+	}
+
+	@ConfigItem(
+		keyName = "hoverStyle",
+		name = "Cell Hover",
+		description = "Visual feedback when hovering a cell. Outline uses the highlight color, Tint subtly brightens the background.",
+		position = 2
+	)
+	default HoverStyle hoverStyle()
+	{
+		return HoverStyle.OUTLINE;
+	}
 }
