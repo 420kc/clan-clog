@@ -24,10 +24,23 @@ import net.runelite.client.chat.QueuedMessage;
 
 /**
  * Clogsworth narration dispatcher. Loads the line library from the classpath
- * resource at boot, picks an eligible line per event with a short cooldown
- * to prevent immediate repetition, substitutes placeholders, and renders to
- * the local chatbox via {@link ChatMessageType#GAMEMESSAGE} so the player
- * sees it without broadcasting to clan chat.
+ * resource at boot, picks an eligible line per event, substitutes placeholders,
+ * and renders into the player's CLAN CHAT tab with sender = "Clogsworth" so
+ * the narration reads as if he is an active clanmate responding to the
+ * broadcast.
+ *
+ * <p>Render is still local-only ({@link ChatMessageType#CLAN_CHAT} queued
+ * directly into the chatbox, never sent through the OSRS chat protocol).
+ * Each installed plugin renders independently into its own player's chatbox.
+ * Players without Clan Clog see nothing; players with Clan Clog all see
+ * Clogsworth in clan chat. No broadcast, no impersonation, no ToS risk.
+ *
+ * <p>Line pick is deterministic when a source-message seed is provided
+ * (hash of the source chat-message + event type seeds the pick), so all
+ * installed clanmates responding to the same source broadcast land on the
+ * SAME Clogsworth line at the SAME moment. Shared experience without any
+ * actual coordination. Per dyl 2026-05-19: "way more fun if he's an active
+ * chat member who everyone sees the same thing of."
  *
  * <p>Per project_clan_hiscores_plugin.md (locked 2026-05-19): v1 ships
  * event-triggered narration only for joined / left / kicked. Ambient
@@ -44,10 +57,11 @@ import net.runelite.client.chat.QueuedMessage;
 public class ClogsworthDispatcher
 {
 	private static final String LIBRARY_RESOURCE = "/com/clanclog/clogsworth-lines.json";
+	private static final String SENDER_NAME = "Clogsworth";
+	// Cooldown only applies in random-pick mode (no seed). Deterministic
+	// mode (seeded by source message) intentionally skips cooldown so all
+	// installed plugins pick the same line for the same source broadcast.
 	private static final int COOLDOWN_LINES_PER_EVENT = 3;
-	// kc4 hex per style_guide_typography_canon. Prefixes the [Clogsworth]
-	// tag so the narration is visibly part of the kc brand family in chat.
-	private static final String PREFIX = "<col=ff5700>[Clogsworth]</col> ";
 
 	private final ChatMessageManager chatMessageManager;
 	private final ClientThread clientThread;
@@ -114,8 +128,15 @@ public class ClogsworthDispatcher
 	 * Render a Clogsworth line for the given event type, substituting any
 	 * available placeholders. Silent no-op if no eligible lines exist or the
 	 * library failed to load.
+	 *
+	 * @param sourceSeed when non-null, the line pick is deterministic across
+	 *                   all installed plugins responding to the same source
+	 *                   broadcast (hash-seeded into the eligible pool, no
+	 *                   cooldown applied). When null, falls back to random
+	 *                   pick with cooldown. ChatScanner passes the raw source
+	 *                   chat message text for event-triggered narrations.
 	 */
-	public void narrate(String eventType, Map<String, String> placeholders)
+	public void narrate(String eventType, Map<String, String> placeholders, String sourceSeed)
 	{
 		List<Line> available = linesByEvent.get(eventType);
 		if (available == null || available.isEmpty())
@@ -124,12 +145,12 @@ public class ClogsworthDispatcher
 			return;
 		}
 
-		// First pass: eligible AND not on cooldown
-		Queue<Integer> recent = recentByEvent.get(eventType);
-		List<Integer> eligibleIndices = collectEligible(available, placeholders, recent);
+		final boolean deterministic = sourceSeed != null && !sourceSeed.isEmpty();
+		Queue<Integer> recent = deterministic ? null : recentByEvent.get(eventType);
 
-		// Second pass fallback: if cooldown blocked everything, ignore it
-		if (eligibleIndices.isEmpty())
+		List<Integer> eligibleIndices = collectEligible(available, placeholders, recent);
+		// Fallback: if cooldown blocked everything in random mode, ignore it
+		if (eligibleIndices.isEmpty() && !deterministic)
 		{
 			eligibleIndices = collectEligible(available, placeholders, null);
 		}
@@ -141,22 +162,38 @@ public class ClogsworthDispatcher
 			return;
 		}
 
-		int pick = eligibleIndices.get(ThreadLocalRandom.current().nextInt(eligibleIndices.size()));
-		Line chosen = available.get(pick);
-		String rendered = PREFIX + substitute(chosen.text, placeholders);
-
-		if (recent != null)
+		int pick;
+		if (deterministic)
 		{
-			recent.offer(pick);
-			while (recent.size() > COOLDOWN_LINES_PER_EVENT)
+			// Deterministic hash so every plugin instance picks the same line
+			// for the same source broadcast. String.hashCode is JVM-stable.
+			int seed = (eventType + "" + sourceSeed).hashCode();
+			int idx = Math.floorMod(seed, eligibleIndices.size());
+			pick = eligibleIndices.get(idx);
+		}
+		else
+		{
+			pick = eligibleIndices.get(ThreadLocalRandom.current().nextInt(eligibleIndices.size()));
+			if (recent != null)
 			{
-				recent.poll();
+				recent.offer(pick);
+				while (recent.size() > COOLDOWN_LINES_PER_EVENT)
+				{
+					recent.poll();
+				}
 			}
 		}
 
-		// Chat manager calls must run on the client thread
+		Line chosen = available.get(pick);
+		String rendered = substitute(chosen.text, placeholders);
+
+		// Queue into the player's CLAN CHAT tab with sender = "Clogsworth"
+		// so it reads as an active clanmate response in-game. Local-only;
+		// other players' chatboxes are unaffected. Each plugin instance
+		// renders independently into its own player's clan chat.
 		clientThread.invoke(() -> chatMessageManager.queue(QueuedMessage.builder()
-			.type(ChatMessageType.GAMEMESSAGE)
+			.type(ChatMessageType.CLAN_CHAT)
+			.name(SENDER_NAME)
 			.runeLiteFormattedMessage(rendered)
 			.build()));
 	}

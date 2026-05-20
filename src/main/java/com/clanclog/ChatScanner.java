@@ -118,7 +118,14 @@ public class ChatScanner
 		}
 
 		log.debug("clan event: type={} rsn={} actor={}", eventType, rsnClean, actorClean);
-		clogsworth.narrate(eventType, placeholders);
+		// Pass the rsn + event type combo as the deterministic seed so all
+		// installed plugins responding to the same source broadcast pick the
+		// same line. Stable across JVMs (String.hashCode is spec-stable).
+		// Using the rsn-and-type composite rather than the raw source text
+		// because the raw text may include per-player chat-formatting tokens
+		// that vary slightly across clients.
+		String seed = eventType + ":" + rsnClean.toLowerCase() + (actorClean != null ? ":" + actorClean.toLowerCase() : "");
+		clogsworth.narrate(eventType, placeholders, seed);
 		// TODO sub-phase next: also POST to killclog-api /api/clan/<slug>/events
 		// once KillclogApiClient + the local clan-record cache are wired.
 	}
