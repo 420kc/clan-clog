@@ -3,8 +3,19 @@ package com.clanclog;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 
-/** Immutable data holder for sprite tooltip content. */
+/**
+ * Immutable data holder for sprite tooltip content.
+ *
+ * <p>Carries both per-player fields (ported byte-identical from kcpdev) and
+ * clan-aware fields added 2026-05-20 for sub-phase 3b.3.3. The clan fields
+ * are {@code @Nullable} so per-player code paths still work with the
+ * 7-arg constructor; the 10-arg constructor populates them for clan-flavored
+ * tooltips (holder counts, first-seen history). ImgTooltip's renderer can
+ * branch on null-ness of the clan fields to render either per-player obtained
+ * counts or clan holder counts + first-seen overlays.
+ */
 final class TooltipData
 {
 	final String name;
@@ -15,9 +26,29 @@ final class TooltipData
 	final Set<Integer> obtainedIds;
 	final Map<Integer, Integer> obtainedCounts;
 
+	/** Clan-aware: how many clan members hold each item id. Null in per-player context. */
+	@Nullable final Map<Integer, Integer> holderCounts;
+	/** Clan-aware: first-seen-by-killclog-api timestamp per item id (ISO). Null in per-player context. */
+	@Nullable final Map<Integer, String> firstSeenAt;
+	/** Clan-aware: rsn of the first-recorded holder per item id. Null in per-player context. */
+	@Nullable final Map<Integer, String> firstSeenByRsn;
+
+	/** Per-player constructor (existing kcpdev shape, clan fields null). */
 	TooltipData(String name, int rank, int obtainedCount, int totalItems,
 				List<Integer> allItemIds, Set<Integer> obtainedIds,
 				Map<Integer, Integer> obtainedCounts)
+	{
+		this(name, rank, obtainedCount, totalItems, allItemIds, obtainedIds, obtainedCounts,
+			null, null, null);
+	}
+
+	/** Clan-aware constructor (added 2026-05-20 sub-phase 3b.3.3). */
+	TooltipData(String name, int rank, int obtainedCount, int totalItems,
+				List<Integer> allItemIds, Set<Integer> obtainedIds,
+				Map<Integer, Integer> obtainedCounts,
+				@Nullable Map<Integer, Integer> holderCounts,
+				@Nullable Map<Integer, String> firstSeenAt,
+				@Nullable Map<Integer, String> firstSeenByRsn)
 	{
 		this.name = name;
 		this.rank = rank;
@@ -26,5 +57,14 @@ final class TooltipData
 		this.allItemIds = allItemIds;
 		this.obtainedIds = obtainedIds;
 		this.obtainedCounts = obtainedCounts;
+		this.holderCounts = holderCounts;
+		this.firstSeenAt = firstSeenAt;
+		this.firstSeenByRsn = firstSeenByRsn;
+	}
+
+	/** True when this tooltip data carries clan-aggregate fields (holder counts, first-seen). */
+	boolean isClanFlavor()
+	{
+		return holderCounts != null;
 	}
 }
