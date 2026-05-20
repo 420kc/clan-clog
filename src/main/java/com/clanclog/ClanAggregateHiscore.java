@@ -64,7 +64,9 @@ public final class ClanAggregateHiscore
 		}
 	}
 
-	private ClanAggregateHiscore() { }
+	private ClanAggregateHiscore()
+	{
+	}
 
 	/**
 	 * Compute aggregates for a set of named cells. Boss callers pass

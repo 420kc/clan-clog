@@ -67,15 +67,50 @@ public class ClanClogResult
 	@SerializedName("bosses")
 	private Map<String, BossAggregate> bosses;
 
-	public String getSlug() { return slug; }
-	public String getDisplayName() { return displayName; }
-	public int getMemberCount() { return memberCount; }
-	public String getRosterHash() { return rosterHash; }
-	public String getLastSyncedAt() { return lastSyncedAt; }
-	public String getClogLastChanged() { return clogLastChanged; }
-	public MemberCoverage getMemberCoverage() { return memberCoverage; }
-	public ClogUnion getClog() { return clog; }
-	public Map<String, BossAggregate> getBosses() { return bosses != null ? bosses : Collections.emptyMap(); }
+	public String getSlug()
+	{
+		return slug;
+	}
+
+	public String getDisplayName()
+	{
+		return displayName;
+	}
+
+	public int getMemberCount()
+	{
+		return memberCount;
+	}
+
+	public String getRosterHash()
+	{
+		return rosterHash;
+	}
+
+	public String getLastSyncedAt()
+	{
+		return lastSyncedAt;
+	}
+
+	public String getClogLastChanged()
+	{
+		return clogLastChanged;
+	}
+
+	public MemberCoverage getMemberCoverage()
+	{
+		return memberCoverage;
+	}
+
+	public ClogUnion getClog()
+	{
+		return clog;
+	}
+
+	public Map<String, BossAggregate> getBosses()
+	{
+		return bosses != null ? bosses : Collections.emptyMap();
+	}
 
 	/**
 	 * Member-coverage tally. Every member ends up in exactly one bucket so
@@ -92,12 +127,35 @@ public class ClanClogResult
 		@SerializedName("not_found")      private int notFound;
 		@SerializedName("error")          private int error;
 
-		public int getTotal()         { return total; }
-		public int getTempleOk()      { return templeOk; }
-		public int getTempleMissing() { return templeMissing; }
-		public int getOptedOut()      { return optedOut; }
-		public int getNotFound()      { return notFound; }
-		public int getError()         { return error; }
+		public int getTotal()
+		{
+			return total;
+		}
+
+		public int getTempleOk()
+		{
+			return templeOk;
+		}
+
+		public int getTempleMissing()
+		{
+			return templeMissing;
+		}
+
+		public int getOptedOut()
+		{
+			return optedOut;
+		}
+
+		public int getNotFound()
+		{
+			return notFound;
+		}
+
+		public int getError()
+		{
+			return error;
+		}
 	}
 
 	/**
@@ -112,10 +170,25 @@ public class ClanClogResult
 		@SerializedName("item_meta")         private Map<String, ItemMeta> itemMeta;
 		@SerializedName("recently_acquired") private List<RecentItem> recentlyAcquired;
 
-		public Map<String, List<Integer>> getItemsByCategory() { return itemsByCategory != null ? itemsByCategory : Collections.emptyMap(); }
-		public int getTotalObtained() { return totalObtained; }
-		public Map<String, ItemMeta> getItemMeta() { return itemMeta != null ? itemMeta : Collections.emptyMap(); }
-		public List<RecentItem> getRecentlyAcquired() { return recentlyAcquired != null ? recentlyAcquired : Collections.emptyList(); }
+		public Map<String, List<Integer>> getItemsByCategory()
+		{
+			return itemsByCategory != null ? itemsByCategory : Collections.emptyMap();
+		}
+
+		public int getTotalObtained()
+		{
+			return totalObtained;
+		}
+
+		public Map<String, ItemMeta> getItemMeta()
+		{
+			return itemMeta != null ? itemMeta : Collections.emptyMap();
+		}
+
+		public List<RecentItem> getRecentlyAcquired()
+		{
+			return recentlyAcquired != null ? recentlyAcquired : Collections.emptyList();
+		}
 	}
 
 	/**
@@ -130,9 +203,20 @@ public class ClanClogResult
 		@SerializedName("first_seen_at")     private String firstSeenAt;
 		@SerializedName("first_seen_by_rsn") private String firstSeenByRsn;
 
-		public int getHolderCount()        { return holderCount; }
-		public String getFirstSeenAt()     { return firstSeenAt; }
-		public String getFirstSeenByRsn()  { return firstSeenByRsn; }
+		public int getHolderCount()
+		{
+			return holderCount;
+		}
+
+		public String getFirstSeenAt()
+		{
+			return firstSeenAt;
+		}
+
+		public String getFirstSeenByRsn()
+		{
+			return firstSeenByRsn;
+		}
 	}
 
 	/** One entry in the recently-acquired feed (sorted desc by first_seen_at on the backend, cap 30). */
@@ -144,11 +228,30 @@ public class ClanClogResult
 		@SerializedName("first_seen_by_rsn")  private String firstSeenByRsn;
 		@SerializedName("holder_count")       private int holderCount;
 
-		public int getItemId()             { return itemId; }
-		public String getCategory()        { return category; }
-		public String getFirstSeenAt()     { return firstSeenAt; }
-		public String getFirstSeenByRsn()  { return firstSeenByRsn; }
-		public int getHolderCount()        { return holderCount; }
+		public int getItemId()
+		{
+			return itemId;
+		}
+
+		public String getCategory()
+		{
+			return category;
+		}
+
+		public String getFirstSeenAt()
+		{
+			return firstSeenAt;
+		}
+
+		public String getFirstSeenByRsn()
+		{
+			return firstSeenByRsn;
+		}
+
+		public int getHolderCount()
+		{
+			return holderCount;
+		}
 	}
 
 	/**
@@ -162,9 +265,20 @@ public class ClanClogResult
 		@SerializedName("top_3")            private List<MemberKc> top3;
 		@SerializedName("member_coverage")  private int memberCoverage;
 
-		public long getClanTotalKc()      { return clanTotalKc; }
-		public List<MemberKc> getTop3()   { return top3 != null ? top3 : Collections.emptyList(); }
-		public int getMemberCoverage()    { return memberCoverage; }
+		public long getClanTotalKc()
+		{
+			return clanTotalKc;
+		}
+
+		public List<MemberKc> getTop3()
+		{
+			return top3 != null ? top3 : Collections.emptyList();
+		}
+
+		public int getMemberCoverage()
+		{
+			return memberCoverage;
+		}
 	}
 
 	/** One contributor's kc at a boss, used in BossAggregate.top_3. */
@@ -173,7 +287,14 @@ public class ClanClogResult
 		@SerializedName("rsn") private String rsn;
 		@SerializedName("kc")  private long kc;
 
-		public String getRsn() { return rsn; }
-		public long getKc()    { return kc; }
+		public String getRsn()
+		{
+			return rsn;
+		}
+
+		public long getKc()
+		{
+			return kc;
+		}
 	}
 }
