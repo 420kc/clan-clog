@@ -40,7 +40,7 @@ public class HiscoreService
 
 	// Activity names in hiscore CSV order.
 	// Includes deprecated entries (Grid Points, Deadman Points, BH Legacy) that
-	// still occupy CSV lines — must be present so indices align correctly.
+	// still occupy CSV lines , must be present so indices align correctly.
 	private static final String[] ACTIVITY_NAMES = {
 		"Grid Points",
 		"League Points",
@@ -58,7 +58,7 @@ public class HiscoreService
 	private static final int ACTIVITY_START_INDEX = 1 + SKILL_NAMES.length;
 	private static final int BOSS_START_INDEX = ACTIVITY_START_INDEX + ACTIVITY_NAMES.length;
 
-	// Boss names in hiscore CSV order — must match Jagex's exact alphabetical order.
+	// Boss names in hiscore CSV order , must match Jagex's exact alphabetical order.
 	// NEW BOSS PLAYBOOK: When Jagex adds a boss to hiscores:
 	//   1. Add name here in alphabetical order
 	//   2. Wait for RuneLite to add HiscoreSkill enum (check latest.release jar)
@@ -214,13 +214,13 @@ public class HiscoreService
 					? knownType
 					: detectAccountType(uimBody, hcimBody, ironBody, regBody);
 
-				// HCIM detected without knownType — dead HCIMs have frozen XP on the
+				// HCIM detected without knownType , dead HCIMs have frozen XP on the
 				// HCIM table forever. If reg or iron failed, retry those two specifically
 				// before accepting HCIM. UIM is irrelevant (mutually exclusive).
 				if (knownType == null && type == AccountType.HARDCORE_IRONMAN
 					&& (regBody == null || ironBody == null))
 				{
-					log.debug("HCIM detected but reg/iron missing — retrying to confirm");
+					log.debug("HCIM detected but reg/iron missing , retrying to confirm");
 					CompletableFuture<String> retryReg = regBody != null
 						? CompletableFuture.completedFuture(regBody)
 						: fetchAsync("hiscore_oldschool", encoded);
@@ -273,7 +273,7 @@ public class HiscoreService
 			return AccountType.IRONMAN;
 		}
 
-		// Fallback: regular endpoint failed — cross-check specialty endpoints
+		// Fallback: regular endpoint failed , cross-check specialty endpoints
 		// to avoid false positives from dead HCIMs/UIMs with frozen XP
 		if (regXp <= 0)
 		{
@@ -324,7 +324,7 @@ public class HiscoreService
 		int expected = 1 + SKILL_NAMES.length + ACTIVITY_NAMES.length + BOSS_NAMES.length;
 		if (lines.length != expected)
 		{
-			log.warn("Hiscore CSV line count changed: expected {} but got {} — boss data may have shifted",
+			log.warn("Hiscore CSV line count changed: expected {} but got {} , boss data may have shifted",
 				expected, lines.length);
 		}
 		Map<String, Integer> bossKills = new LinkedHashMap<>();

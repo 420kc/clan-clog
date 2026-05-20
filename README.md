@@ -1,35 +1,43 @@
-# clan clog
+# Clan Clog
 
-kill clog for clans. type a clan name, see every member ranked. native-feeling osrs interface.
+Clan Clog is a RuneLite plugin. The clan-scale sibling to [Kill Clog](https://github.com/420kc/kill-clog-plugin).
 
-sibling plugin to kill clog. shares the kc voice, palette, and engineering disciplines. heavy code reuse from kill-clog-plugin is the strategic accelerator — the data-fetch + cache + result-model layer ports across, the panel + member-table is new surface.
+## product
 
-## scope (phase 1)
-
-local-only. one user, one clan at a time. roster source is wise old man api (decided 2026-05-13 after a 5-source audit, evidence in `RESEARCH-ROSTER-SOURCE.md`). runelite clanchannel powers the live in-game overlay where it exists. manual paste covers unregistered clans.
-
-## scope (phase 2, later)
-
-plugin calls `killclog.com/api/clan/<name>` once; killclog.com handles upstream aggregation across wise old man, templeosrs, and runelite-derived clan-list-open events. the plugin's http client stays slim. swap is a one-line url change away.
+Search a clan name. See a Kill Clog Profile where the collection log is the union of every clan member's clog. The clan as a super-account whose unique-item set is the combined drop history of its members.
 
 ## status
 
-scaffold. compiles. behavior empty.
+Alpha. Active development on `master`. Public Plugin Hub submission gated on the [killclog.com](https://killclog.com) aggregation backend reaching production capacity.
 
-## structure
+## current capabilities
+
+- reads the user's in-game clan roster via the modern OSRS Clan API (`ClanSettings`)
+- listens for clan chat broadcasts (`joined` / `left` / `kicked`) and parses them in real time
+- narrates clan events in the local chatbox as **Clogsworth**, the clan butler (formal, dry, occasionally devastating); narration is local-only, never broadcast to clan chat
+- ports the foundational data layer from Kill Clog: hiscore fetch, account-type detection, per-player disk cache
+
+## target v1 capabilities
+
+- sync your clan to killclog.com once via a key-rank-gated handshake; roster stays current passively as members open the clan list in-game
+- render a Kill Clog-style profile for the clan with the combined collection log across all members
+- surface a clan badge on each member's individual Kill Clog Profile automatically once the clan is synced
+
+## development
 
 ```
-src/main/java/com/clanclog/
-  ClanClogPlugin.java   runelite plugin entry, @PluginDescriptor
-  ClanClogConfig.java   @ConfigGroup("clanclog")
-  ClanClogPanel.java    side-panel surface, empty for now
-runelite-plugin.properties
-build.gradle
-settings.gradle
+./gradlew compileJava   # build
+./gradlew run           # boot RuneLite with the plugin loaded (test classpath)
 ```
 
-## naming
+If `../kcpdev/build/libs/kill-clog-plugin-1.4.0.jar` is present, `./gradlew run` boots Kill Clog alongside for combined-plugin smoke.
 
-> clan clog. kill clog for clans. the name itself trades on kill clog's existing brand equity.
+## ecosystem
 
-per the 2026-05-12 council lock. lowercase in prose, title case as a wordmark.
+- [Kill Clog plugin](https://github.com/420kc/kill-clog-plugin), the player-scale sibling
+- [killclog.com](https://killclog.com), the unified OSRS data aggregation backend + public profile surface
+- [420kc.dev](https://420kc.dev), the dev portfolio
+
+## license
+
+BSD 2-Clause. See [LICENSE](LICENSE).

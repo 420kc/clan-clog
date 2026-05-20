@@ -21,8 +21,8 @@ import okhttp3.ResponseBody;
  *
  * <p>Endpoints used:
  * <ul>
- *   <li>{@code GET /v2/groups/{id}} — full group with memberships array</li>
- *   <li>{@code GET /v2/groups?name=<q>&limit=20} — search groups by name</li>
+ *   <li>{@code GET /v2/groups/{id}} , full group with memberships array</li>
+ *   <li>{@code GET /v2/groups?name=<q>&limit=20} , search groups by name</li>
  * </ul>
  *
  * <p>Anonymous access. Public groups freely readable. Per the 2026-05-13 roster-source

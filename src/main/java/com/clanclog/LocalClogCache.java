@@ -26,7 +26,7 @@ import net.runelite.client.RuneLite;
  *
  * <p>Stores per-player clog data in {@code ~/.runelite/clan-clog/} as JSON files.
  * Populated via bulk capture when the player opens their collection log in-game.
- * Persists across client restarts — any account ever captured is available permanently.
+ * Persists across client restarts , any account ever captured is available permanently.
  *
  * <p>Disk writes are dispatched to a single background thread to avoid blocking the
  * game client thread.
@@ -45,7 +45,7 @@ public class LocalClogCache
 	private volatile String activePlayer;
 
 	/**
-	 * Disk I/O — single-threaded executor + per-player coalesce window.
+	 * Disk I/O , single-threaded executor + per-player coalesce window.
 	 * Bursts of category navigation collapse to one write per player.
 	 * Volatile so shutdown() can swap the reference visibly to concurrent submitters.
 	 */
@@ -108,7 +108,7 @@ public class LocalClogCache
 	}
 
 	/**
-	 * Swap in a fresh executor before shutting down the old one — keeps a live
+	 * Swap in a fresh executor before shutting down the old one , keeps a live
 	 * executor available for the next startUp(). Without this, the @Singleton
 	 * survives plugin reload but its executor would be permanently dead.
 	 */
@@ -319,7 +319,7 @@ public class LocalClogCache
 			return null;
 		}
 
-		// Defensive copies — callers may mutate their maps
+		// Defensive copies , callers may mutate their maps
 		Map<String, List<ClogResult.ClogItem>> obtainedCopy = new HashMap<>();
 		for (Map.Entry<String, List<ClogResult.ClogItem>> entry : data.obtained.entrySet())
 		{
@@ -410,7 +410,7 @@ public class LocalClogCache
 		return new File(CACHE_DIR, sanitized + ".json");
 	}
 
-	/** Shallow copy sufficient for async disk write — lists are already copied in callers. */
+	/** Shallow copy sufficient for async disk write , lists are already copied in callers. */
 	private static PlayerClogData shallowCopy(PlayerClogData src)
 	{
 		PlayerClogData copy = new PlayerClogData();
