@@ -7,14 +7,19 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.util.ArrayList;
 import java.util.List;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
@@ -36,7 +41,7 @@ import net.runelite.client.ui.components.IconTextField;
  * "look up an arbitrary clan i'm not in" searches).
  */
 @Singleton
-public class ClanClogPanel extends PluginPanel
+public class ClanClogPanel extends PluginPanel implements ClanLookupSession.Listener
 {
 	private static final int SEARCH_RESULT_LIMIT = 10;
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
@@ -45,6 +50,8 @@ public class ClanClogPanel extends PluginPanel
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
 	private final InGameClanReader clanReader;
+	private final ClanLookupSession clanLookupSession;
+	private final Cells cells;
 
 	private final JLabel statusLabel = new JLabel(" ");
 	private final IconTextField searchBar = new IconTextField();
@@ -55,12 +62,15 @@ public class ClanClogPanel extends PluginPanel
 
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, WomClient womClient,
-		ClanHiscoreBatch batch, InGameClanReader clanReader)
+		ClanHiscoreBatch batch, InGameClanReader clanReader,
+		ClanLookupSession clanLookupSession, Cells cells)
 	{
 		super(false);
 		this.womClient = womClient;
 		this.batch = batch;
 		this.clanReader = clanReader;
+		this.clanLookupSession = clanLookupSession;
+		this.cells = cells;
 
 		setLayout(new GridBagLayout());
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -80,8 +90,13 @@ public class ClanClogPanel extends PluginPanel
 		add(buildClanSummary(), c);
 
 		c.gridy++;
-		c.weighty = 1;
+		c.weighty = 2;
 		c.fill = GridBagConstraints.BOTH;
+		c.insets = new Insets(0, 0, 6, 0);
+		add(buildCellsSurface(), c);
+
+		c.gridy++;
+		c.weighty = 1;
 		c.insets = new Insets(0, 0, 6, 0);
 		add(aggregateGrid, c);
 
@@ -135,6 +150,59 @@ public class ClanClogPanel extends PluginPanel
 		summary.add(clanHeader, BorderLayout.WEST);
 
 		return summary;
+	}
+
+	/**
+	 * Primary clan-clog surface backed by {@link ClanClogResult}. Boss grid +
+	 * clue tier grid + the 5 rare cells (3rd Age, Gilded, Hard/Elite/Master
+	 * Treasure), all wrapped in a single scrollpane. Populated by
+	 * {@link #onClanResult} via {@link Cells#renderClanResult(ClanClogResult)}.
+	 */
+	private JScrollPane buildCellsSurface()
+	{
+		JPanel stack = new JPanel();
+		stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+		stack.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		stack.setBorder(new EmptyBorder(4, 4, 4, 4));
+
+		stack.add(buildSectionHeader("bosses"));
+		stack.add(cells.buildBossGrid());
+		stack.add(Box.createVerticalStrut(8));
+
+		stack.add(buildSectionHeader("clue tiers"));
+		stack.add(cells.buildClueTierGrid());
+		stack.add(Box.createVerticalStrut(8));
+
+		stack.add(buildSectionHeader("rare drops"));
+		JPanel rareGrid = new JPanel(new GridLayout(0, 3));
+		rareGrid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		rareGrid.add(cells.buildThirdAgeCell());
+		rareGrid.add(cells.buildGildedCell());
+		rareGrid.add(cells.buildHardRareCell());
+		rareGrid.add(cells.buildEliteRareCell());
+		rareGrid.add(cells.buildMasterRareCell());
+		stack.add(rareGrid);
+		stack.add(Box.createVerticalGlue());
+
+		JScrollPane scroll = new JScrollPane(stack,
+			JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		scroll.setBorder(null);
+		scroll.setViewportBorder(null);
+		scroll.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
+		scroll.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		scroll.getVerticalScrollBar().setUnitIncrement(16);
+		return scroll;
+	}
+
+	private static JLabel buildSectionHeader(String text)
+	{
+		JLabel header = new JLabel(text);
+		header.setFont(FontManager.getRunescapeFont());
+		header.setForeground(KC_TEXT);
+		header.setBorder(new EmptyBorder(2, 0, 4, 0));
+		header.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return header;
 	}
 
 	private static void styleSearchBar(Container c)
@@ -233,6 +301,7 @@ public class ClanClogPanel extends PluginPanel
 				clanHeader.setText(group.name + " · " + roster.size() + " members");
 				setStatus("fetching hiscores · 0/" + roster.size());
 				membersView.renderRoster(roster);
+				clanLookupSession.start(slugify(group.name), this);
 			});
 
 			batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
@@ -290,5 +359,52 @@ public class ClanClogPanel extends PluginPanel
 	private void setStatus(String text)
 	{
 		statusLabel.setText(text);
+	}
+
+	// ── ClanLookupSession.Listener ────────────────────────────────────────────
+
+	@Override
+	public void onClanLookupStart(String slug)
+	{
+		setStatus("fetching backend clog for " + slug + "...");
+		cells.clearCells();
+	}
+
+	@Override
+	public void onClanResult(String slug, ClanClogResult result)
+	{
+		int memberCount = result.getMemberCount();
+		setStatus("backend clog loaded · " + memberCount + " members · " + slug);
+		cells.renderClanResult(result);
+	}
+
+	@Override
+	public void onClanNotFound(String slug)
+	{
+		setStatus("backend clog not registered for " + slug);
+		cells.clearCells();
+	}
+
+	@Override
+	public void onClanError(String slug, @Nullable String detail)
+	{
+		setStatus("backend clog error for " + slug + (detail != null ? ": " + detail : ""));
+		cells.clearCells();
+	}
+
+	/**
+	 * Slugify a clan display name into the kebab-case form the backend keys
+	 * its {@code /api/clan/<slug>/clog} endpoint by. "Exclusive Elite Club"
+	 * -> "exclusive-elite-club".
+	 */
+	private static String slugify(String name)
+	{
+		if (name == null)
+		{
+			return "";
+		}
+		return name.toLowerCase()
+			.replaceAll("[^a-z0-9]+", "-")
+			.replaceAll("^-+|-+$", "");
 	}
 }

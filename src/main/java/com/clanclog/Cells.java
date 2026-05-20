@@ -1,0 +1,811 @@
+/*
+ * Copyright (c) 2026, 420 kc <dyl@420kc.dev>
+ * Owns the cells of the clan clog panel: builds them, holds the labels,
+ * caches tooltip + icon data, renders clan-aggregate kc/clog values from a
+ * ClanClogResult, and routes single-flavor sprite tooltips. ClanClogPanel
+ * (layout) and ClanLookupSession (data) feed it.
+ */
+package com.clanclog;
+
+import java.awt.Color;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.Nullable;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JToolTip;
+import javax.swing.SwingUtilities;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
+import net.runelite.client.hiscore.HiscoreSkill;
+import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.AsyncBufferedImage;
+import net.runelite.client.util.ImageUtil;
+
+/**
+ * Clan-flavored sibling of kill clog's Cells. Same cell shape (sprite-icon
+ * grid cells with rich ImgTooltip rendering), different data source:
+ * {@link ClanClogResult#getBosses()} (clan_total_kc + top3) and
+ * {@link ClanClogResult.ClogUnion} (per-item holder counts + first-seen
+ * history).
+ *
+ * <p>Architectural differences from kcpdev's Cells (refactor-cells-collapse,
+ * 741 LOC, single-player flavored):
+ * <ul>
+ *   <li>String-name keyed label maps (matches clan-clog's HiscoreService.bossNames()
+ *       architecture; HiscoreSkill enum is used only as a sprite-id lookup
+ *       helper, never as a label-map key).</li>
+ *   <li>Single-flavor tooltips only. No ComparisonController -- clan has no
+ *       1v1 mode. No FourTwentyMode -- kill-clog easter egg, not clan.</li>
+ *   <li>No PvP summary cell, no per-player activity cells. ClanClogResult
+ *       doesn't aggregate activities yet; deferred to a follow-up sub-phase.</li>
+ *   <li>No SinglePlayerTooltipBuilder injection -- clan UI is global, no
+ *       sync-notice text reaches in from the panel.</li>
+ *   <li>Renderers read backend aggregate (ClanClogResult.bosses[name].clanTotalKc
+ *       + clog.itemsByCategory + clog.itemMeta) instead of per-player
+ *       HiscoreResult + ClogResult.</li>
+ * </ul>
+ *
+ * <p>Per project_clan_hiscores_plugin.md sub-phase 3b.3.4: the visible
+ * clan-aggregate surface for boss kc and clog category coverage. The text-only
+ * {@link ClanAggregateGrid} stays in the panel as the roster-side supplement
+ * (skills + activities + bosses from per-member HiscoreResults via
+ * {@link ClanAggregateHiscore}); the two surfaces co-exist until 3b.3.5+
+ * decides their relationship.
+ */
+@Singleton
+public class Cells
+{
+	// ── Inlined constants (clan-clog has no PanelData; keep them here) ────────
+
+	private static final int[] CLUE_TIER_ITEM_IDS = {23182, 2677, 2801, 2722, 12073, 19835};
+	private static final String[] CLUE_TIER_NAMES = {
+		"Clue Scrolls (beginner)", "Clue Scrolls (easy)", "Clue Scrolls (medium)",
+		"Clue Scrolls (hard)", "Clue Scrolls (elite)", "Clue Scrolls (master)"
+	};
+
+	/** Clue tier name -> Temple clog category (matches backend item_by_category keys). */
+	private static final Map<String, String> CLUE_CATEGORIES = new LinkedHashMap<>();
+	static
+	{
+		CLUE_CATEGORIES.put("Clue Scrolls (beginner)", "beginner_treasure_trails");
+		CLUE_CATEGORIES.put("Clue Scrolls (easy)",     "easy_treasure_trails");
+		CLUE_CATEGORIES.put("Clue Scrolls (medium)",   "medium_treasure_trails");
+		CLUE_CATEGORIES.put("Clue Scrolls (hard)",     "hard_treasure_trails");
+		CLUE_CATEGORIES.put("Clue Scrolls (elite)",    "elite_treasure_trails");
+		CLUE_CATEGORIES.put("Clue Scrolls (master)",   "master_treasure_trails");
+	}
+
+	private static final String CLOG_THIRD_AGE = "third_age";
+	private static final String CLOG_GILDED = "gilded";
+	private static final int THIRD_AGE_ITEM_ID = 10348;
+	private static final int GILDED_ITEM_ID = 3481;
+
+	private static final String RARE_HARD = "hard_rare";
+	private static final String RARE_ELITE = "elite_rare";
+	private static final String RARE_MASTER = "master_rare";
+
+	private static final int[] HARD_RARE_ITEMS = {
+		// 3rd age melee + range + mage + amulet (13)
+		10350, 10348, 10346, 23242, 10352,
+		10334, 10330, 10332, 10336,
+		10342, 10338, 10340, 10344,
+		// Gilded melee (11)
+		3486, 3481, 3483, 3485, 3488,
+		20146, 20149, 20152, 20155, 20158, 20161
+	};
+
+	private static final int[] ELITE_RARE_ITEMS = {
+		// 3rd age melee + range + mage + amulet + weapons + cloak (17)
+		10350, 10348, 10346, 23242, 10352,
+		10334, 10330, 10332, 10336,
+		10342, 10338, 10340, 10344,
+		12426, 12422, 12437, 12424,
+		// All gilded (20)
+		3486, 3481, 3483, 3485, 3488,
+		20146, 20149, 20152, 20155, 20158, 20161,
+		12389, 12391, 23258, 23261, 23264, 23267,
+		23276, 23279, 23282,
+		// Lava dragon mask, Ring of nature
+		12371, 20005
+	};
+
+	private static final int[] MASTER_RARE_ITEMS = {
+		// All 3rd age (23)
+		10350, 10348, 10346, 23242, 10352,
+		10334, 10330, 10332, 10336,
+		10342, 10338, 10340, 10344,
+		12426, 12422, 12437, 12424,
+		23336, 23339, 23345, 23342,
+		20014, 20011,
+		// All gilded (20)
+		3486, 3481, 3483, 3485, 3488,
+		20146, 20149, 20152, 20155, 20158, 20161,
+		12389, 12391, 23258, 23261, 23264, 23267,
+		23276, 23279, 23282,
+		// Bucket helm (g), Ring of coins
+		20059, 20017
+	};
+
+	/**
+	 * Hiscore-CSV boss name -> HiscoreSkill.getName() bridge. Only entries
+	 * where the two differ are needed; everything else matches by value.
+	 * HiscoreService.bossNames()[i] is the CSV form; HiscoreSkill.getName()
+	 * is the RuneLite enum form (used for sprite-id resolution).
+	 */
+	private static final Map<String, String> BOSS_NAME_TO_HISCORE_SKILL_NAME = new LinkedHashMap<>();
+	static
+	{
+		BOSS_NAME_TO_HISCORE_SKILL_NAME.put("Cal'varion", "Calvar'ion");
+	}
+
+	/** Standard kc text color (light gray-white) used for any cell that has a non-zero value. */
+	static final Color KC_COLOR = new Color(215, 215, 215);
+
+	private static final int BOSS_GRID_COLS = 3;
+	private static final int CLUE_GRID_COLS = 3;
+
+	// ── Deps ──────────────────────────────────────────────────────────────────
+
+	private final SpriteManager spriteManager;
+	private final ItemManager itemManager;
+	private final TooltipController tooltipController;
+	private final ClanTooltipDataBuilder tooltipDataBuilder;
+
+	// ── Tooltip data caches ───────────────────────────────────────────────────
+
+	private final Map<String, TooltipData> tooltipDataMap = new LinkedHashMap<>();
+	private final Map<String, TooltipData> rareTooltips = new LinkedHashMap<>();
+
+	// ── Icon caches ───────────────────────────────────────────────────────────
+
+	private final BufferedImage[] clueIcons = new BufferedImage[8];
+
+	// ── Cell labels (String-keyed) ────────────────────────────────────────────
+
+	private final Map<String, JLabel> bossLabels = new LinkedHashMap<>();
+	private final Map<String, JLabel> clueTierLabels = new LinkedHashMap<>();
+	private final Map<String, ImageIcon> originalIcons = new LinkedHashMap<>();
+	private final Map<String, ImageIcon> dimmedIcons = new LinkedHashMap<>();
+	@Nullable private JLabel thirdAgeCell;
+	@Nullable private JLabel gildedCell;
+	@Nullable private JLabel hardRare;
+	@Nullable private JLabel eliteRare;
+	@Nullable private JLabel masterRare;
+
+	@Inject
+	public Cells(SpriteManager spriteManager, ItemManager itemManager,
+		TooltipController tooltipController, ClanTooltipDataBuilder tooltipDataBuilder)
+	{
+		this.spriteManager = spriteManager;
+		this.itemManager = itemManager;
+		this.tooltipController = tooltipController;
+		this.tooltipDataBuilder = tooltipDataBuilder;
+	}
+
+	// ── Cell builders ─────────────────────────────────────────────────────────
+
+	/** Build the boss grid populated with one sprite-icon cell per boss. */
+	public JPanel buildBossGrid()
+	{
+		JPanel grid = new JPanel(new GridLayout(0, BOSS_GRID_COLS));
+		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		for (String boss : HiscoreService.bossNames())
+		{
+			grid.add(buildBossCell(boss));
+		}
+		return grid;
+	}
+
+	/** Build a single boss cell. Caller hooks listeners onto {@link #getBossLabel} post-construction if needed. */
+	public JPanel buildBossCell(String boss)
+	{
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildBossTooltip(this, boss);
+			}
+		};
+		styleLabel(label, boss);
+
+		int spriteId = bossSpriteId(boss);
+		if (spriteId != -1)
+		{
+			spriteManager.getSpriteAsync(spriteId, 0, sprite ->
+				SwingUtilities.invokeLater(() ->
+				{
+					if (sprite == null)
+					{
+						return;
+					}
+					BufferedImage scaled = ImageUtil.resizeImage(
+						ImageUtil.resizeCanvas(sprite, 25, 25), 20, 20);
+					ImageIcon icon = new ImageIcon(scaled);
+					label.setIcon(icon);
+					originalIcons.put(boss, icon);
+					dimmedIcons.put(boss, new ImageIcon(ClogHelper.createDimmedImage(icon)));
+				}));
+		}
+
+		bossLabels.put(boss, label);
+		return wrapInCell(label);
+	}
+
+	/** Build the clue tier grid populated with one item-icon cell per tier (beginner -> master). */
+	public JPanel buildClueTierGrid()
+	{
+		JPanel grid = new JPanel(new GridLayout(0, CLUE_GRID_COLS));
+		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		for (int i = 0; i < CLUE_TIER_NAMES.length; i++)
+		{
+			grid.add(buildClueTierCell(CLUE_TIER_NAMES[i], CLUE_TIER_ITEM_IDS[i], false));
+		}
+		return grid;
+	}
+
+	public JPanel buildClueTierCell(String tier, int itemId, boolean compact)
+	{
+		String displayName = capitalizeTier(tier);
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildClueTierTooltip(this, tier, displayName, compact);
+			}
+		};
+		styleLabel(label, tier);
+		setItemIcon(label, itemId);
+		clueTierLabels.put(tier, label);
+		return wrapInCell(label);
+	}
+
+	public JPanel buildClueRareCell(String name, int itemId, String clogCategory, boolean isThirdAge)
+	{
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildClueRareTooltip(this, name, clogCategory);
+			}
+		};
+		styleLabel(label, name);
+		setItemIcon(label, itemId);
+
+		if (isThirdAge)
+		{
+			thirdAgeCell = label;
+		}
+		else
+		{
+			gildedCell = label;
+		}
+
+		return wrapInCell(label);
+	}
+
+	public JPanel buildCustomRareCell(String name, int iconItemId, String rareKey, int[] itemIds)
+	{
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildCustomRareTooltip(this, name, rareKey, itemIds);
+			}
+		};
+		styleLabel(label, name);
+		setItemIcon(label, iconItemId);
+
+		if (RARE_HARD.equals(rareKey))
+		{
+			hardRare = label;
+		}
+		else if (RARE_ELITE.equals(rareKey))
+		{
+			eliteRare = label;
+		}
+		else if (RARE_MASTER.equals(rareKey))
+		{
+			masterRare = label;
+		}
+
+		return wrapInCell(label);
+	}
+
+	/** Convenience: build the "3rd Age" cell with the canonical item icon + category. */
+	public JPanel buildThirdAgeCell()
+	{
+		return buildClueRareCell("3rd Age", THIRD_AGE_ITEM_ID, CLOG_THIRD_AGE, true);
+	}
+
+	/** Convenience: build the "Gilded" cell with the canonical item icon + category. */
+	public JPanel buildGildedCell()
+	{
+		return buildClueRareCell("Gilded", GILDED_ITEM_ID, CLOG_GILDED, false);
+	}
+
+	/** Convenience: build the Hard / Elite / Master custom rare cells with canonical icons + item lists. */
+	public JPanel buildHardRareCell()
+	{
+		return buildCustomRareCell("Hard Treasure (Rare)", HARD_RARE_ITEMS[0], RARE_HARD, HARD_RARE_ITEMS);
+	}
+
+	public JPanel buildEliteRareCell()
+	{
+		return buildCustomRareCell("Elite Treasure (Rare)", ELITE_RARE_ITEMS[0], RARE_ELITE, ELITE_RARE_ITEMS);
+	}
+
+	public JPanel buildMasterRareCell()
+	{
+		return buildCustomRareCell("Master Treasure (Rare)", MASTER_RARE_ITEMS[0], RARE_MASTER, MASTER_RARE_ITEMS);
+	}
+
+	// ── Clan-result rendering ─────────────────────────────────────────────────
+
+	/**
+	 * Apply a clan result to every cell: boss cells from result.bosses (clan_total_kc),
+	 * clue tier cells from result.clog.itemsByCategory, rare cells from result.clog.
+	 * Also rebuilds the per-cell TooltipData cache for the rich-sprite tooltip path.
+	 */
+	public void renderClanResult(ClanClogResult result)
+	{
+		if (result == null)
+		{
+			clearCells();
+			return;
+		}
+		renderBosses(result);
+		renderClueTiers(result);
+		renderRares(result);
+		rebuildTooltips(result);
+	}
+
+	/** Reset every cell to its placeholder state. Called when a lookup fails / returns nothing. */
+	public void clearCells()
+	{
+		for (Map.Entry<String, JLabel> e : bossLabels.entrySet())
+		{
+			JLabel label = e.getValue();
+			label.setText(ClogHelper.pad("--"));
+			label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			ImageIcon dimmed = dimmedIcons.get(e.getKey());
+			if (dimmed != null)
+			{
+				label.setIcon(dimmed);
+			}
+			label.setToolTipText(e.getKey());
+		}
+		for (Map.Entry<String, JLabel> e : clueTierLabels.entrySet())
+		{
+			JLabel label = e.getValue();
+			label.setText(ClogHelper.pad("--"));
+			label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			label.setToolTipText(e.getKey());
+		}
+		resetRare(thirdAgeCell, "3rd Age");
+		resetRare(gildedCell, "Gilded");
+		resetRare(hardRare, "Hard Treasure (Rare)");
+		resetRare(eliteRare, "Elite Treasure (Rare)");
+		resetRare(masterRare, "Master Treasure (Rare)");
+		tooltipDataMap.clear();
+		rareTooltips.clear();
+	}
+
+	private static void resetRare(@Nullable JLabel label, String name)
+	{
+		if (label == null)
+		{
+			return;
+		}
+		label.setText(ClogHelper.pad("--"));
+		label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		label.setToolTipText(name);
+	}
+
+	private void renderBosses(ClanClogResult result)
+	{
+		Map<String, ClanClogResult.BossAggregate> bosses = result.getBosses();
+		for (Map.Entry<String, JLabel> entry : bossLabels.entrySet())
+		{
+			String boss = entry.getKey();
+			JLabel label = entry.getValue();
+			ClanClogResult.BossAggregate agg = bosses.get(boss);
+			long kc = agg != null ? agg.getClanTotalKc() : 0L;
+			boolean hasKc = kc > 0;
+
+			int displayKc = kc > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) kc;
+			label.setText(ClogHelper.pad(hasKc ? ClogHelper.formatKc(displayKc) : "--"));
+			label.setForeground(hasKc ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+
+			ImageIcon orig = originalIcons.get(boss);
+			if (orig != null)
+			{
+				label.setIcon(hasKc ? orig : dimmedIcons.get(boss));
+			}
+		}
+	}
+
+	private void renderClueTiers(ClanClogResult result)
+	{
+		ClanClogResult.ClogUnion clog = result.getClog();
+		Map<String, List<Integer>> itemsByCategory = clog != null
+			? clog.getItemsByCategory() : Collections.emptyMap();
+
+		for (Map.Entry<String, JLabel> entry : clueTierLabels.entrySet())
+		{
+			String tier = entry.getKey();
+			JLabel label = entry.getValue();
+			String category = CLUE_CATEGORIES.get(tier);
+			List<Integer> items = category != null ? itemsByCategory.get(category) : null;
+			int count = items != null ? items.size() : 0;
+			label.setText(ClogHelper.pad(count > 0 ? ClogHelper.formatKc(count) : "--"));
+			label.setForeground(count > 0 ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+		}
+	}
+
+	private void renderRares(ClanClogResult result)
+	{
+		writeClueRare(thirdAgeCell, "3rd Age", CLOG_THIRD_AGE, result);
+		writeClueRare(gildedCell, "Gilded", CLOG_GILDED, result);
+		writeCustomRare(hardRare, "Hard Treasure (Rare)", RARE_HARD, HARD_RARE_ITEMS, result);
+		writeCustomRare(eliteRare, "Elite Treasure (Rare)", RARE_ELITE, ELITE_RARE_ITEMS, result);
+		writeCustomRare(masterRare, "Master Treasure (Rare)", RARE_MASTER, MASTER_RARE_ITEMS, result);
+	}
+
+	private void writeClueRare(@Nullable JLabel label, String name, String clogCategory,
+		ClanClogResult result)
+	{
+		if (label == null)
+		{
+			return;
+		}
+		TooltipData data = tooltipDataBuilder.buildForCategory(name, clogCategory, result);
+		if (data == null)
+		{
+			label.setText(ClogHelper.pad("--"));
+			label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			label.setToolTipText(name);
+			return;
+		}
+		label.setText(ClogHelper.pad(data.obtainedCount > 0 ? ClogHelper.formatKc(data.obtainedCount) : "--"));
+		rareTooltips.put(clogCategory, data);
+		label.setForeground(data.obtainedCount > 0 ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+		label.setToolTipText(" ");
+	}
+
+	private void writeCustomRare(@Nullable JLabel label, String name, String rareKey,
+		int[] itemIds, ClanClogResult result)
+	{
+		if (label == null)
+		{
+			return;
+		}
+		TooltipData data = buildCustomRareData(name, itemIds, result);
+		label.setText(ClogHelper.pad(data.obtainedCount > 0 ? ClogHelper.formatKc(data.obtainedCount) : "--"));
+		rareTooltips.put(rareKey, data);
+		label.setForeground(data.obtainedCount > 0 ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+		label.setToolTipText(" ");
+	}
+
+	/**
+	 * Build TooltipData for a custom rare set (Hard/Elite/Master Treasure). Native
+	 * clog rare categories aren't a single backend category -- they're a curated
+	 * union of item ids spanning 3rd-age + gilded + handful of named items. We
+	 * union holder-count metadata from {@code clog.item_meta} for the listed ids
+	 * and treat any present item as "obtained" by the clan.
+	 */
+	private TooltipData buildCustomRareData(String name, int[] itemIds, ClanClogResult result)
+	{
+		List<Integer> allItemIds = new ArrayList<>(itemIds.length);
+		for (int id : itemIds)
+		{
+			allItemIds.add(id);
+		}
+
+		Set<Integer> obtainedIds = new HashSet<>();
+		Map<Integer, Integer> obtainedCounts = new HashMap<>();
+		Map<Integer, Integer> holderCounts = new HashMap<>();
+		Map<Integer, String> firstSeenAt = new HashMap<>();
+		Map<Integer, String> firstSeenByRsn = new HashMap<>();
+
+		if (result != null && result.getClog() != null)
+		{
+			Map<String, ClanClogResult.ItemMeta> meta = result.getClog().getItemMeta();
+			for (int id : itemIds)
+			{
+				ClanClogResult.ItemMeta m = meta.get(String.valueOf(id));
+				if (m == null)
+				{
+					continue;
+				}
+				obtainedIds.add(id);
+				holderCounts.put(id, m.getHolderCount());
+				obtainedCounts.put(id, m.getHolderCount());
+				if (m.getFirstSeenAt() != null)
+				{
+					firstSeenAt.put(id, m.getFirstSeenAt());
+				}
+				if (m.getFirstSeenByRsn() != null)
+				{
+					firstSeenByRsn.put(id, m.getFirstSeenByRsn());
+				}
+			}
+		}
+
+		return new TooltipData(name, 0, obtainedIds.size(), itemIds.length,
+			allItemIds, obtainedIds, obtainedCounts,
+			holderCounts, firstSeenAt, firstSeenByRsn);
+	}
+
+	/**
+	 * Rebuild the per-cell TooltipData cache from a clan result. Mirrors the
+	 * kcpdev Cells.rebuildPrimaryTooltips path but feeds ClanTooltipDataBuilder
+	 * with ClanClogResult instead of TooltipDataBuilder + ClogResult.
+	 */
+	public void rebuildTooltips(ClanClogResult result)
+	{
+		tooltipDataMap.clear();
+		if (result == null || result.getClog() == null)
+		{
+			return;
+		}
+
+		for (Map.Entry<String, JLabel> entry : bossLabels.entrySet())
+		{
+			String boss = entry.getKey();
+			JLabel label = entry.getValue();
+			TooltipData data = tooltipDataBuilder.buildForCategory(boss, boss, result);
+			if (data == null)
+			{
+				label.setToolTipText(boss);
+				continue;
+			}
+			tooltipDataMap.put(boss, data);
+			label.setToolTipText(" ");
+		}
+
+		for (Map.Entry<String, String> entry : CLUE_CATEGORIES.entrySet())
+		{
+			String tier = entry.getKey();
+			JLabel label = clueTierLabels.get(tier);
+			if (label == null)
+			{
+				continue;
+			}
+			String displayName = capitalizeTier(tier);
+			TooltipData data = tooltipDataBuilder.buildForCategory(displayName, entry.getValue(), result);
+			if (data == null)
+			{
+				continue;
+			}
+			tooltipDataMap.put(tier, data);
+			label.setToolTipText(" ");
+		}
+	}
+
+	// ── Tooltip routing (single-flavor only) ──────────────────────────────────
+
+	private JToolTip buildBossTooltip(JLabel owner, String boss)
+	{
+		return buildSpriteTooltip(tooltipDataMap.get(boss), 5, boss, false);
+	}
+
+	private JToolTip buildClueTierTooltip(JLabel owner, String tier, String displayName, boolean compact)
+	{
+		return buildSpriteTooltip(tooltipDataMap.get(tier), compact ? 10 : 5, displayName, compact);
+	}
+
+	private JToolTip buildClueRareTooltip(JLabel owner, String name, String clogCategory)
+	{
+		return buildSpriteTooltip(rareTooltips.get(clogCategory), 5, name, false);
+	}
+
+	private JToolTip buildCustomRareTooltip(JLabel owner, String name, String rareKey, int[] itemIds)
+	{
+		return buildSpriteTooltip(rareTooltips.get(rareKey), 5, name, false);
+	}
+
+	/**
+	 * Build a configured {@link ImgTooltip} from TooltipData. Holds the
+	 * single-flavor configuration (title + obtained + rank + items) so every
+	 * tooltip routing method funnels through one place.
+	 *
+	 * <p>Clan-flavor data sets {@code obtainedCounts == holderCounts}, so
+	 * ImgTooltip's per-item quantity overlay automatically renders the clan
+	 * holder count (how many members own each item) without any branch on
+	 * {@link TooltipData#isClanFlavor()} at this layer.
+	 */
+	private JToolTip buildSpriteTooltip(@Nullable TooltipData data, int gridCols, String name, boolean compact)
+	{
+		ImgTooltip tip = compact ? new ImgTooltip(gridCols, 15) : new ImgTooltip(gridCols);
+		tip.setTitle(name);
+		if (data == null)
+		{
+			tip.setObtained(0, 0);
+			tip.setNotice("No clan data");
+			return tip;
+		}
+		tip.setObtained(data.obtainedCount, data.totalItems);
+		tip.setRank(data.rank);
+		tip.setItems(data.totalItems, data.allItemIds, data.obtainedIds,
+			data.obtainedCounts, itemManager);
+		return tip;
+	}
+
+	// ── Helpers ───────────────────────────────────────────────────────────────
+
+	/** Standard grid-cell label styling (used by every cell on the panel). */
+	public static void styleLabel(JLabel label, String tooltipText)
+	{
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setText(ClogHelper.pad("--"));
+		label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		label.setIconTextGap(4);
+		label.setToolTipText(tooltipText);
+		label.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+	}
+
+	/** Wrap a label in a standard grid cell panel with hover effect wired. */
+	public JPanel wrapInCell(JLabel label)
+	{
+		JPanel cell = new JPanel();
+		cell.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		cell.setBorder(TooltipController.CELL_BORDER);
+		cell.add(label);
+		tooltipController.addCellHoverEffect(cell, label);
+		return cell;
+	}
+
+	private void setItemIcon(JLabel label, int itemId)
+	{
+		BufferedImage img = itemManager.getImage(itemId, 1, false);
+		if (img == null)
+		{
+			return;
+		}
+		label.setIcon(new ImageIcon(ImageUtil.resizeImage(img, 20, 20)));
+		if (img instanceof AsyncBufferedImage)
+		{
+			((AsyncBufferedImage) img).onLoaded(() ->
+				SwingUtilities.invokeLater(() ->
+					label.setIcon(new ImageIcon(ImageUtil.resizeImage(img, 20, 20)))));
+		}
+	}
+
+	/** "Clue Scrolls (hard)" -> "Hard". Public for the panel's tooltip-text builder. */
+	public static String capitalizeTier(String tierName)
+	{
+		int open = tierName.indexOf('(');
+		if (open < 0)
+		{
+			return tierName;
+		}
+		int close = tierName.indexOf(')', open);
+		String inner = tierName.substring(open + 1, close < 0 ? tierName.length() : close).trim();
+		if (inner.isEmpty())
+		{
+			return tierName;
+		}
+		return Character.toUpperCase(inner.charAt(0)) + inner.substring(1);
+	}
+
+	/**
+	 * Resolve a hiscore-CSV boss name to a HiscoreSkill sprite id. Falls
+	 * back to -1 (no icon) if the enum doesn't carry the boss yet.
+	 */
+	private static int bossSpriteId(String bossName)
+	{
+		String hiscoreSkillName = BOSS_NAME_TO_HISCORE_SKILL_NAME.getOrDefault(bossName, bossName);
+		for (HiscoreSkill hs : HiscoreSkill.values())
+		{
+			if (hiscoreSkillName.equals(hs.getName()))
+			{
+				return hs.getSpriteId();
+			}
+		}
+		return -1;
+	}
+
+	// ── Read-only accessors ───────────────────────────────────────────────────
+
+	public Map<String, JLabel> getBossLabels()
+	{
+		return Collections.unmodifiableMap(bossLabels);
+	}
+
+	public Map<String, JLabel> getClueTierLabels()
+	{
+		return Collections.unmodifiableMap(clueTierLabels);
+	}
+
+	public Map<String, ImageIcon> getOriginalIcons()
+	{
+		return Collections.unmodifiableMap(originalIcons);
+	}
+
+	public Map<String, ImageIcon> getDimmedIcons()
+	{
+		return Collections.unmodifiableMap(dimmedIcons);
+	}
+
+	@Nullable
+	public JLabel getBossLabel(String boss)
+	{
+		return bossLabels.get(boss);
+	}
+
+	@Nullable
+	public JLabel getThirdAgeCell()
+	{
+		return thirdAgeCell;
+	}
+
+	@Nullable
+	public JLabel getGildedCell()
+	{
+		return gildedCell;
+	}
+
+	@Nullable
+	public JLabel getHardRare()
+	{
+		return hardRare;
+	}
+
+	@Nullable
+	public JLabel getEliteRare()
+	{
+		return eliteRare;
+	}
+
+	@Nullable
+	public JLabel getMasterRare()
+	{
+		return masterRare;
+	}
+
+	public Map<String, TooltipData> getTooltipDataMap()
+	{
+		return tooltipDataMap;
+	}
+
+	public Map<String, TooltipData> getRareTooltips()
+	{
+		return rareTooltips;
+	}
+
+	public BufferedImage[] getClueIcons()
+	{
+		return clueIcons;
+	}
+
+	@Nullable
+	public TooltipData getTooltipData(String name)
+	{
+		return tooltipDataMap.get(name);
+	}
+
+	@Nullable
+	public TooltipData getRareTooltip(String key)
+	{
+		return rareTooltips.get(key);
+	}
+}
