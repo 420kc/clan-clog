@@ -8,6 +8,7 @@ import java.io.InputStream;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.config.ConfigManager;
@@ -39,6 +40,16 @@ public class ClanClogPlugin extends Plugin
 
 	@Inject
 	private InGameClanReader clanReader;
+
+	@Inject
+	private ChatScanner chatScanner;
+
+	// Injected so Guice instantiates + loads the line library at startup.
+	// Used by ChatScanner via constructor injection; this field keeps the
+	// singleton alive for the plugin lifetime.
+	@Inject
+	@SuppressWarnings("unused")
+	private ClogsworthDispatcher clogsworth;
 
 	private NavigationButton navButton;
 
@@ -88,6 +99,17 @@ public class ClanClogPlugin extends Plugin
 		{
 			clanReader.refresh();
 		}
+	}
+
+	/**
+	 * Forward clan-system chat broadcasts to {@link ChatScanner} which parses
+	 * joined / left / kicked events, dispatches Clogsworth narration, and
+	 * (next sub-phase) POSTs roster mutations to killclog-api.
+	 */
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		chatScanner.handle(event);
 	}
 
 	/**
