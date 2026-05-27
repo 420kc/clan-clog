@@ -64,6 +64,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private ClanClogResult lastBackendResult;
 
+	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
+	@Nullable
+	private String currentLoadSlug;
+
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, WomClient womClient,
 		ClanHiscoreBatch batch, InGameClanReader clanReader,
@@ -157,27 +161,33 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	/**
-	 * Primary clan-clog surface backed by {@link ClanClogResult}. Boss grid +
-	 * clue tier grid + the 5 rare cells (3rd Age, Gilded, Hard/Elite/Master
-	 * Treasure), all wrapped in a single scrollpane. Populated by
-	 * {@link #onClanResult} via {@link Cells#renderClanResult(ClanClogResult)}.
+	 * Primary clan-clog surface: boss grid + clue tier grid + rare cells.
+	 * No section headers -- parity with Kill Clog's clean cell layout.
+	 * Scrollbar always visible with reserved 7px width so content doesn't
+	 * shift when the scrollbar appears.
 	 */
 	private JScrollPane buildCellsSurface()
 	{
 		JPanel stack = new JPanel();
 		stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
 		stack.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		stack.setBorder(new EmptyBorder(4, 4, 4, 4));
 
-		stack.add(buildSectionHeader("bosses"));
 		stack.add(cells.buildBossGrid());
-		stack.add(Box.createVerticalStrut(8));
 
-		stack.add(buildSectionHeader("clue tiers"));
+		JPanel sep1 = new JPanel();
+		sep1.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		sep1.setPreferredSize(new Dimension(0, 7));
+		sep1.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
+		stack.add(sep1);
+
 		stack.add(cells.buildClueTierGrid());
-		stack.add(Box.createVerticalStrut(8));
 
-		stack.add(buildSectionHeader("rare drops"));
+		JPanel sep2 = new JPanel();
+		sep2.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		sep2.setPreferredSize(new Dimension(0, 7));
+		sep2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
+		stack.add(sep2);
+
 		JPanel rareGrid = new JPanel(new GridLayout(0, 3));
 		rareGrid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		rareGrid.add(cells.buildThirdAgeCell());
@@ -189,24 +199,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		stack.add(Box.createVerticalGlue());
 
 		JScrollPane scroll = new JScrollPane(stack,
-			JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+			JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
 			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		scroll.setBorder(null);
 		scroll.setViewportBorder(null);
 		scroll.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
 		scroll.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		scroll.getVerticalScrollBar().setUnitIncrement(16);
+		scroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
 		return scroll;
-	}
-
-	private static JLabel buildSectionHeader(String text)
-	{
-		JLabel header = new JLabel(text);
-		header.setFont(FontManager.getRunescapeFont());
-		header.setForeground(KC_TEXT);
-		header.setBorder(new EmptyBorder(2, 0, 4, 0));
-		header.setAlignmentX(Component.LEFT_ALIGNMENT);
-		return header;
 	}
 
 	private static void styleSearchBar(Container c)
@@ -269,6 +270,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void loadFromRoster(String clanName, List<ClanMember> roster)
 	{
+		String slug = slugify(clanName);
+		if (slug.equals(currentLoadSlug))
+		{
+			return;
+		}
+		currentLoadSlug = slug;
+
 		clanHeader.setText(clanName + " · " + roster.size() + " members");
 		setStatus("roster synced · fetching hiscores · 0/" + roster.size());
 		membersView.renderRoster(roster);
@@ -278,10 +286,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 
 		// Backend clog data in parallel (cells surface; falls back to fixture)
-		clanLookupSession.start(slugify(clanName), this);
+		clanLookupSession.start(slug, this);
 
 		// Per-member hiscore fan-out (aggregate grid + member enrichment)
-		final String slug = slugify(clanName);
 		final String name = clanName;
 		batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
 		{
@@ -333,6 +340,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void loadGroupById(int id)
 	{
+		currentLoadSlug = null;
 		setStatus("fetching roster for group " + id + "...");
 		clanHeader.setText("loading clan " + id + "...");
 		membersView.showPlaceholder("loading...");
