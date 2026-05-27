@@ -38,6 +38,7 @@ public class InGameClanReader
 	private final Client client;
 
 	private volatile List<ClanMember> cached = Collections.emptyList();
+	private volatile String clanName;
 	private final List<Consumer<List<ClanMember>>> listeners = new CopyOnWriteArrayList<>();
 
 	@Inject
@@ -50,6 +51,12 @@ public class InGameClanReader
 	public List<ClanMember> currentRoster()
 	{
 		return cached;
+	}
+
+	/** Returns the display name of the user's primary clan, or null if no clan data yet. */
+	public String currentClanName()
+	{
+		return clanName;
 	}
 
 	public void addListener(Consumer<List<ClanMember>> listener)
@@ -78,6 +85,20 @@ public class InGameClanReader
 			client.getGuestClanSettings()
 		};
 
+		// Extract the clan display name from the first non-null slot.
+		// Slot 0 is the user's primary clan; slot 1 is secondary; guest
+		// channel is tertiary. First non-null name wins.
+		String name = null;
+		for (ClanSettings cs : all)
+		{
+			if (cs != null && cs.getName() != null && !cs.getName().isEmpty())
+			{
+				name = cs.getName();
+				break;
+			}
+		}
+		clanName = name;
+
 		List<ClanMember> next = new ArrayList<>();
 		for (ClanSettings cs : all)
 		{
@@ -97,7 +118,8 @@ public class InGameClanReader
 
 		cached = Collections.unmodifiableList(next);
 		long activeSlots = Arrays.stream(all).filter(Objects::nonNull).count();
-		log.debug("clan reader refresh: {} members across {} slots", cached.size(), activeSlots);
+		log.debug("clan reader refresh: {} ({}) across {} slots",
+			cached.size(), clanName != null ? clanName : "unnamed", activeSlots);
 
 		for (Consumer<List<ClanMember>> l : listeners)
 		{

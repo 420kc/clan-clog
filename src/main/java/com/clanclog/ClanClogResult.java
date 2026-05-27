@@ -1,6 +1,7 @@
 package com.clanclog;
 
 import com.google.gson.annotations.SerializedName;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +111,29 @@ public class ClanClogResult
 	public Map<String, BossAggregate> getBosses()
 	{
 		return bosses != null ? bosses : Collections.emptyMap();
+	}
+
+	// ── Package-private mutators for roster-derived overlays ──────────────
+
+	/** Replace boss aggregates with live hiscore-derived data. */
+	void setBosses(Map<String, BossAggregate> bosses)
+	{
+		this.bosses = bosses;
+	}
+
+	/**
+	 * Build a ClanClogResult from roster hiscore data when no backend data
+	 * exists. Clog stays null (requires a clog provider like Temple/RuneProfile).
+	 */
+	static ClanClogResult forRoster(String slug, String displayName,
+		int memberCount, Map<String, BossAggregate> bosses)
+	{
+		ClanClogResult r = new ClanClogResult();
+		r.slug = slug;
+		r.displayName = displayName;
+		r.memberCount = memberCount;
+		r.bosses = bosses;
+		return r;
 	}
 
 	/**
@@ -265,6 +289,19 @@ public class ClanClogResult
 		@SerializedName("top_3")            private List<MemberKc> top3;
 		@SerializedName("member_coverage")  private int memberCoverage;
 
+		/** Gson reflective constructor. */
+		@SuppressWarnings("unused")
+		private BossAggregate()
+		{
+		}
+
+		BossAggregate(long clanTotalKc, List<MemberKc> top3, int memberCoverage)
+		{
+			this.clanTotalKc = clanTotalKc;
+			this.top3 = top3 != null ? new ArrayList<>(top3) : Collections.emptyList();
+			this.memberCoverage = memberCoverage;
+		}
+
 		public long getClanTotalKc()
 		{
 			return clanTotalKc;
@@ -286,6 +323,18 @@ public class ClanClogResult
 	{
 		@SerializedName("rsn") private String rsn;
 		@SerializedName("kc")  private long kc;
+
+		/** Gson reflective constructor. */
+		@SuppressWarnings("unused")
+		private MemberKc()
+		{
+		}
+
+		MemberKc(String rsn, long kc)
+		{
+			this.rsn = rsn;
+			this.kc = kc;
+		}
 
 		public String getRsn()
 		{

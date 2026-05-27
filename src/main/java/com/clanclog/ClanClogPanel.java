@@ -60,6 +60,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final ClanMembersView membersView = new ClanMembersView();
 	private final SlidePanel membersTray = new SlidePanel("members", membersView, false);
 
+	/** Last backend/fixture ClanClogResult. Merged with hiscore data after batch completes. */
+	@Nullable
+	private ClanClogResult lastBackendResult;
+
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, WomClient womClient,
 		ClanHiscoreBatch batch, InGameClanReader clanReader,
@@ -239,29 +243,87 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (raw.matches("\\d+"))
 		{
 			loadGroupById(Integer.parseInt(raw));
+			return;
 		}
-		else
+
+		// Primary: in-game clan roster (no external dependency, works offline)
+		String inGameName = clanReader.currentClanName();
+		List<ClanMember> roster = clanReader.currentRoster();
+		if (inGameName != null && !roster.isEmpty()
+			&& normalize(inGameName).equals(normalize(raw)))
 		{
-			searchByName(raw);
+			loadFromRoster(inGameName, new ArrayList<>(roster));
+			return;
 		}
+
+		// Secondary: WOM search (for clans the user isn't in)
+		searchByName(raw);
+	}
+
+	/**
+	 * Load a clan directly from the in-game roster. Primary lookup path per
+	 * the roster-first architecture: the plugin compiles its own data using
+	 * the in-game clan roster + Jagex hiscores, no WOM dependency. Backend
+	 * clog data fires in parallel and falls back to the dev fixture when the
+	 * backend is unreachable.
+	 */
+	private void loadFromRoster(String clanName, List<ClanMember> roster)
+	{
+		clanHeader.setText(clanName + " · " + roster.size() + " members");
+		setStatus("roster synced · fetching hiscores · 0/" + roster.size());
+		membersView.renderRoster(roster);
+		if (!membersTray.isExpanded())
+		{
+			membersTray.toggle();
+		}
+
+		// Backend clog data in parallel (cells surface; falls back to fixture)
+		clanLookupSession.start(slugify(clanName), this);
+
+		// Per-member hiscore fan-out (aggregate grid + member enrichment)
+		final String slug = slugify(clanName);
+		final String name = clanName;
+		batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
+		{
+			setStatus("fetching hiscores · " + completed + "/" + roster.size());
+			membersView.renderRoster(roster);
+			aggregateGrid.renderRoster(roster);
+		})).whenComplete((v, batchEx) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				// Merge real hiscore boss aggregates into the cells surface.
+				// Preserves clog items from backend/fixture, replaces boss
+				// data with live Jagex hiscore aggregates.
+				ClanClogResult merged = RosterClogBuilder.fromHiscores(
+					name, slug, roster, lastBackendResult);
+				cells.renderClanResult(merged);
+				setStatus("done · " + roster.size() + " members");
+				membersView.renderRoster(roster);
+				aggregateGrid.renderRoster(roster);
+			}));
 	}
 
 	private void searchByName(String query)
 	{
-		setStatus("searching wom for \"" + query + "\"...");
+		setStatus("searching for \"" + query + "\"...");
 		if (!membersTray.isExpanded())
 		{
 			membersTray.toggle();
 		}
 		membersView.showPlaceholder("searching...");
 
+		// Always fire backend clog lookup so the cells surface renders
+		// even if WOM has no match (fixture fallback in dev)
+		clanLookupSession.start(slugify(query), this);
+
 		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
 			SwingUtilities.invokeLater(() ->
 			{
 				if (results == null || results.length == 0)
 				{
-					setStatus("no clans matched \"" + query + "\"");
-					membersView.showPlaceholder("no matches");
+					setStatus("no wom match for \"" + query
+						+ "\" · clog data loading");
+					membersView.showPlaceholder("no roster source");
 					return;
 				}
 				setStatus("matched " + results.length + ", click one to load");
@@ -296,12 +358,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 			}
 
+			final String groupName = group.name;
+			final String groupSlug = slugify(groupName);
 			SwingUtilities.invokeLater(() ->
 			{
-				clanHeader.setText(group.name + " · " + roster.size() + " members");
+				clanHeader.setText(groupName + " · " + roster.size() + " members");
 				setStatus("fetching hiscores · 0/" + roster.size());
 				membersView.renderRoster(roster);
-				clanLookupSession.start(slugify(group.name), this);
+				clanLookupSession.start(groupSlug, this);
 			});
 
 			batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
@@ -312,6 +376,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			})).whenComplete((v, batchEx) ->
 				SwingUtilities.invokeLater(() ->
 				{
+					ClanClogResult merged = RosterClogBuilder.fromHiscores(
+						groupName, groupSlug, roster, lastBackendResult);
+					cells.renderClanResult(merged);
 					setStatus("done · " + roster.size() + " members");
 					membersView.renderRoster(roster);
 					aggregateGrid.renderRoster(roster);
@@ -321,9 +388,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	/**
 	 * Called whenever {@link InGameClanReader} refreshes (user opens their clan
-	 * tab in-game). For now: when the panel is "idle" with no manually-loaded
-	 * clan, auto-populate from the in-game roster. Once the user has explicitly
-	 * loaded another clan via search, leave their view alone.
+	 * tab in-game). When the panel is "idle" with no manually-loaded clan,
+	 * auto-populate from the in-game roster + fire backend clog lookup so both
+	 * surfaces render. Once the user has explicitly loaded another clan via
+	 * search, leave their view alone.
 	 */
 	private void onInGameRosterRefreshed(List<ClanMember> roster)
 	{
@@ -337,23 +405,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return;
 		}
-		clanHeader.setText("my clan · " + roster.size() + " members");
-		setStatus("in-game roster synced · fetching hiscores · 0/" + roster.size());
-		membersView.renderRoster(roster);
-
-		List<ClanMember> mutable = new ArrayList<>(roster);
-		batch.fetchAll(mutable, completed -> SwingUtilities.invokeLater(() ->
-		{
-			setStatus("in-game roster · " + completed + "/" + mutable.size());
-			membersView.renderRoster(mutable);
-			aggregateGrid.renderRoster(mutable);
-		})).whenComplete((v, batchEx) ->
-			SwingUtilities.invokeLater(() ->
-			{
-				setStatus("done · " + mutable.size() + " members");
-				membersView.renderRoster(mutable);
-				aggregateGrid.renderRoster(mutable);
-			}));
+		String name = clanReader.currentClanName();
+		loadFromRoster(name != null ? name : "my clan", new ArrayList<>(roster));
 	}
 
 	private void setStatus(String text)
@@ -366,29 +419,33 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Override
 	public void onClanLookupStart(String slug)
 	{
-		setStatus("fetching backend clog for " + slug + "...");
+		setStatus("fetching clog data for " + slug + "...");
+		lastBackendResult = null;
 		cells.clearCells();
 	}
 
 	@Override
 	public void onClanResult(String slug, ClanClogResult result)
 	{
+		lastBackendResult = result;
 		int memberCount = result.getMemberCount();
-		setStatus("backend clog loaded · " + memberCount + " members · " + slug);
+		setStatus("clog loaded · " + memberCount + " members · " + slug);
 		cells.renderClanResult(result);
 	}
 
 	@Override
 	public void onClanNotFound(String slug)
 	{
-		setStatus("backend clog not registered for " + slug);
+		lastBackendResult = null;
+		setStatus("no clog data for " + slug);
 		cells.clearCells();
 	}
 
 	@Override
 	public void onClanError(String slug, @Nullable String detail)
 	{
-		setStatus("backend clog error for " + slug + (detail != null ? ": " + detail : ""));
+		lastBackendResult = null;
+		setStatus("clog error for " + slug + (detail != null ? ": " + detail : ""));
 		cells.clearCells();
 	}
 
@@ -406,5 +463,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		return name.toLowerCase()
 			.replaceAll("[^a-z0-9]+", "-")
 			.replaceAll("^-+|-+$", "");
+	}
+
+	/**
+	 * Strip a clan name to lowercase alphanumerics for comparison. OSRS clan
+	 * names are case-insensitive and may contain spaces or punctuation that
+	 * shouldn't block a match between search input and in-game data.
+	 */
+	private static String normalize(String name)
+	{
+		if (name == null)
+		{
+			return "";
+		}
+		return name.toLowerCase().replaceAll("[^a-z0-9]", "");
 	}
 }

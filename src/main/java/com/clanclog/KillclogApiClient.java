@@ -3,6 +3,9 @@ package com.clanclog;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -60,6 +63,10 @@ public class KillclogApiClient
 	 * the clan is not found (404), the backend is unreachable, or the response
 	 * fails to parse. Use the result's getters defensively; nested collections
 	 * are non-null but may be empty.
+	 *
+	 * <p>Dev fallback: when the backend is localhost and unreachable, serves
+	 * the classpath fixture so the full panel renders without a running server.
+	 * This path is removed once the production API target is wired.
 	 */
 	public CompletableFuture<ClanClogResult> fetchClanClog(String slug)
 	{
@@ -68,7 +75,39 @@ public class KillclogApiClient
 			.header("User-Agent", USER_AGENT)
 			.header("Accept", "application/json")
 			.build();
-		return fetchAsync(request, ClanClogResult.class);
+		return fetchAsync(request, ClanClogResult.class)
+			.thenApply(result ->
+			{
+				if (result != null)
+				{
+					return result;
+				}
+				return loadDevFixture();
+			});
+	}
+
+	/**
+	 * Load the dev fixture from classpath. Returns null if the fixture is
+	 * missing or fails to parse (production builds won't ship it).
+	 */
+	private ClanClogResult loadDevFixture()
+	{
+		try (InputStream is = getClass().getResourceAsStream("dev-fixture.json"))
+		{
+			if (is == null)
+			{
+				return null;
+			}
+			log.info("backend unreachable, serving dev fixture");
+			return gson.fromJson(
+				new InputStreamReader(is, StandardCharsets.UTF_8),
+				ClanClogResult.class);
+		}
+		catch (IOException | JsonSyntaxException e)
+		{
+			log.debug("dev fixture load failed: {}", e.getMessage());
+			return null;
+		}
 	}
 
 	private <T> CompletableFuture<T> fetchAsync(Request request, Class<T> type)
