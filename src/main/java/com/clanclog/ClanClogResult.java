@@ -121,6 +121,12 @@ public class ClanClogResult
 		this.bosses = bosses;
 	}
 
+	/** Replace clog union with client-side aggregated data. */
+	void setClog(ClogUnion clog)
+	{
+		this.clog = clog;
+	}
+
 	/**
 	 * Build a ClanClogResult from roster hiscore data when no backend data
 	 * exists. Clog stays null (requires a clog provider like Temple/RuneProfile).
@@ -194,6 +200,32 @@ public class ClanClogResult
 		@SerializedName("item_meta")         private Map<String, ItemMeta> itemMeta;
 		@SerializedName("recently_acquired") private List<RecentItem> recentlyAcquired;
 
+		/**
+		 * Full catalog per category: every item ID that exists in the category,
+		 * not just the ones the clan obtained. Populated by client-side
+		 * aggregation from per-member Temple clog data. Null when deserialized
+		 * from a backend response (the backend doesn't ship catalogs yet).
+		 */
+		private transient Map<String, List<Integer>> catalogByCategory;
+
+		/** Gson reflective constructor. */
+		@SuppressWarnings("unused")
+		private ClogUnion()
+		{
+		}
+
+		/** Package-private constructor for client-side aggregation. */
+		ClogUnion(Map<String, List<Integer>> itemsByCategory, int totalObtained,
+			Map<String, ItemMeta> itemMeta,
+			Map<String, List<Integer>> catalogByCategory)
+		{
+			this.itemsByCategory = itemsByCategory;
+			this.totalObtained = totalObtained;
+			this.itemMeta = itemMeta;
+			this.recentlyAcquired = Collections.emptyList();
+			this.catalogByCategory = catalogByCategory;
+		}
+
 		public Map<String, List<Integer>> getItemsByCategory()
 		{
 			return itemsByCategory != null ? itemsByCategory : Collections.emptyMap();
@@ -213,6 +245,15 @@ public class ClanClogResult
 		{
 			return recentlyAcquired != null ? recentlyAcquired : Collections.emptyList();
 		}
+
+		/**
+		 * Full catalog for a category, or null if not available. Only
+		 * populated after client-side clog aggregation (not from backend).
+		 */
+		public List<Integer> getCatalog(String category)
+		{
+			return catalogByCategory != null ? catalogByCategory.get(category) : null;
+		}
 	}
 
 	/**
@@ -226,6 +267,18 @@ public class ClanClogResult
 		@SerializedName("holder_count")      private int holderCount;
 		@SerializedName("first_seen_at")     private String firstSeenAt;
 		@SerializedName("first_seen_by_rsn") private String firstSeenByRsn;
+
+		/** Gson reflective constructor. */
+		@SuppressWarnings("unused")
+		private ItemMeta()
+		{
+		}
+
+		/** Package-private constructor for client-side aggregation. */
+		ItemMeta(int holderCount)
+		{
+			this.holderCount = holderCount;
+		}
 
 		public int getHolderCount()
 		{

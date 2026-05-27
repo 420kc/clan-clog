@@ -1,9 +1,12 @@
 package com.clanclog;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nullable;
 
 /**
@@ -44,6 +47,99 @@ final class RosterClogBuilder
 		}
 
 		return ClanClogResult.forRoster(slug, clanName, roster.size(), bossMap);
+	}
+
+	/**
+	 * Build a {@link ClanClogResult.ClogUnion} from per-member clog data.
+	 * Unions all members' obtained items per category, counts how many members
+	 * hold each item (holder_count), and sums total unique obtained items
+	 * across the clan.
+	 *
+	 * <p>Category keys are Temple-style (snake_case). The tooltip builder uses
+	 * {@link ClogHelper#bossToCategory} to map boss names to category keys.
+	 *
+	 * @param roster  the roster with {@link ClanMember#getClog()} populated
+	 * @return        a ClogUnion, or null if no member has clog data
+	 */
+	static ClanClogResult.ClogUnion buildClogUnion(List<ClanMember> roster)
+	{
+		// category -> item id -> set of RSNs who have it
+		Map<String, Map<Integer, Set<String>>> categoryHolders = new LinkedHashMap<>();
+		// category -> all item IDs from the catalog
+		Map<String, Set<Integer>> categoryCatalogs = new LinkedHashMap<>();
+
+		int membersWithClog = 0;
+
+		for (ClanMember member : roster)
+		{
+			ClogResult clog = member.getClog();
+			if (clog == null)
+			{
+				continue;
+			}
+			membersWithClog++;
+
+			// Index all item IDs per category (catalog: all items in the category)
+			for (Map.Entry<String, List<Integer>> entry : clog.getCategoryItems().entrySet())
+			{
+				categoryCatalogs
+					.computeIfAbsent(entry.getKey(), k -> new HashSet<>())
+					.addAll(entry.getValue());
+			}
+
+			// Index obtained items per category with holder tracking
+			for (Map.Entry<String, List<ClogResult.ClogItem>> entry : clog.getObtainedItems().entrySet())
+			{
+				Map<Integer, Set<String>> holders = categoryHolders
+					.computeIfAbsent(entry.getKey(), k -> new LinkedHashMap<>());
+				for (ClogResult.ClogItem item : entry.getValue())
+				{
+					holders
+						.computeIfAbsent(item.getId(), k -> new HashSet<>())
+						.add(member.getRsn().toLowerCase());
+				}
+			}
+		}
+
+		if (membersWithClog == 0)
+		{
+			return null;
+		}
+
+		// Build items_by_category: for each category, list all obtained item IDs
+		Map<String, List<Integer>> itemsByCategory = new LinkedHashMap<>();
+		Set<Integer> allObtained = new HashSet<>();
+
+		for (Map.Entry<String, Map<Integer, Set<String>>> entry : categoryHolders.entrySet())
+		{
+			List<Integer> obtainedIds = new ArrayList<>(entry.getValue().keySet());
+			itemsByCategory.put(entry.getKey(), obtainedIds);
+			allObtained.addAll(obtainedIds);
+		}
+
+		// Build item_meta: per-item holder count
+		Map<String, ClanClogResult.ItemMeta> itemMeta = new HashMap<>();
+		for (Map<Integer, Set<String>> holders : categoryHolders.values())
+		{
+			for (Map.Entry<Integer, Set<String>> e : holders.entrySet())
+			{
+				String idStr = String.valueOf(e.getKey());
+				if (!itemMeta.containsKey(idStr))
+				{
+					itemMeta.put(idStr, new ClanClogResult.ItemMeta(e.getValue().size()));
+				}
+			}
+		}
+
+		// Build catalog: category -> full item list (all items in the category)
+		Map<String, List<Integer>> catalogMap = new LinkedHashMap<>();
+		for (Map.Entry<String, Set<Integer>> entry : categoryCatalogs.entrySet())
+		{
+			catalogMap.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+		}
+
+		return new ClanClogResult.ClogUnion(itemsByCategory, allObtained.size(),
+			itemMeta, catalogMap);
 	}
 
 	private static Map<String, ClanClogResult.BossAggregate> buildBossAggregates(

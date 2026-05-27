@@ -71,9 +71,15 @@ public class SlidePanel
 		this.chevron = new JLabel(expanded ? "v" : ">");
 		chevron.setFont(FontManager.getRunescapeSmallFont());
 		chevron.setForeground(new Color(160, 160, 160));
+		chevron.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		JLabel labelLabel = new JLabel(label);
 		labelLabel.setFont(FontManager.getRunescapeSmallFont());
 		labelLabel.setForeground(new Color(215, 215, 215));
+		labelLabel.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		header.add(chevron);
 		header.add(labelLabel);
 		Color hdrNormal = ColorScheme.DARK_GRAY_COLOR;

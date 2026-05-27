@@ -3,14 +3,19 @@ package com.clanclog;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.Player;
+import net.runelite.api.clan.ClanRank;
 import net.runelite.api.clan.ClanSettings;
 
 /**
@@ -73,6 +78,56 @@ public class InGameClanReader
 	}
 
 	/**
+	 * Returns the local player's RSN, or null if not logged in.
+	 */
+	@Nullable
+	public String localPlayerName()
+	{
+		Player local = client.getLocalPlayer();
+		return local != null ? local.getName() : null;
+	}
+
+	/**
+	 * Check whether the local player holds a key rank (OWNER or DEPUTY_OWNER)
+	 * in the primary clan. Returns the rank name ("OWNER" or "DEPUTY_OWNER")
+	 * if so, null otherwise. Used to gate the sync-to-killclog.com button.
+	 *
+	 * <p>Must be called on the client thread or after {@link #refresh()}.
+	 */
+	@Nullable
+	public String localPlayerKeyRank()
+	{
+		ClanSettings cs = client.getClanSettings(0);
+		if (cs == null)
+		{
+			return null;
+		}
+		Player local = client.getLocalPlayer();
+		if (local == null || local.getName() == null)
+		{
+			return null;
+		}
+		for (net.runelite.api.clan.ClanMember m : cs.getMembers())
+		{
+			if (m.getName() != null
+				&& m.getName().equalsIgnoreCase(local.getName()))
+			{
+				ClanRank rank = m.getRank();
+				if (ClanRank.OWNER.equals(rank))
+				{
+					return "OWNER";
+				}
+				if (ClanRank.DEPUTY_OWNER.equals(rank))
+				{
+					return "DEPUTY_OWNER";
+				}
+				return null;
+			}
+		}
+		return null;
+	}
+
+	/**
 	 * Read fresh roster data from the live client. MUST be called on the client
 	 * thread (RuneLite's Client api is not thread-safe). Listeners are invoked
 	 * inline; they should marshal to the EDT themselves if they touch UI.
@@ -99,6 +154,10 @@ public class InGameClanReader
 		}
 		clanName = name;
 
+		// Dedup by lowercase RSN across slots. If a user is in multiple
+		// clans (primary + guest), the same RSN can appear in multiple
+		// slots. Without dedup, the batch fires duplicate hiscore lookups.
+		Set<String> seen = new HashSet<>();
 		List<ClanMember> next = new ArrayList<>();
 		for (ClanSettings cs : all)
 		{
@@ -109,7 +168,7 @@ public class InGameClanReader
 			for (net.runelite.api.clan.ClanMember m : cs.getMembers())
 			{
 				ClanMember adapted = ClanMember.fromInGame(m, cs);
-				if (adapted != null)
+				if (adapted != null && seen.add(adapted.getRsn().toLowerCase()))
 				{
 					next.add(adapted);
 				}

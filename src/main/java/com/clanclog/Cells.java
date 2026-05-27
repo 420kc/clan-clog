@@ -155,6 +155,35 @@ public class Cells
 	/** Standard kc text color (light gray-white) used for any cell that has a non-zero value. */
 	static final Color KC_COLOR = new Color(215, 215, 215);
 
+	/**
+	 * Boss display order matching Kill Clog's PanelData.BOSSES layout exactly.
+	 * This is NOT the hiscore CSV alphabetical order -- it follows the RuneLite
+	 * panel convention where "The Hueycoatl" and "The Royal Titans" are placed
+	 * near their thematic neighbors instead of at the end of the "The" block.
+	 */
+	private static final String[] BOSS_DISPLAY_ORDER = {
+		"Abyssal Sire", "Alchemical Hydra", "Amoxliatl", "Araxxor",
+		"Artio", "Barrows Chests", "Brutus", "Bryophyta", "Callisto",
+		"Cal'varion", "Cerberus", "Chambers of Xeric",
+		"Chambers of Xeric: Challenge Mode", "Chaos Elemental", "Chaos Fanatic",
+		"Commander Zilyana", "Corporeal Beast", "Crazy Archaeologist",
+		"Dagannoth Prime", "Dagannoth Rex", "Dagannoth Supreme",
+		"Deranged Archaeologist", "Doom of Mokhaiotl", "Duke Sucellus",
+		"General Graardor", "Giant Mole", "Grotesque Guardians", "Hespori",
+		"The Hueycoatl", "Kalphite Queen", "King Black Dragon", "Kraken",
+		"Kree'Arra", "K'ril Tsutsaroth", "Lunar Chests", "Mimic", "Nex",
+		"Nightmare", "Phosani's Nightmare", "Obor",
+		"Phantom Muspah", "The Royal Titans", "Sarachnis", "Scorpia", "Scurrius",
+		"Shellbane Gryphon", "Skotizo", "Sol Heredit", "Spindel", "Tempoross",
+		"The Gauntlet", "The Corrupted Gauntlet",
+		"The Leviathan", "The Whisperer",
+		"Theatre of Blood", "Theatre of Blood: Hard Mode",
+		"Thermonuclear Smoke Devil", "Tombs of Amascut",
+		"Tombs of Amascut: Expert Mode", "TzKal-Zuk", "TzTok-Jad",
+		"Vardorvis", "Venenatis", "Vet'ion", "Vorkath", "Wintertodt",
+		"Yama", "Zalcano", "Zulrah"
+	};
+
 	private static final int BOSS_GRID_COLS = 3;
 	private static final int CLUE_GRID_COLS = 3;
 
@@ -198,12 +227,13 @@ public class Cells
 
 	// ── Cell builders ─────────────────────────────────────────────────────────
 
-	/** Build the boss grid populated with one sprite-icon cell per boss. */
+	/** Build the boss grid populated with one sprite-icon cell per boss.
+	 *  Uses BOSS_DISPLAY_ORDER (Kill Clog parity) instead of hiscore CSV order. */
 	public JPanel buildBossGrid()
 	{
 		JPanel grid = new JPanel(new GridLayout(0, BOSS_GRID_COLS));
 		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		for (String boss : HiscoreService.bossNames())
+		for (String boss : BOSS_DISPLAY_ORDER)
 		{
 			grid.add(buildBossCell(boss));
 		}
@@ -375,6 +405,7 @@ public class Cells
 		renderClueTiers(result);
 		renderRares(result);
 		rebuildTooltips(result);
+		applyHighlightColors(result);
 	}
 
 	/** Reset every cell to its placeholder state. Called when a lookup fails / returns nothing. */
@@ -555,6 +586,76 @@ public class Cells
 	}
 
 	/**
+	 * Apply Kill Clog's 4-tier clog completion colors to every cell that has
+	 * data. Always on (no keybind toggle). Reads from the tooltip data cache
+	 * built by {@link #rebuildTooltips} so it must run AFTER that method.
+	 *
+	 * <ul>
+	 *   <li>Boss with kc > 0 + clog data: color by completion tier
+	 *   <li>Boss with kc > 0, no clog data: empty color (kc but no clog coverage)
+	 *   <li>Boss with kc = 0: stays dim gray (default)
+	 *   <li>Clue tiers + rares: color by obtained/total from tooltip data
+	 * </ul>
+	 */
+	private void applyHighlightColors(ClanClogResult result)
+	{
+		Map<String, ClanClogResult.BossAggregate> bosses = result.getBosses();
+
+		for (Map.Entry<String, JLabel> entry : bossLabels.entrySet())
+		{
+			String boss = entry.getKey();
+			JLabel label = entry.getValue();
+			ClanClogResult.BossAggregate agg = bosses.get(boss);
+			long kc = agg != null ? agg.getClanTotalKc() : 0L;
+
+			if (kc <= 0)
+			{
+				continue;
+			}
+
+			TooltipData data = tooltipDataMap.get(boss);
+			if (data != null && data.totalItems > 0)
+			{
+				label.setForeground(ClogHelper.clogColor(data.obtainedCount, data.totalItems));
+			}
+			else
+			{
+				// Has kc but no clog data for this boss
+				label.setForeground(ClogHelper.COLOR_EMPTY);
+			}
+		}
+
+		for (Map.Entry<String, JLabel> entry : clueTierLabels.entrySet())
+		{
+			JLabel label = entry.getValue();
+			TooltipData data = tooltipDataMap.get(entry.getKey());
+			if (data != null && data.totalItems > 0 && data.obtainedCount > 0)
+			{
+				label.setForeground(ClogHelper.clogColor(data.obtainedCount, data.totalItems));
+			}
+		}
+
+		applyRareHighlight(thirdAgeCell, CLOG_THIRD_AGE);
+		applyRareHighlight(gildedCell, CLOG_GILDED);
+		applyRareHighlight(hardRare, RARE_HARD);
+		applyRareHighlight(eliteRare, RARE_ELITE);
+		applyRareHighlight(masterRare, RARE_MASTER);
+	}
+
+	private void applyRareHighlight(@Nullable JLabel label, String rareKey)
+	{
+		if (label == null)
+		{
+			return;
+		}
+		TooltipData data = rareTooltips.get(rareKey);
+		if (data != null && data.totalItems > 0 && data.obtainedCount > 0)
+		{
+			label.setForeground(ClogHelper.clogColor(data.obtainedCount, data.totalItems));
+		}
+	}
+
+	/**
 	 * Rebuild the per-cell TooltipData cache from a clan result. Mirrors the
 	 * kcpdev Cells.rebuildPrimaryTooltips path but feeds ClanTooltipDataBuilder
 	 * with ClanClogResult instead of TooltipDataBuilder + ClogResult.
@@ -571,7 +672,8 @@ public class Cells
 		{
 			String boss = entry.getKey();
 			JLabel label = entry.getValue();
-			TooltipData data = tooltipDataBuilder.buildForCategory(boss, boss, result);
+			String clogCategory = ClogHelper.bossToCategory(boss);
+			TooltipData data = tooltipDataBuilder.buildForCategory(boss, clogCategory, result);
 			if (data == null)
 			{
 				label.setToolTipText(boss);

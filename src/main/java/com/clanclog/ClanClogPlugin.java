@@ -36,7 +36,13 @@ public class ClanClogPlugin extends Plugin
 	private ClanHiscoreBatch batch;
 
 	@Inject
+	private ClanClogBatch clogBatch;
+
+	@Inject
 	private LocalClogCache clogCache;
+
+	@Inject
+	private LocalHiscoreCache hiscoreCache;
 
 	@Inject
 	private InGameClanReader clanReader;
@@ -81,7 +87,9 @@ public class ClanClogPlugin extends Plugin
 			navButton = null;
 		}
 		batch.shutdown();
+		clogBatch.shutdown();
 		clogCache.shutdown();
+		hiscoreCache.shutdown();
 		log.debug("clan clog: shutDown");
 	}
 

@@ -18,8 +18,8 @@ dependencies {
 
     // Sibling 420 kc plugins on the test classpath -- enables a combined runelite
     // launch where the clan-clog dev build runs alongside the latest kill clog code.
-    if (file('../kcpdev/build/libs/kill-clog-plugin-1.4.0.jar').exists()) {
-        testImplementation files('../kcpdev/build/libs/kill-clog-plugin-1.4.0.jar')
+    if (file('../kcpdev/build/libs/kill-clog-plugin-1.3.2.jar').exists()) {
+        testImplementation files('../kcpdev/build/libs/kill-clog-plugin-1.3.2.jar')
     }
 
     testImplementation 'junit:junit:4.13.2'

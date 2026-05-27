@@ -48,12 +48,14 @@ public class ClanHiscoreBatch
 	private static final long ACQUIRE_TIMEOUT_SECONDS = 30;
 
 	private final HiscoreService hiscoreService;
+	private final LocalHiscoreCache hiscoreCache;
 	private final ScheduledExecutorService scheduler;
 
 	@Inject
-	public ClanHiscoreBatch(HiscoreService hiscoreService)
+	public ClanHiscoreBatch(HiscoreService hiscoreService, LocalHiscoreCache hiscoreCache)
 	{
 		this.hiscoreService = hiscoreService;
+		this.hiscoreCache = hiscoreCache;
 		this.scheduler = Executors.newSingleThreadScheduledExecutor(r ->
 		{
 			Thread t = new Thread(r, "clan-clog-batch");
@@ -117,6 +119,17 @@ public class ClanHiscoreBatch
 	private CompletableFuture<HiscoreResult> lookupOne(ClanMember member, Semaphore gate)
 	{
 		CompletableFuture<HiscoreResult> out = new CompletableFuture<>();
+
+		// Stale-while-revalidate: if a cached result exists and isn't stale,
+		// return it immediately without hitting Jagex at all. If stale or
+		// missing, fetch fresh data (still uses only the regular endpoint).
+		HiscoreResult cached = hiscoreCache.get(member.getRsn());
+		if (cached != null && !hiscoreCache.isStale(member.getRsn()))
+		{
+			out.complete(cached);
+			return out;
+		}
+
 		scheduler.execute(() ->
 		{
 			try
@@ -124,29 +137,41 @@ public class ClanHiscoreBatch
 				if (!gate.tryAcquire(ACQUIRE_TIMEOUT_SECONDS, TimeUnit.SECONDS))
 				{
 					log.debug("Batch slot timeout for {}, skipping", member.getRsn());
-					out.complete(null);
+					// Fall back to stale cached data if available
+					out.complete(cached);
 					return;
 				}
 			}
 			catch (InterruptedException e)
 			{
 				Thread.currentThread().interrupt();
-				out.complete(null);
+				out.complete(cached);
 				return;
 			}
 
-			hiscoreService.lookup(member.getRsn(), member.getAccountType())
+			// Clan aggregate only needs the regular hiscore endpoint (1 request
+			// per member instead of 4). Account type detection is unnecessary
+			// since every player appears on the regular hiscores regardless of
+			// iron status. Cuts total HTTP requests by 75%.
+			hiscoreService.lookupRegularOnly(member.getRsn())
 				.whenComplete((result, ex) ->
 				{
 					gate.release();
 					if (ex != null)
 					{
 						log.debug("Lookup failed for {}: {}", member.getRsn(), ex.getMessage());
-						out.complete(null);
+						// Fall back to stale cached data
+						out.complete(cached);
+					}
+					else if (result != null)
+					{
+						hiscoreCache.put(member.getRsn(), result);
+						out.complete(result);
 					}
 					else
 					{
-						out.complete(result);
+						// Fetch returned null, use stale cache if available
+						out.complete(cached);
 					}
 				});
 		});

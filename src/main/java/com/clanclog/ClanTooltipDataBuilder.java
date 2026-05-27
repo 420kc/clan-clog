@@ -62,9 +62,14 @@ public class ClanTooltipDataBuilder
 			return null;
 		}
 
-		// Catalog gap: backend ships obtained-only. allItemIds == obtainedIds
-		// for this category until backend grows a catalog endpoint.
-		List<Integer> allItemIds = new ArrayList<>(categoryItems);
+		// When the client-side catalog is available (from per-member Temple
+		// data), use it as the full item list so completion shows X/Y
+		// correctly. Falls back to obtained-only when no catalog exists
+		// (e.g. backend-only data without catalog support).
+		List<Integer> catalog = result.getClog().getCatalog(category);
+		List<Integer> allItemIds = catalog != null && !catalog.isEmpty()
+			? new ArrayList<>(catalog)
+			: new ArrayList<>(categoryItems);
 		Set<Integer> obtainedIds = new HashSet<>(categoryItems);
 
 		// Per-item meta enrichment from clog.item_meta (keyed by item id as string)
@@ -101,7 +106,7 @@ public class ClanTooltipDataBuilder
 			displayName,
 			0, // rank is not meaningful at clan scope; placeholder
 			categoryItems.size(),
-			categoryItems.size(),
+			allItemIds.size(),
 			allItemIds,
 			obtainedIds,
 			obtainedCounts,

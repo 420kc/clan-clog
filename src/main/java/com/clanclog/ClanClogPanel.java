@@ -1,6 +1,5 @@
 package com.clanclog;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -17,12 +16,14 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
@@ -30,10 +31,10 @@ import net.runelite.client.ui.components.FlatTextField;
 import net.runelite.client.ui.components.IconTextField;
 
 /**
- * Main clan clog surface. Mirrors kill clog's layout shape: header search bar,
- * a clan-summary strip, then the collective hiscore aggregate area where the
- * boss grid lives. The full member roster is hidden behind a slide-out so the
- * primary view stays focused on the clan-wide kc-style snapshot.
+ * Main clan clog surface. Layout mirrors Kill Clog: search header, collapsible
+ * activities tray (clue tiers + rares) above the boss grid, members slide-out
+ * below. PluginPanel(true) wraps everything in a single scroll pane with a
+ * 7px MinimalScrollBarUI thumb, no nested scroll surfaces.
  *
  * <p>Data source priority per the 2026-05-13 runtime-first lock:
  * {@link InGameClanReader} (primary, no external dependency, refreshes when
@@ -49,36 +50,83 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
+	private final ClanClogBatch clogBatch;
 	private final InGameClanReader clanReader;
+	private final KillclogApiClient apiClient;
 	private final ClanLookupSession clanLookupSession;
 	private final Cells cells;
 
 	private final JLabel statusLabel = new JLabel(" ");
 	private final IconTextField searchBar = new IconTextField();
 	private final JLabel clanHeader = new JLabel(" ");
-	private final ClanAggregateGrid aggregateGrid = new ClanAggregateGrid();
+	private final JButton clanalyzeButton = new JButton("clanalyze");
+	private final JButton syncButton = new JButton("sync to killclog.com");
 	private final ClanMembersView membersView = new ClanMembersView();
 	private final SlidePanel membersTray = new SlidePanel("members", membersView, false);
+	private final ActivitiesTray activitiesTray;
 
 	/** Last backend/fixture ClanClogResult. Merged with hiscore data after batch completes. */
 	@Nullable
 	private ClanClogResult lastBackendResult;
 
+	/** Last fully-rendered result (with boss + clog data). Used for sync payload. */
+	@Nullable
+	private ClanClogResult lastRenderedResult;
+
+	/** Roster from the last successful load. Used for sync payload. */
+	@Nullable
+	private List<ClanMember> lastLoadedRoster;
+
+	/** Display name of the clan currently loaded. */
+	@Nullable
+	private String lastLoadedClanName;
+
 	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
 	@Nullable
 	private String currentLoadSlug;
 
+	/** Roster pending clanalyze (populated by in-game reader, not yet batch-fetched). */
+	@Nullable
+	private List<ClanMember> pendingRoster;
+
+	/** Clan name pending clanalyze. */
+	@Nullable
+	private String pendingClanName;
+
 	@Inject
-	public ClanClogPanel(ClanClogConfig config, WomClient womClient,
-		ClanHiscoreBatch batch, InGameClanReader clanReader,
+	public ClanClogPanel(ClanClogConfig config, ConfigManager configManager,
+		WomClient womClient, ClanHiscoreBatch batch, ClanClogBatch clogBatch,
+		InGameClanReader clanReader, KillclogApiClient apiClient,
 		ClanLookupSession clanLookupSession, Cells cells)
 	{
-		super(false);
+		super(true);
 		this.womClient = womClient;
 		this.batch = batch;
+		this.clogBatch = clogBatch;
 		this.clanReader = clanReader;
+		this.apiClient = apiClient;
 		this.clanLookupSession = clanLookupSession;
 		this.cells = cells;
+
+		// Configure PluginPanel's scroll pane (Kill Clog parity)
+		JScrollPane sp = getScrollPane();
+		if (sp != null)
+		{
+			sp.setBorder(null);
+			sp.setViewportBorder(null);
+			sp.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+			sp.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+			sp.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
+			sp.getVerticalScrollBar().setUI(new MinimalScrollBarUI());
+			sp.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
+			sp.getVerticalScrollBar().setUnitIncrement(16);
+		}
+
+		// Activities tray: clue rares + clue tiers in a collapsible panel
+		String stored = configManager.getConfiguration("clanclog", "activitiesExpanded");
+		boolean trayExpanded = stored == null || Boolean.parseBoolean(stored);
+		this.activitiesTray = new ActivitiesTray(buildActivitiesGrid(), trayExpanded,
+			expanded -> configManager.setConfiguration("clanclog", "activitiesExpanded", expanded));
 
 		setLayout(new GridBagLayout());
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -90,27 +138,21 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.gridy = 0;
 		c.weightx = 1;
 		c.weighty = 0;
-		c.insets = new Insets(0, 0, 6, 0);
+		c.insets = new Insets(0, 0, 5, 0);
 
 		add(buildHeader(), c);
 
 		c.gridy++;
-		add(buildClanSummary(), c);
+		c.insets = new Insets(0, 0, 0, 0);
+		add(activitiesTray.getClip(), c);
 
 		c.gridy++;
-		c.weighty = 2;
-		c.fill = GridBagConstraints.BOTH;
-		c.insets = new Insets(0, 0, 6, 0);
-		add(buildCellsSurface(), c);
+		add(activitiesTray.getSeparator(), c);
 
 		c.gridy++;
-		c.weighty = 1;
-		c.insets = new Insets(0, 0, 6, 0);
-		add(aggregateGrid, c);
+		add(cells.buildBossGrid(), c);
 
 		c.gridy++;
-		c.weighty = 0;
-		c.fill = GridBagConstraints.HORIZONTAL;
 		c.insets = new Insets(0, 0, 0, 0);
 		add(membersTray.getHeader(), c);
 
@@ -126,88 +168,105 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		statusLabel.setText("idle");
 		add(statusLabel, c);
 
+		// Clanalyze button: fires the hiscore + clog batch for the user's own clan.
+		// Hidden until the in-game roster is detected. Manual trigger only.
+		c.gridy++;
+		c.insets = new Insets(6, 0, 0, 0);
+		clanalyzeButton.setFont(FontManager.getRunescapeSmallFont());
+		clanalyzeButton.setForeground(KC_TEXT);
+		clanalyzeButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		clanalyzeButton.setFocusPainted(false);
+		clanalyzeButton.setBorderPainted(false);
+		clanalyzeButton.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		clanalyzeButton.setVisible(false);
+		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
+		add(clanalyzeButton, c);
+
+		// Sync button: only shown for OWNER / DEPUTY_OWNER after clanalyze completes
+		c.gridy++;
+		c.insets = new Insets(4, 0, 0, 0);
+		syncButton.setFont(FontManager.getRunescapeSmallFont());
+		syncButton.setForeground(KC_TEXT);
+		syncButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		syncButton.setFocusPainted(false);
+		syncButton.setBorderPainted(false);
+		syncButton.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		syncButton.setVisible(false);
+		syncButton.addActionListener(e -> onSyncClicked());
+		add(syncButton, c);
+
 		clanReader.addListener(roster ->
 			SwingUtilities.invokeLater(() -> onInGameRosterRefreshed(roster)));
 	}
 
+	/** Search bar + clan name/member-count label. */
 	private JPanel buildHeader()
 	{
-		JPanel header = new JPanel(new BorderLayout());
+		JPanel header = new JPanel();
+		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
 		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
 		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
 		searchBar.setPreferredSize(new Dimension(0, 30));
+		searchBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+		searchBar.setAlignmentX(0f);
 		searchBar.addActionListener(e -> onSubmit());
 		styleSearchBar(searchBar);
+		header.add(searchBar);
 
-		header.add(searchBar, BorderLayout.CENTER);
-		return header;
-	}
-
-	private JPanel buildClanSummary()
-	{
-		JPanel summary = new JPanel(new BorderLayout());
-		summary.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		summary.setBorder(new EmptyBorder(4, 4, 4, 4));
+		header.add(Box.createVerticalStrut(4));
 
 		clanHeader.setFont(FontManager.getRunescapeFont());
 		clanHeader.setForeground(KC_TEXT);
+		clanHeader.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		clanHeader.setText("no clan loaded");
-		summary.add(clanHeader, BorderLayout.WEST);
+		clanHeader.setAlignmentX(0f);
+		header.add(clanHeader);
 
-		return summary;
+		return header;
 	}
 
 	/**
-	 * Primary clan-clog surface: boss grid + clue tier grid + rare cells.
+	 * Activities grid content: clue rares + clue tiers stacked vertically.
+	 * Lives inside the {@link ActivitiesTray} clip above the boss grid.
 	 * No section headers -- parity with Kill Clog's clean cell layout.
-	 * Scrollbar always visible with reserved 7px width so content doesn't
-	 * shift when the scrollbar appears.
 	 */
-	private JScrollPane buildCellsSurface()
+	private JPanel buildActivitiesGrid()
 	{
-		JPanel stack = new JPanel();
-		stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
-		stack.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		JPanel grid = new JPanel();
+		grid.setLayout(new BoxLayout(grid, BoxLayout.Y_AXIS));
+		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
-		stack.add(cells.buildBossGrid());
-
-		JPanel sep1 = new JPanel();
-		sep1.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		sep1.setPreferredSize(new Dimension(0, 7));
-		sep1.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
-		stack.add(sep1);
-
-		stack.add(cells.buildClueTierGrid());
-
-		JPanel sep2 = new JPanel();
-		sep2.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		sep2.setPreferredSize(new Dimension(0, 7));
-		sep2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
-		stack.add(sep2);
-
+		// Clue rares: 3rd Age, Gilded, Hard/Elite/Master
 		JPanel rareGrid = new JPanel(new GridLayout(0, 3));
 		rareGrid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		rareGrid.setAlignmentX(0f);
 		rareGrid.add(cells.buildThirdAgeCell());
 		rareGrid.add(cells.buildGildedCell());
 		rareGrid.add(cells.buildHardRareCell());
 		rareGrid.add(cells.buildEliteRareCell());
 		rareGrid.add(cells.buildMasterRareCell());
-		stack.add(rareGrid);
-		stack.add(Box.createVerticalGlue());
+		grid.add(rareGrid);
 
-		JScrollPane scroll = new JScrollPane(stack,
-			JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-		scroll.setBorder(null);
-		scroll.setViewportBorder(null);
-		scroll.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
-		scroll.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		scroll.getVerticalScrollBar().setUnitIncrement(16);
-		scroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
-		return scroll;
+		// 7px separator
+		JPanel sep = new JPanel();
+		sep.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		sep.setPreferredSize(new Dimension(0, 7));
+		sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
+		sep.setAlignmentX(0f);
+		grid.add(sep);
+
+		// Clue tiers
+		JPanel clueTiers = cells.buildClueTierGrid();
+		clueTiers.setAlignmentX(0f);
+		grid.add(clueTiers);
+
+		return grid;
 	}
 
 	private static void styleSearchBar(Container c)
@@ -247,13 +306,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 
-		// Primary: in-game clan roster (no external dependency, works offline)
+		// Primary: in-game clan roster (no external dependency, works offline).
+		// Populates the UI and shows the clanalyze button; does NOT auto-fire
+		// the hiscore/clog batch. The user must press "clanalyze".
 		String inGameName = clanReader.currentClanName();
 		List<ClanMember> roster = clanReader.currentRoster();
 		if (inGameName != null && !roster.isEmpty()
 			&& normalize(inGameName).equals(normalize(raw)))
 		{
-			loadFromRoster(inGameName, new ArrayList<>(roster));
+			onInGameRosterRefreshed(new ArrayList<>(roster));
 			return;
 		}
 
@@ -264,9 +325,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	/**
 	 * Load a clan directly from the in-game roster. Primary lookup path per
 	 * the roster-first architecture: the plugin compiles its own data using
-	 * the in-game clan roster + Jagex hiscores, no WOM dependency. Backend
-	 * clog data fires in parallel and falls back to the dev fixture when the
-	 * backend is unreachable.
+	 * the in-game clan roster + Jagex hiscores + external clog providers
+	 * (Temple + RuneProfile), no killclog.com backend dependency.
+	 *
+	 * <p>Two-phase batch: hiscores first (boss KCs render immediately), then
+	 * per-member clog fetch (highlight colors + clog tooltips render when done).
 	 */
 	private void loadFromRoster(String clanName, List<ClanMember> roster)
 	{
@@ -277,36 +340,33 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		currentLoadSlug = slug;
 
+		clanalyzeButton.setVisible(false);
 		clanHeader.setText(clanName + " · " + roster.size() + " members");
-		setStatus("roster synced · fetching hiscores · 0/" + roster.size());
+		setStatus("Clanalyzing your members: 0/" + roster.size());
 		membersView.renderRoster(roster);
 		if (!membersTray.isExpanded())
 		{
 			membersTray.toggle();
 		}
 
-		// Backend clog data in parallel (cells surface; falls back to fixture)
-		clanLookupSession.start(slug, this);
-
-		// Per-member hiscore fan-out (aggregate grid + member enrichment)
+		// Phase 1: per-member hiscore fan-out
 		final String name = clanName;
 		batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
 		{
-			setStatus("fetching hiscores · " + completed + "/" + roster.size());
+			setStatus("Clanalyzing your members: " + completed + "/" + roster.size());
 			membersView.renderRoster(roster);
-			aggregateGrid.renderRoster(roster);
 		})).whenComplete((v, batchEx) ->
 			SwingUtilities.invokeLater(() ->
 			{
-				// Merge real hiscore boss aggregates into the cells surface.
-				// Preserves clog items from backend/fixture, replaces boss
-				// data with live Jagex hiscore aggregates.
+				// Render boss KCs immediately from hiscore data
 				ClanClogResult merged = RosterClogBuilder.fromHiscores(
 					name, slug, roster, lastBackendResult);
 				cells.renderClanResult(merged);
-				setStatus("done · " + roster.size() + " members");
 				membersView.renderRoster(roster);
-				aggregateGrid.renderRoster(roster);
+
+				// Phase 2: per-member clog fetch (Temple + RuneProfile)
+				setStatus("Clogs Clanalyzed: 0/" + roster.size());
+				fireClogBatch(name, slug, roster, merged);
 			}));
 	}
 
@@ -319,28 +379,25 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		membersView.showPlaceholder("searching...");
 
-		// Always fire backend clog lookup so the cells surface renders
-		// even if WOM has no match (fixture fallback in dev)
-		clanLookupSession.start(slugify(query), this);
-
 		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
 			SwingUtilities.invokeLater(() ->
 			{
 				if (results == null || results.length == 0)
 				{
-					setStatus("no wom match for \"" + query
-						+ "\" · clog data loading");
+					setStatus("no wom match for \"" + query + "\"");
 					membersView.showPlaceholder("no roster source");
 					return;
 				}
-				setStatus("matched " + results.length + ", click one to load");
-				membersView.renderSearchResults(results, this::loadGroupById);
+				setStatus("matched " + results.length
+					+ " · open your clan tab in-game to clanalyze");
+				membersView.renderSearchResults(results, id ->
+				{
+				});
 			}));
 	}
 
 	private void loadGroupById(int id)
 	{
-		currentLoadSlug = null;
 		setStatus("fetching roster for group " + id + "...");
 		clanHeader.setText("loading clan " + id + "...");
 		membersView.showPlaceholder("loading...");
@@ -367,39 +424,70 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			}
 
 			final String groupName = group.name;
-			final String groupSlug = slugify(groupName);
 			SwingUtilities.invokeLater(() ->
 			{
 				clanHeader.setText(groupName + " · " + roster.size() + " members");
-				setStatus("fetching hiscores · 0/" + roster.size());
+				setStatus("view only · open your clan tab in-game to clanalyze");
 				membersView.renderRoster(roster);
-				clanLookupSession.start(groupSlug, this);
-			});
-
-			batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
-			{
-				setStatus("fetching hiscores · " + completed + "/" + roster.size());
-				membersView.renderRoster(roster);
-				aggregateGrid.renderRoster(roster);
-			})).whenComplete((v, batchEx) ->
-				SwingUtilities.invokeLater(() ->
+				if (!membersTray.isExpanded())
 				{
-					ClanClogResult merged = RosterClogBuilder.fromHiscores(
-						groupName, groupSlug, roster, lastBackendResult);
-					cells.renderClanResult(merged);
-					setStatus("done · " + roster.size() + " members");
-					membersView.renderRoster(roster);
-					aggregateGrid.renderRoster(roster);
-				}));
+					membersTray.toggle();
+				}
+			});
 		});
 	}
 
 	/**
+	 * Phase 2: fire the per-member clog batch (Temple + RuneProfile). Called
+	 * after the hiscore batch completes. Updates the ClanClogResult with a
+	 * client-side ClogUnion built from all members' clog data, then re-renders
+	 * the cells surface with highlight colors.
+	 */
+	private void fireClogBatch(String clanName, String slug,
+		List<ClanMember> roster, ClanClogResult partialResult)
+	{
+		clogBatch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
+			setStatus("Clogs Clanalyzed: " + completed + "/" + roster.size())
+		)).whenComplete((v, clogEx) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				// Build client-side ClogUnion from per-member clog data
+				ClanClogResult.ClogUnion union = RosterClogBuilder.buildClogUnion(roster);
+				if (union != null)
+				{
+					partialResult.setClog(union);
+				}
+
+				// Re-render with clog highlight colors + tooltips
+				cells.renderClanResult(partialResult);
+				membersView.renderRoster(roster);
+
+				// Stash state for sync button
+				lastRenderedResult = partialResult;
+				lastLoadedRoster = roster;
+				lastLoadedClanName = clanName;
+
+				int clogCount = 0;
+				for (ClanMember m : roster)
+				{
+					if (m.getClog() != null)
+					{
+						clogCount++;
+					}
+				}
+				setStatus("done · " + roster.size() + " members · "
+					+ clogCount + " clogs synced");
+
+				// Show sync button if the local player is a key-rank holder
+				updateSyncButtonVisibility();
+			}));
+	}
+
+	/**
 	 * Called whenever {@link InGameClanReader} refreshes (user opens their clan
-	 * tab in-game). When the panel is "idle" with no manually-loaded clan,
-	 * auto-populate from the in-game roster + fire backend clog lookup so both
-	 * surfaces render. Once the user has explicitly loaded another clan via
-	 * search, leave their view alone.
+	 * tab in-game). Populates the header, roster view, and clanalyze button
+	 * but does NOT fire the expensive hiscore/clog batch. The user must press
+	 * "clanalyze" to start the fan-out. You can only clanalyze your own clan.
 	 */
 	private void onInGameRosterRefreshed(List<ClanMember> roster)
 	{
@@ -407,14 +495,103 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return;
 		}
-		String currentHeader = clanHeader.getText();
-		if (currentHeader != null && !currentHeader.equals("no clan loaded")
-			&& !currentHeader.startsWith("loading"))
+		String name = clanReader.currentClanName();
+		if (name == null)
 		{
+			name = "my clan";
+		}
+		pendingClanName = name;
+		pendingRoster = new ArrayList<>(roster);
+		clanHeader.setText(name + " · " + roster.size() + " members");
+		membersView.renderRoster(pendingRoster);
+		if (!membersTray.isExpanded())
+		{
+			membersTray.toggle();
+		}
+		setStatus("ready · press clanalyze to start");
+		clanalyzeButton.setVisible(true);
+		clanalyzeButton.setEnabled(true);
+	}
+
+	/**
+	 * Manual trigger: fires the hiscore + clog batch for the user's own clan.
+	 * Only callable when an in-game roster has been detected.
+	 */
+	private void onClanalyzeClicked()
+	{
+		if (pendingRoster == null || pendingRoster.isEmpty() || pendingClanName == null)
+		{
+			setStatus("open your clan tab in-game first");
 			return;
 		}
-		String name = clanReader.currentClanName();
-		loadFromRoster(name != null ? name : "my clan", new ArrayList<>(roster));
+		clanalyzeButton.setEnabled(false);
+		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster));
+	}
+
+	/**
+	 * Show the sync button only when a clan is fully loaded and the local
+	 * player holds OWNER or DEPUTY_OWNER rank. The rank check reads from
+	 * the cached in-game data (populated by {@link InGameClanReader#refresh()}).
+	 */
+	private void updateSyncButtonVisibility()
+	{
+		boolean show = lastRenderedResult != null
+			&& lastLoadedRoster != null
+			&& currentLoadSlug != null
+			&& clanReader.localPlayerKeyRank() != null;
+		syncButton.setVisible(show);
+	}
+
+	/**
+	 * Sync the current clan to killclog.com. POSTs the roster to /sync
+	 * then the pre-computed ClanClogResult to /result. Manual only, never
+	 * fires automatically. Gated on OWNER / DEPUTY_OWNER rank.
+	 */
+	private void onSyncClicked()
+	{
+		String keyRank = clanReader.localPlayerKeyRank();
+		String ownerRsn = clanReader.localPlayerName();
+		if (keyRank == null || ownerRsn == null
+			|| lastLoadedRoster == null || lastRenderedResult == null
+			|| currentLoadSlug == null || lastLoadedClanName == null)
+		{
+			setStatus("sync failed: missing data or rank");
+			return;
+		}
+
+		syncButton.setEnabled(false);
+		setStatus("syncing to killclog.com...");
+
+		String slug = currentLoadSlug;
+		String clanName = lastLoadedClanName;
+		List<ClanMember> roster = lastLoadedRoster;
+		ClanClogResult result = lastRenderedResult;
+
+		// Step 1: sync roster
+		apiClient.syncRoster(slug, clanName, ownerRsn, keyRank, roster)
+			.thenCompose(rosterOk ->
+			{
+				if (!rosterOk)
+				{
+					return java.util.concurrent.CompletableFuture.completedFuture(false);
+				}
+				// Step 2: sync pre-computed result
+				return apiClient.syncResult(slug, ownerRsn, keyRank, result);
+			})
+			.whenComplete((ok, ex) ->
+				SwingUtilities.invokeLater(() ->
+				{
+					syncButton.setEnabled(true);
+					if (ok != null && ok)
+					{
+						setStatus("synced to killclog.com/c/" + slug);
+					}
+					else
+					{
+						setStatus("sync failed"
+							+ (ex != null ? ": " + ex.getMessage() : ""));
+					}
+				}));
 	}
 
 	private void setStatus(String text)

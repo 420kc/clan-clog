@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import org.apache.commons.lang3.StringUtils;
@@ -28,6 +29,59 @@ final class ClogHelper
 
 	private ClogHelper()
 	{
+	}
+
+	// -------------------------------------------------------------------------
+	// Boss name -> Temple clog category key mapping
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Boss name -> TempleOSRS category key overrides. Ported from kcpdev's
+	 * ClogService. Only entries where the boss name doesn't auto-convert
+	 * cleanly to a Temple key are needed.
+	 */
+	private static final Map<String, String> BOSS_CATEGORY_OVERRIDES = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+	static
+	{
+		BOSS_CATEGORY_OVERRIDES.put("Artio", "callisto_and_artio");
+		BOSS_CATEGORY_OVERRIDES.put("Callisto", "callisto_and_artio");
+		BOSS_CATEGORY_OVERRIDES.put("Cal'varion", "vetion_and_calvarion");
+		BOSS_CATEGORY_OVERRIDES.put("Vet'ion", "vetion_and_calvarion");
+		BOSS_CATEGORY_OVERRIDES.put("Venenatis", "venenatis_and_spindel");
+		BOSS_CATEGORY_OVERRIDES.put("Spindel", "venenatis_and_spindel");
+		BOSS_CATEGORY_OVERRIDES.put("Dagannoth Prime", "dagannoth_kings");
+		BOSS_CATEGORY_OVERRIDES.put("Dagannoth Rex", "dagannoth_kings");
+		BOSS_CATEGORY_OVERRIDES.put("Dagannoth Supreme", "dagannoth_kings");
+		BOSS_CATEGORY_OVERRIDES.put("Kree'Arra", "kree_arra");
+		BOSS_CATEGORY_OVERRIDES.put("K'ril Tsutsaroth", "kril_tsutsaroth");
+		BOSS_CATEGORY_OVERRIDES.put("Chambers of Xeric: Challenge Mode", "chambers_of_xeric");
+		BOSS_CATEGORY_OVERRIDES.put("Theatre of Blood: Hard Mode", "theatre_of_blood");
+		BOSS_CATEGORY_OVERRIDES.put("Tombs of Amascut: Expert Mode", "tombs_of_amascut");
+		BOSS_CATEGORY_OVERRIDES.put("TzTok-Jad", "the_fight_caves");
+		BOSS_CATEGORY_OVERRIDES.put("TzKal-Zuk", "the_inferno");
+		BOSS_CATEGORY_OVERRIDES.put("Sol Heredit", "fortis_colosseum");
+		BOSS_CATEGORY_OVERRIDES.put("Nightmare", "the_nightmare");
+		BOSS_CATEGORY_OVERRIDES.put("Phosani's Nightmare", "the_nightmare");
+		BOSS_CATEGORY_OVERRIDES.put("The Corrupted Gauntlet", "the_gauntlet");
+		BOSS_CATEGORY_OVERRIDES.put("The Hueycoatl", "hueycoatl");
+		BOSS_CATEGORY_OVERRIDES.put("The Royal Titans", "royal_titans");
+		BOSS_CATEGORY_OVERRIDES.put("Lunar Chests", "moons_of_peril");
+	}
+
+	/**
+	 * Convert a hiscore boss name to its TempleOSRS collection log category key.
+	 * Used by the tooltip builder and clog union aggregator to map boss cells
+	 * to their clog categories.
+	 */
+	static String bossToCategory(String bossName)
+	{
+		String override = BOSS_CATEGORY_OVERRIDES.get(bossName);
+		if (override != null)
+		{
+			return override;
+		}
+		return bossName.toLowerCase().replace("'", "")
+			.replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
 	}
 
 	// -------------------------------------------------------------------------
@@ -86,12 +140,18 @@ final class ClogHelper
 	// Clog tier logic
 	// -------------------------------------------------------------------------
 
+	/** Kill Clog parity: 4-tier clog completion palette. */
+	static final Color COLOR_COMPLETED = new Color(78, 240, 21);
+	static final Color COLOR_MISSING_1 = new Color(202, 255, 0);
+	static final Color COLOR_IN_PROGRESS = new Color(255, 173, 0);
+	static final Color COLOR_EMPTY = new Color(255, 87, 0);
+
 	static Color clogColor(int obtained, int total)
 	{
-		if (obtained == total) return new Color(0, 255, 0);
-		if (obtained == total - 1 && total > 1) return new Color(255, 152, 31);
-		if (obtained == 0) return new Color(128, 128, 128);
-		return new Color(255, 255, 0);
+		if (obtained == total) return COLOR_COMPLETED;
+		if (obtained == total - 1 && total > 1) return COLOR_MISSING_1;
+		if (obtained == 0) return COLOR_EMPTY;
+		return COLOR_IN_PROGRESS;
 	}
 
 	static String getClogTierName(int obtained, int totalSlots)

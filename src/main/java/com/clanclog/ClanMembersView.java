@@ -47,6 +47,9 @@ public class ClanMembersView extends JPanel
 		scroll.setViewportBorder(null);
 		scroll.getViewport().setBackground(ColorScheme.DARK_GRAY_COLOR);
 		scroll.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		scroll.getVerticalScrollBar().setUI(new MinimalScrollBarUI());
+		scroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
+		scroll.getVerticalScrollBar().setUnitIncrement(16);
 		scroll.setPreferredSize(new Dimension(0, 320));
 		add(scroll, BorderLayout.CENTER);
 
@@ -93,6 +96,9 @@ public class ClanMembersView extends JPanel
 		JLabel hint = new JLabel(text);
 		hint.setFont(FontManager.getRunescapeSmallFont());
 		hint.setForeground(TEXT_DIM);
+		hint.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		hint.setAlignmentX(Component.LEFT_ALIGNMENT);
 		hint.setBorder(new EmptyBorder(8, 4, 4, 4));
 		list.add(hint);
@@ -112,13 +118,22 @@ public class ClanMembersView extends JPanel
 		JLabel name = new JLabel(m.getDisplayName());
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(KC_TEXT);
+		name.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
 		JLabel role = new JLabel(prettyRole(m.getRole()));
 		role.setFont(FontManager.getRunescapeSmallFont());
 		role.setForeground(TEXT_DIM);
+		role.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
 		JLabel total = new JLabel();
 		total.setFont(FontManager.getRunescapeSmallFont());
+		total.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		HiscoreResult hs = m.getHiscore();
 		if (hs != null)
 		{
