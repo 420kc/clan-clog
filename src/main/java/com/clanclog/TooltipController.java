@@ -20,6 +20,7 @@ import javax.swing.ToolTipManager;
 import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
+import javax.inject.Inject;
 import net.runelite.client.ui.ColorScheme;
 
 /**
@@ -49,6 +50,7 @@ class TooltipController
 	private int defaultDismissDelay;
 	private int defaultInitialDelay = -1;
 
+	@Inject
 	TooltipController(ClanClogConfig config)
 	{
 		this.config = config;
