@@ -35,11 +35,19 @@ import lombok.extern.slf4j.Slf4j;
 public class ClanHiscoreBatch
 {
 	/**
-	 * Concurrency cap. 6 in-flight lookups * 4 endpoints each = ~24 inflight HTTP
-	 * requests, which matches Jagex's documented tolerance for casual clients.
-	 * Configurable later if a busy clan exhausts the budget.
+	 * Concurrency cap. 3 in-flight lookups keeps us well under Jagex's
+	 * rate limit for sustained bursts. Combined with the stagger delay,
+	 * effective rate is ~3 req/s which survives 100+ member rosters.
 	 */
-	private static final int DEFAULT_CONCURRENCY = 6;
+	private static final int DEFAULT_CONCURRENCY = 3;
+
+	/**
+	 * Milliseconds between submitting each lookup to the scheduler.
+	 * Spreads HTTP requests over time so Jagex doesn't 404 us after
+	 * the first ~30 members. 300ms * 106 members = ~32s total, which
+	 * is acceptable for a one-time batch that populates a 1h cache.
+	 */
+	private static final long STAGGER_DELAY_MS = 300;
 
 	/**
 	 * Per-acquire wait. If the slice cannot acquire a slot within this window,
@@ -49,14 +57,18 @@ public class ClanHiscoreBatch
 
 	private final HiscoreService hiscoreService;
 	private final LocalHiscoreCache hiscoreCache;
-	private final ScheduledExecutorService scheduler;
+	private volatile ScheduledExecutorService scheduler = newScheduler();
 
 	@Inject
 	public ClanHiscoreBatch(HiscoreService hiscoreService, LocalHiscoreCache hiscoreCache)
 	{
 		this.hiscoreService = hiscoreService;
 		this.hiscoreCache = hiscoreCache;
-		this.scheduler = Executors.newSingleThreadScheduledExecutor(r ->
+	}
+
+	private static ScheduledExecutorService newScheduler()
+	{
+		return Executors.newSingleThreadScheduledExecutor(r ->
 		{
 			Thread t = new Thread(r, "clan-clog-batch");
 			t.setDaemon(true);
@@ -93,7 +105,8 @@ public class ClanHiscoreBatch
 		for (int i = 0; i < total; i++)
 		{
 			final ClanMember member = roster.get(i);
-			perMember[i] = lookupOne(member, gate).whenComplete((result, ex) ->
+			long delay = (long) i * STAGGER_DELAY_MS;
+			perMember[i] = lookupOne(member, gate, delay).whenComplete((result, ex) ->
 			{
 				if (result != null)
 				{
@@ -116,7 +129,7 @@ public class ClanHiscoreBatch
 		return CompletableFuture.allOf(perMember);
 	}
 
-	private CompletableFuture<HiscoreResult> lookupOne(ClanMember member, Semaphore gate)
+	private CompletableFuture<HiscoreResult> lookupOne(ClanMember member, Semaphore gate, long delayMs)
 	{
 		CompletableFuture<HiscoreResult> out = new CompletableFuture<>();
 
@@ -130,7 +143,7 @@ public class ClanHiscoreBatch
 			return out;
 		}
 
-		scheduler.execute(() ->
+		scheduler.schedule(() ->
 		{
 			try
 			{
@@ -153,33 +166,43 @@ public class ClanHiscoreBatch
 			// per member instead of 4). Account type detection is unnecessary
 			// since every player appears on the regular hiscores regardless of
 			// iron status. Cuts total HTTP requests by 75%.
-			hiscoreService.lookupRegularOnly(member.getRsn())
-				.whenComplete((result, ex) ->
-				{
-					gate.release();
-					if (ex != null)
+			try
+			{
+				hiscoreService.lookupRegularOnly(member.getRsn())
+					.whenComplete((result, ex) ->
 					{
-						log.debug("Lookup failed for {}: {}", member.getRsn(), ex.getMessage());
-						// Fall back to stale cached data
-						out.complete(cached);
-					}
-					else if (result != null)
-					{
-						hiscoreCache.put(member.getRsn(), result);
-						out.complete(result);
-					}
-					else
-					{
-						// Fetch returned null, use stale cache if available
-						out.complete(cached);
-					}
-				});
-		});
+						gate.release();
+						if (ex != null)
+						{
+							log.debug("Lookup failed for {}: {}", member.getRsn(), ex.getMessage());
+							out.complete(cached);
+						}
+						else if (result != null)
+						{
+							hiscoreCache.put(member.getRsn(), result);
+							out.complete(result);
+						}
+						else
+						{
+							log.debug("Lookup returned null for {} (rate-limited?)", member.getRsn());
+							out.complete(cached);
+						}
+					});
+			}
+			catch (Exception e)
+			{
+				gate.release();
+				log.debug("Lookup threw for {}: {}", member.getRsn(), e.getMessage());
+				out.complete(cached);
+			}
+		}, delayMs, TimeUnit.MILLISECONDS);
 		return out;
 	}
 
 	public void shutdown()
 	{
-		scheduler.shutdownNow();
+		ScheduledExecutorService old = scheduler;
+		scheduler = newScheduler();
+		old.shutdownNow();
 	}
 }

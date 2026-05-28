@@ -71,7 +71,7 @@ public class ClanLookupSession
 	{
 		if (slug == null || slug.isEmpty())
 		{
-			listener.onClanError(slug, "invalid_slug");
+			SwingUtilities.invokeLater(() -> listener.onClanError(slug, "invalid_slug"));
 			return;
 		}
 

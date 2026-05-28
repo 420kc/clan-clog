@@ -44,6 +44,10 @@ public class InGameClanReader
 
 	private volatile List<ClanMember> cached = Collections.emptyList();
 	private volatile String clanName;
+	/** Cached on ClientThread during refresh(). Safe to read from EDT. */
+	private volatile String cachedLocalName;
+	/** Cached on ClientThread during refresh(). Safe to read from EDT. */
+	private volatile String cachedKeyRank;
 	private final List<Consumer<List<ClanMember>>> listeners = new CopyOnWriteArrayList<>();
 
 	@Inject
@@ -78,39 +82,40 @@ public class InGameClanReader
 	}
 
 	/**
-	 * Returns the local player's RSN, or null if not logged in.
+	 * Returns the local player's RSN cached from the last {@link #refresh()}.
+	 * Safe to call from any thread (EDT, batch callback, etc.).
 	 */
 	@Nullable
 	public String localPlayerName()
 	{
-		Player local = client.getLocalPlayer();
-		return local != null ? local.getName() : null;
+		return cachedLocalName;
 	}
 
 	/**
-	 * Check whether the local player holds a key rank (OWNER or DEPUTY_OWNER)
-	 * in the primary clan. Returns the rank name ("OWNER" or "DEPUTY_OWNER")
-	 * if so, null otherwise. Used to gate the sync-to-killclog.com button.
-	 *
-	 * <p>Must be called on the client thread or after {@link #refresh()}.
+	 * Returns the local player's key rank ("OWNER" or "DEPUTY_OWNER") cached
+	 * from the last {@link #refresh()}, or null if the player doesn't hold a
+	 * key rank. Safe to call from any thread.
 	 */
 	@Nullable
 	public String localPlayerKeyRank()
 	{
-		ClanSettings cs = client.getClanSettings(0);
-		if (cs == null)
-		{
-			return null;
-		}
-		Player local = client.getLocalPlayer();
-		if (local == null || local.getName() == null)
+		return cachedKeyRank;
+	}
+
+	/**
+	 * Resolve the local player's key rank from the primary clan settings.
+	 * Runs on the client thread during {@link #refresh()}.
+	 */
+	@Nullable
+	private static String resolveKeyRank(@Nullable ClanSettings cs, @Nullable String localName)
+	{
+		if (cs == null || localName == null)
 		{
 			return null;
 		}
 		for (net.runelite.api.clan.ClanMember m : cs.getMembers())
 		{
-			if (m.getName() != null
-				&& m.getName().equalsIgnoreCase(local.getName()))
+			if (m.getName() != null && m.getName().equalsIgnoreCase(localName))
 			{
 				ClanRank rank = m.getRank();
 				if (ClanRank.OWNER.equals(rank))
@@ -176,6 +181,13 @@ public class InGameClanReader
 		}
 
 		cached = Collections.unmodifiableList(next);
+
+		// Cache local player info on the client thread so EDT callers
+		// never touch the Client API directly.
+		Player local = client.getLocalPlayer();
+		cachedLocalName = local != null ? local.getName() : null;
+		cachedKeyRank = resolveKeyRank(all[0], cachedLocalName);
+
 		long activeSlots = Arrays.stream(all).filter(Objects::nonNull).count();
 		log.debug("clan reader refresh: {} ({}) across {} slots",
 			cached.size(), clanName != null ? clanName : "unnamed", activeSlots);

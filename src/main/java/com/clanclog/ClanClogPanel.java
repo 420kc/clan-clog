@@ -84,6 +84,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private String lastLoadedClanName;
 
+	/** Slug of the last successfully loaded clan. Used for sync. */
+	@Nullable
+	private String lastLoadedSlug;
+
 	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
 	@Nullable
 	private String currentLoadSlug;
@@ -355,7 +359,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		if (raw.matches("\\d+"))
 		{
-			loadGroupById(Integer.parseInt(raw));
+			try
+			{
+				loadGroupById(Integer.parseInt(raw));
+			}
+			catch (NumberFormatException e)
+			{
+				setStatus("group id too large");
+			}
 			return;
 		}
 
@@ -417,9 +428,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				cells.renderClanResult(merged);
 				membersView.renderRoster(roster);
 
+				int hiscoreHits = 0;
+				for (ClanMember m : roster)
+				{
+					if (m.getHiscore() != null)
+					{
+						hiscoreHits++;
+					}
+				}
+
 				// Phase 2: per-member clog fetch (Temple + RuneProfile)
-				setStatus("Clogs Clanalyzed: 0/" + roster.size());
-				fireClogBatch(name, slug, roster, merged);
+				setStatus(hiscoreHits + "/" + roster.size()
+					+ " hiscores · fetching clogs: 0/" + roster.size());
+				fireClogBatch(name, slug, roster, merged, hiscoreHits);
 			}));
 	}
 
@@ -497,10 +518,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 * the cells surface with highlight colors.
 	 */
 	private void fireClogBatch(String clanName, String slug,
-		List<ClanMember> roster, ClanClogResult partialResult)
+		List<ClanMember> roster, ClanClogResult partialResult, int hiscoreHits)
 	{
 		clogBatch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
-			setStatus("Clogs Clanalyzed: " + completed + "/" + roster.size())
+			setStatus(hiscoreHits + "/" + roster.size()
+				+ " hiscores · clogs: " + completed + "/" + roster.size())
 		)).whenComplete((v, clogEx) ->
 			SwingUtilities.invokeLater(() ->
 			{
@@ -519,6 +541,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				lastRenderedResult = partialResult;
 				lastLoadedRoster = roster;
 				lastLoadedClanName = clanName;
+				lastLoadedSlug = slug;
 
 				int clogCount = 0;
 				for (ClanMember m : roster)
@@ -528,8 +551,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 						clogCount++;
 					}
 				}
-				setStatus("done · " + roster.size() + " members · "
-					+ clogCount + " clogs synced");
+				setStatus("done · " + roster.size() + " members ("
+					+ hiscoreHits + " hiscores, " + clogCount + " clogs)");
+
+				// Allow re-clanalyze on same clan after completion
+				currentLoadSlug = null;
 
 				// Show sync button if the local player is a key-rank holder
 				updateSyncButtonVisibility();
@@ -593,9 +619,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void updateSyncButtonVisibility()
 	{
-		boolean show = lastRenderedResult != null
+		boolean show = config.enableSync()
+			&& lastRenderedResult != null
 			&& lastLoadedRoster != null
-			&& currentLoadSlug != null
+			&& lastLoadedClanName != null
 			&& clanReader.localPlayerKeyRank() != null;
 		syncButton.setVisible(show);
 		revalidate();
@@ -609,11 +636,17 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void onSyncClicked()
 	{
+		if (!config.enableSync())
+		{
+			setStatus("enable sync in plugin config first");
+			return;
+		}
+
 		String keyRank = clanReader.localPlayerKeyRank();
 		String ownerRsn = clanReader.localPlayerName();
 		if (keyRank == null || ownerRsn == null
 			|| lastLoadedRoster == null || lastRenderedResult == null
-			|| currentLoadSlug == null || lastLoadedClanName == null)
+			|| lastLoadedClanName == null)
 		{
 			setStatus("sync failed: missing data or rank");
 			return;
@@ -622,7 +655,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		syncButton.setEnabled(false);
 		setStatus("syncing to killclog.com...");
 
-		String slug = currentLoadSlug;
+		String slug = lastLoadedSlug;
 		String clanName = lastLoadedClanName;
 		List<ClanMember> roster = lastLoadedRoster;
 		ClanClogResult result = lastRenderedResult;

@@ -144,7 +144,10 @@ public class ActivitiesTray
 			float eased = 1f - (1f - progress) * (1f - progress);
 			int height = startHeight + Math.round((targetHeight - startHeight) * eased);
 			clip.setPreferredSize(new Dimension(0, height));
-			clip.getParent().revalidate();
+			if (clip.getParent() != null)
+			{
+				clip.getParent().revalidate();
+			}
 
 			if (progress >= 1f)
 			{

@@ -65,15 +65,18 @@ public class ClogsworthDispatcher
 
 	private final ChatMessageManager chatMessageManager;
 	private final ClientThread clientThread;
+	private final Gson gson;
 
 	private final Map<String, List<Line>> linesByEvent = new HashMap<>();
 	private final Map<String, Queue<Integer>> recentByEvent = new HashMap<>();
 
 	@Inject
-	public ClogsworthDispatcher(ChatMessageManager chatMessageManager, ClientThread clientThread)
+	public ClogsworthDispatcher(ChatMessageManager chatMessageManager, ClientThread clientThread,
+		Gson gson)
 	{
 		this.chatMessageManager = chatMessageManager;
 		this.clientThread = clientThread;
+		this.gson = gson;
 		loadLibrary();
 	}
 
@@ -86,7 +89,7 @@ public class ClogsworthDispatcher
 				log.warn("clogsworth: line library resource not found at {}", LIBRARY_RESOURCE);
 				return;
 			}
-			JsonObject root = new Gson().fromJson(
+			JsonObject root = gson.fromJson(
 				new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class);
 
 			for (Map.Entry<String, JsonElement> entry : root.entrySet())

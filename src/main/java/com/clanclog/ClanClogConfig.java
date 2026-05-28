@@ -50,4 +50,15 @@ public interface ClanClogConfig extends Config
 	{
 		return "";
 	}
+
+	@ConfigItem(
+		keyName = "enableSync",
+		name = "Enable Sync to killclog.com",
+		description = "Allow syncing clan roster and aggregated data to killclog.com. Sends RSNs, ranks, boss KCs, and collection log items.",
+		position = 4
+	)
+	default boolean enableSync()
+	{
+		return false;
+	}
 }

@@ -35,23 +35,34 @@ import lombok.extern.slf4j.Slf4j;
 public class ClanClogBatch
 {
 	/**
-	 * Concurrency cap. 3 in-flight lookups (each may hit Temple then RuneProfile
-	 * as fallback) keeps total HTTP at ~6, well within Temple/RuneProfile
+	 * Concurrency cap. 2 in-flight lookups (each may hit Temple then RuneProfile
+	 * as fallback) keeps total HTTP at ~4, well within Temple/RuneProfile
 	 * tolerance for sustained traffic.
 	 */
-	private static final int DEFAULT_CONCURRENCY = 3;
+	private static final int DEFAULT_CONCURRENCY = 2;
 
 	/** Per-acquire wait before bailing on this member. */
 	private static final long ACQUIRE_TIMEOUT_SECONDS = 60;
 
+	/**
+	 * Milliseconds between submitting each lookup. Temple and RuneProfile are
+	 * stricter than Jagex, so we space requests further apart. 400ms * N members
+	 * keeps us under their sustained-burst thresholds.
+	 */
+	private static final long STAGGER_DELAY_MS = 400;
+
 	private final ClogFetchService clogFetchService;
-	private final ScheduledExecutorService scheduler;
+	private volatile ScheduledExecutorService scheduler = newScheduler();
 
 	@Inject
 	public ClanClogBatch(ClogFetchService clogFetchService)
 	{
 		this.clogFetchService = clogFetchService;
-		this.scheduler = Executors.newSingleThreadScheduledExecutor(r ->
+	}
+
+	private static ScheduledExecutorService newScheduler()
+	{
+		return Executors.newSingleThreadScheduledExecutor(r ->
 		{
 			Thread t = new Thread(r, "clan-clog-clog-batch");
 			t.setDaemon(true);
@@ -88,7 +99,8 @@ public class ClanClogBatch
 		for (int i = 0; i < total; i++)
 		{
 			final ClanMember member = roster.get(i);
-			perMember[i] = lookupOne(member, gate).whenComplete((result, ex) ->
+			long delay = (long) i * STAGGER_DELAY_MS;
+			perMember[i] = lookupOne(member, gate, delay).whenComplete((result, ex) ->
 			{
 				if (result != null)
 				{
@@ -111,16 +123,21 @@ public class ClanClogBatch
 		return CompletableFuture.allOf(perMember);
 	}
 
-	private CompletableFuture<ClogResult> lookupOne(ClanMember member, Semaphore gate)
+	private CompletableFuture<ClogResult> lookupOne(ClanMember member, Semaphore gate, long delayMs)
 	{
 		CompletableFuture<ClogResult> out = new CompletableFuture<>();
 
-		// Stale-while-revalidate: if a cached result exists, return it
-		// immediately and let the batch move on. The fetch service handles
-		// disk-cache fallback internally when providers fail.
+		// Return cached clog data immediately if it exists. Clog data is
+		// persistent disk cache (collection log items change very rarely).
+		// Skips 2 external HTTP calls per member (Temple + RuneProfile).
 		ClogResult cached = clogFetchService.getCached(member.getRsn());
+		if (cached != null)
+		{
+			out.complete(cached);
+			return out;
+		}
 
-		scheduler.execute(() ->
+		scheduler.schedule(() ->
 		{
 			try
 			{
@@ -138,26 +155,37 @@ public class ClanClogBatch
 				return;
 			}
 
-			clogFetchService.lookup(member.getRsn())
-				.whenComplete((result, ex) ->
-				{
-					gate.release();
-					if (ex != null)
+			try
+			{
+				clogFetchService.lookup(member.getRsn())
+					.whenComplete((result, ex) ->
 					{
-						log.debug("Clog lookup failed for {}: {}", member.getRsn(), ex.getMessage());
-						out.complete(cached);
-					}
-					else
-					{
-						out.complete(result);
-					}
-				});
-		});
+						gate.release();
+						if (ex != null)
+						{
+							log.debug("Clog lookup failed for {}: {}", member.getRsn(), ex.getMessage());
+							out.complete(cached);
+						}
+						else
+						{
+							out.complete(result);
+						}
+					});
+			}
+			catch (Exception e)
+			{
+				gate.release();
+				log.debug("Clog lookup threw for {}: {}", member.getRsn(), e.getMessage());
+				out.complete(cached);
+			}
+		}, delayMs, TimeUnit.MILLISECONDS);
 		return out;
 	}
 
 	public void shutdown()
 	{
-		scheduler.shutdownNow();
+		ScheduledExecutorService old = scheduler;
+		scheduler = newScheduler();
+		old.shutdownNow();
 	}
 }

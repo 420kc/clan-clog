@@ -165,40 +165,26 @@ public class HiscoreService
 	/**
 	 * Fast single-endpoint lookup for clan batch aggregation. Only fetches the
 	 * regular hiscore endpoint (every player appears on it regardless of account
-	 * type). Cuts HTTP requests to 1 per member instead of 4. Uses the same
-	 * cache + retry logic as the full lookup.
+	 * type). Cuts HTTP requests to 1 per member instead of 4.
+	 *
+	 * <p>No retry: the batch caller ({@link ClanHiscoreBatch}) already falls
+	 * back to stale-while-revalidate cached data on null results. A retry here
+	 * would fire on the ForkJoinPool common pool, bypassing the batch's stagger
+	 * delay and creating the exact burst that triggers Jagex rate-limiting.
 	 */
 	public CompletableFuture<HiscoreResult> lookupRegularOnly(String playerName)
 	{
 		String encoded = URLEncoder.encode(playerName, StandardCharsets.UTF_8);
-		return fetchAsync("hiscore_oldschool", encoded).thenCompose(body ->
+		return fetchAsync("hiscore_oldschool", encoded).thenApply(body ->
 		{
 			if (body != null)
 			{
 				HiscoreResult result = parseHiscoreBody(body, AccountType.REGULAR);
 				cache.put(playerName.toLowerCase(),
 					new CachedResult(result, System.currentTimeMillis()));
-				return CompletableFuture.completedFuture(result);
+				return result;
 			}
-			// One retry on transient failure (502/503/rate-limit)
-			CompletableFuture<HiscoreResult> retry = new CompletableFuture<>();
-			CompletableFuture.delayedExecutor(500, TimeUnit.MILLISECONDS)
-				.execute(() -> fetchAsync("hiscore_oldschool", encoded)
-					.whenComplete((retryBody, ex) ->
-					{
-						if (retryBody != null)
-						{
-							HiscoreResult r = parseHiscoreBody(retryBody, AccountType.REGULAR);
-							cache.put(playerName.toLowerCase(),
-								new CachedResult(r, System.currentTimeMillis()));
-							retry.complete(r);
-						}
-						else
-						{
-							retry.complete(null);
-						}
-					}));
-			return retry;
+			return null;
 		});
 	}
 
