@@ -39,14 +39,18 @@ final class RosterClogBuilder
 		List<ClanMember> roster, @Nullable ClanClogResult existing)
 	{
 		Map<String, ClanClogResult.BossAggregate> bossMap = buildBossAggregates(roster);
+		Map<String, Long> activityMap = buildActivityAggregates(roster);
 
 		if (existing != null)
 		{
 			existing.setBosses(bossMap);
+			existing.setActivityTotals(activityMap);
 			return existing;
 		}
 
-		return ClanClogResult.forRoster(slug, clanName, roster.size(), bossMap);
+		ClanClogResult r = ClanClogResult.forRoster(slug, clanName, roster.size(), bossMap);
+		r.setActivityTotals(activityMap);
+		return r;
 	}
 
 	/**
@@ -140,6 +144,38 @@ final class RosterClogBuilder
 
 		return new ClanClogResult.ClogUnion(itemsByCategory, allObtained.size(),
 			itemMeta, catalogMap);
+	}
+
+	/**
+	 * Sum activity scores across all members. Score-type activities (clues,
+	 * soul wars, BH, colosseum glory) are summed; rank-type activities (LMS,
+	 * PvP Arena) are also summed since a clan-aggregate rank isn't meaningful
+	 * but a total participation count is.
+	 */
+	private static Map<String, Long> buildActivityAggregates(List<ClanMember> roster)
+	{
+		Map<String, Long> map = new LinkedHashMap<>();
+
+		for (String activity : HiscoreService.activityNames())
+		{
+			long total = 0;
+			for (ClanMember member : roster)
+			{
+				HiscoreResult hs = member.getHiscore();
+				if (hs == null)
+				{
+					continue;
+				}
+				int score = hs.getActivityScore(activity);
+				if (score > 0)
+				{
+					total += score;
+				}
+			}
+			map.put(activity, total);
+		}
+
+		return map;
 	}
 
 	private static Map<String, ClanClogResult.BossAggregate> buildBossAggregates(

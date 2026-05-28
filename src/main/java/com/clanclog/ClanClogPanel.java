@@ -253,11 +253,22 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		grid.setLayout(new BoxLayout(grid, BoxLayout.Y_AXIS));
 		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
-		// Row 1: [3rd Age] [Gilded]  (Kill Clog parity minus Clue All summary)
-		JPanel row1 = new JPanel(new GridLayout(1, 2));
+		// Stats row: [Members] [Total Kills] [PvP Summary]
+		// Kill Clog parity: [Combat] [Total Level] [PvP]
+		JPanel statsRow = new JPanel(new GridLayout(1, 3));
+		statsRow.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		statsRow.setAlignmentX(0f);
+		statsRow.add(cells.buildMembersCell());
+		statsRow.add(cells.buildTotalKillsCell());
+		statsRow.add(cells.buildPvpSummaryCell());
+		grid.add(statsRow);
+
+		// Row 1: [3rd Age] [Total Clues] [Gilded]
+		JPanel row1 = new JPanel(new GridLayout(1, 3));
 		row1.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		row1.setAlignmentX(0f);
 		row1.add(cells.buildThirdAgeCell());
+		row1.add(cells.buildTotalCluesCell());
 		row1.add(cells.buildGildedCell());
 		grid.add(row1);
 

@@ -68,6 +68,10 @@ public class ClanClogResult
 	@SerializedName("bosses")
 	private Map<String, BossAggregate> bosses;
 
+	/** Clan-aggregate activity totals (keyed by HiscoreService.ACTIVITY_NAMES). */
+	@SerializedName("activities")
+	private Map<String, Long> activityTotals;
+
 	public String getSlug()
 	{
 		return slug;
@@ -113,6 +117,11 @@ public class ClanClogResult
 		return bosses != null ? bosses : Collections.emptyMap();
 	}
 
+	public Map<String, Long> getActivityTotals()
+	{
+		return activityTotals != null ? activityTotals : Collections.emptyMap();
+	}
+
 	// ── Package-private mutators for roster-derived overlays ──────────────
 
 	/** Replace boss aggregates with live hiscore-derived data. */
@@ -125,6 +134,12 @@ public class ClanClogResult
 	void setClog(ClogUnion clog)
 	{
 		this.clog = clog;
+	}
+
+	/** Replace activity totals with live hiscore-derived data. */
+	void setActivityTotals(Map<String, Long> activityTotals)
+	{
+		this.activityTotals = activityTotals;
 	}
 
 	/**
