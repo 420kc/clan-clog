@@ -39,4 +39,15 @@ public interface ClanClogConfig extends Config
 	{
 		return HoverStyle.OUTLINE;
 	}
+
+	@ConfigItem(
+		keyName = "defaultClan",
+		name = "Default Clan",
+		description = "Clan slug or name to auto-load on panel open (e.g. Clannabis). Leave empty to disable.",
+		position = 3
+	)
+	default String defaultClan()
+	{
+		return "";
+	}
 }

@@ -50,6 +50,9 @@ public class ClanClogPlugin extends Plugin
 	@Inject
 	private ChatScanner chatScanner;
 
+	@Inject
+	private TooltipController tooltipController;
+
 	// Injected so Guice instantiates + loads the line library at startup.
 	// Used by ChatScanner via constructor injection; this field keeps the
 	// singleton alive for the plugin lifetime.
@@ -75,6 +78,7 @@ public class ClanClogPlugin extends Plugin
 			.panel(panel)
 			.build();
 		clientToolbar.addNavigation(navButton);
+		tooltipController.captureDefaults();
 		log.debug("clan clog: startUp");
 	}
 
@@ -86,6 +90,7 @@ public class ClanClogPlugin extends Plugin
 			clientToolbar.removeNavigation(navButton);
 			navButton = null;
 		}
+		tooltipController.restoreDefaults();
 		batch.shutdown();
 		clogBatch.shutdown();
 		clogCache.shutdown();

@@ -9,12 +9,13 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -47,7 +48,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final int SEARCH_RESULT_LIMIT = 10;
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
 	private static final Color KC_TEXT = new Color(215, 215, 215);
+	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 
+	private final ClanClogConfig config;
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
 	private final ClanClogBatch clogBatch;
@@ -100,6 +103,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		ClanLookupSession clanLookupSession, Cells cells)
 	{
 		super(true);
+		this.config = config;
 		this.womClient = womClient;
 		this.batch = batch;
 		this.clogBatch = clogBatch;
@@ -138,10 +142,65 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.gridy = 0;
 		c.weightx = 1;
 		c.weighty = 0;
+
+		// ── Status + action buttons at top ──────────────────────────────────
+		c.insets = new Insets(0, 0, 2, 0);
+		statusLabel.setFont(FontManager.getRunescapeSmallFont());
+		statusLabel.setForeground(TEXT_DIM);
+		statusLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		statusLabel.setText("idle");
+		add(statusLabel, c);
+
+		c.gridy++;
+		c.insets = new Insets(2, 0, 2, 0);
+		clanalyzeButton.setFont(FontManager.getRunescapeSmallFont());
+		clanalyzeButton.setForeground(KC_TEXT);
+		clanalyzeButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		clanalyzeButton.setFocusPainted(false);
+		clanalyzeButton.setBorderPainted(false);
+		clanalyzeButton.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		clanalyzeButton.setVisible(false);
+		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
+		add(clanalyzeButton, c);
+
+		c.gridy++;
+		c.insets = new Insets(2, 0, 6, 0);
+		syncButton.setFont(FontManager.getRunescapeSmallFont());
+		syncButton.setForeground(KC_TEXT);
+		syncButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		syncButton.setFocusPainted(false);
+		syncButton.setBorderPainted(false);
+		syncButton.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		syncButton.setVisible(false);
+		syncButton.addActionListener(e -> onSyncClicked());
+		add(syncButton, c);
+
+		// ── Search bar with placeholder ─────────────────────────────────────
+		c.gridy++;
+		c.insets = new Insets(0, 0, 4, 0);
+		searchBar.setIcon(IconTextField.Icon.SEARCH);
+		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
+		searchBar.setPreferredSize(new Dimension(0, 30));
+		searchBar.addActionListener(e -> onSubmit());
+		styleSearchBar(searchBar);
+		installPlaceholder(searchBar);
+		add(searchBar, c);
+
+		// ── Clan header ─────────────────────────────────────────────────────
+		c.gridy++;
 		c.insets = new Insets(0, 0, 5, 0);
+		clanHeader.setFont(FontManager.getRunescapeFont());
+		clanHeader.setForeground(KC_TEXT);
+		clanHeader.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		clanHeader.setText("no clan loaded");
+		add(clanHeader, c);
 
-		add(buildHeader(), c);
-
+		// ── Content ─────────────────────────────────────────────────────────
 		c.gridy++;
 		c.insets = new Insets(0, 0, 0, 0);
 		add(activitiesTray.getClip(), c);
@@ -159,76 +218,24 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.gridy++;
 		add(membersTray.getClip(), c);
 
-		c.gridy++;
-		c.insets = new Insets(4, 0, 0, 0);
-		statusLabel.setFont(FontManager.getRunescapeSmallFont());
-		statusLabel.setForeground(TEXT_DIM);
-		statusLabel.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		statusLabel.setText("idle");
-		add(statusLabel, c);
-
-		// Clanalyze button: fires the hiscore + clog batch for the user's own clan.
-		// Hidden until the in-game roster is detected. Manual trigger only.
-		c.gridy++;
-		c.insets = new Insets(6, 0, 0, 0);
-		clanalyzeButton.setFont(FontManager.getRunescapeSmallFont());
-		clanalyzeButton.setForeground(KC_TEXT);
-		clanalyzeButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		clanalyzeButton.setFocusPainted(false);
-		clanalyzeButton.setBorderPainted(false);
-		clanalyzeButton.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		clanalyzeButton.setVisible(false);
-		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
-		add(clanalyzeButton, c);
-
-		// Sync button: only shown for OWNER / DEPUTY_OWNER after clanalyze completes
-		c.gridy++;
-		c.insets = new Insets(4, 0, 0, 0);
-		syncButton.setFont(FontManager.getRunescapeSmallFont());
-		syncButton.setForeground(KC_TEXT);
-		syncButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		syncButton.setFocusPainted(false);
-		syncButton.setBorderPainted(false);
-		syncButton.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		syncButton.setVisible(false);
-		syncButton.addActionListener(e -> onSyncClicked());
-		add(syncButton, c);
-
 		clanReader.addListener(roster ->
 			SwingUtilities.invokeLater(() -> onInGameRosterRefreshed(roster)));
-	}
 
-	/** Search bar + clan name/member-count label. */
-	private JPanel buildHeader()
-	{
-		JPanel header = new JPanel();
-		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
-
-		searchBar.setIcon(IconTextField.Icon.SEARCH);
-		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
-		searchBar.setPreferredSize(new Dimension(0, 30));
-		searchBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-		searchBar.setAlignmentX(0f);
-		searchBar.addActionListener(e -> onSubmit());
-		styleSearchBar(searchBar);
-		header.add(searchBar);
-
-		header.add(Box.createVerticalStrut(4));
-
-		clanHeader.setFont(FontManager.getRunescapeFont());
-		clanHeader.setForeground(KC_TEXT);
-		clanHeader.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		clanHeader.setText("no clan loaded");
-		clanHeader.setAlignmentX(0f);
-		header.add(clanHeader);
-
-		return header;
+		// Auto-load default clan if configured (same path as manual search)
+		String defaultClan = config.defaultClan().trim();
+		if (!defaultClan.isEmpty())
+		{
+			searchBar.setText(defaultClan);
+			for (Component child : searchBar.getComponents())
+			{
+				if (child instanceof FlatTextField)
+				{
+					((FlatTextField) child).getTextField().setForeground(KC_TEXT);
+					break;
+				}
+			}
+			SwingUtilities.invokeLater(this::onSubmit);
+		}
 	}
 
 	/**
@@ -242,16 +249,22 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		grid.setLayout(new BoxLayout(grid, BoxLayout.Y_AXIS));
 		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
-		// Clue rares: 3rd Age, Gilded, Hard/Elite/Master
-		JPanel rareGrid = new JPanel(new GridLayout(0, 3));
-		rareGrid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		rareGrid.setAlignmentX(0f);
-		rareGrid.add(cells.buildThirdAgeCell());
-		rareGrid.add(cells.buildGildedCell());
-		rareGrid.add(cells.buildHardRareCell());
-		rareGrid.add(cells.buildEliteRareCell());
-		rareGrid.add(cells.buildMasterRareCell());
-		grid.add(rareGrid);
+		// Row 1: [3rd Age] [Gilded]  (Kill Clog parity minus Clue All summary)
+		JPanel row1 = new JPanel(new GridLayout(1, 2));
+		row1.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row1.setAlignmentX(0f);
+		row1.add(cells.buildThirdAgeCell());
+		row1.add(cells.buildGildedCell());
+		grid.add(row1);
+
+		// Row 2: [Hard Casket] [Elite Casket] [Master Casket]
+		JPanel rareRow = new JPanel(new GridLayout(1, 3));
+		rareRow.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		rareRow.setAlignmentX(0f);
+		rareRow.add(cells.buildHardRareCell());
+		rareRow.add(cells.buildEliteRareCell());
+		rareRow.add(cells.buildMasterRareCell());
+		grid.add(rareRow);
 
 		// 7px separator
 		JPanel sep = new JPanel();
@@ -261,7 +274,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		sep.setAlignmentX(0f);
 		grid.add(sep);
 
-		// Clue tiers
+		// Clue tiers: 2 rows of 3 (beginner -> master)
 		JPanel clueTiers = cells.buildClueTierGrid();
 		clueTiers.setAlignmentX(0f);
 		grid.add(clueTiers);
@@ -292,10 +305,50 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 	}
 
+	/**
+	 * Wire placeholder text into an {@link IconTextField}. Shows dimmed
+	 * placeholder when the field is empty and unfocused, clears on focus.
+	 */
+	private static void installPlaceholder(IconTextField field)
+	{
+		for (Component child : field.getComponents())
+		{
+			if (child instanceof FlatTextField)
+			{
+				JTextField tf = ((FlatTextField) child).getTextField();
+				tf.setText(SEARCH_PLACEHOLDER);
+				tf.setForeground(TEXT_DIM);
+				tf.addFocusListener(new FocusAdapter()
+				{
+					@Override
+					public void focusGained(FocusEvent e)
+					{
+						if (tf.getText().equals(SEARCH_PLACEHOLDER))
+						{
+							tf.setText("");
+							tf.setForeground(KC_TEXT);
+						}
+					}
+
+					@Override
+					public void focusLost(FocusEvent e)
+					{
+						if (tf.getText().trim().isEmpty())
+						{
+							tf.setText(SEARCH_PLACEHOLDER);
+							tf.setForeground(TEXT_DIM);
+						}
+					}
+				});
+				return;
+			}
+		}
+	}
+
 	private void onSubmit()
 	{
 		String raw = searchBar.getText().trim();
-		if (raw.isEmpty())
+		if (raw.isEmpty() || raw.equals(SEARCH_PLACEHOLDER))
 		{
 			setStatus("type a clan name or wom group id");
 			return;
@@ -511,6 +564,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		setStatus("ready · press clanalyze to start");
 		clanalyzeButton.setVisible(true);
 		clanalyzeButton.setEnabled(true);
+		revalidate();
+		repaint();
 	}
 
 	/**
@@ -525,6 +580,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 		clanalyzeButton.setEnabled(false);
+		clanalyzeButton.setVisible(false);
+		revalidate();
+		repaint();
 		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster));
 	}
 
@@ -540,6 +598,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			&& currentLoadSlug != null
 			&& clanReader.localPlayerKeyRank() != null;
 		syncButton.setVisible(show);
+		revalidate();
+		repaint();
 	}
 
 	/**
@@ -614,6 +674,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		lastBackendResult = result;
 		int memberCount = result.getMemberCount();
+		String name = result.getDisplayName();
+		if (name != null && !name.isEmpty())
+		{
+			clanHeader.setText(name + " · " + memberCount + " members");
+		}
 		setStatus("clog loaded · " + memberCount + " members · " + slug);
 		cells.renderClanResult(result);
 	}

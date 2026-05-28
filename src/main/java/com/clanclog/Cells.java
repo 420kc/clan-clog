@@ -22,6 +22,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -97,6 +98,11 @@ public class Cells
 	private static final String RARE_HARD = "hard_rare";
 	private static final String RARE_ELITE = "elite_rare";
 	private static final String RARE_MASTER = "master_rare";
+
+	/** Casket item IDs used as cell icons for the rare rows (Kill Clog parity). */
+	private static final int HARD_CASKET_ITEM_ID = 20544;
+	private static final int ELITE_CASKET_ITEM_ID = 20543;
+	private static final int MASTER_CASKET_ITEM_ID = 19836;
 
 	private static final int[] HARD_RARE_ITEMS = {
 		// 3rd age melee + range + mage + amulet (13)
@@ -276,15 +282,35 @@ public class Cells
 		return wrapInCell(label);
 	}
 
-	/** Build the clue tier grid populated with one item-icon cell per tier (beginner -> master). */
+	/**
+	 * Build the clue tier grid: 2 rows of 3 (beginner -> master).
+	 * Compact flag per tier matches Kill Clog: Easy/Medium/Hard compact,
+	 * Beginner/Elite/Master full-width tooltips.
+	 */
 	public JPanel buildClueTierGrid()
 	{
-		JPanel grid = new JPanel(new GridLayout(0, CLUE_GRID_COLS));
+		JPanel grid = new JPanel();
+		grid.setLayout(new BoxLayout(grid, BoxLayout.Y_AXIS));
 		grid.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		for (int i = 0; i < CLUE_TIER_NAMES.length; i++)
-		{
-			grid.add(buildClueTierCell(CLUE_TIER_NAMES[i], CLUE_TIER_ITEM_IDS[i], false));
-		}
+
+		// Row 1: [Beginner] [Easy*] [Medium*]  (* = compact tooltip)
+		JPanel row1 = new JPanel(new GridLayout(1, CLUE_GRID_COLS));
+		row1.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row1.setAlignmentX(0f);
+		row1.add(buildClueTierCell(CLUE_TIER_NAMES[0], CLUE_TIER_ITEM_IDS[0], false));
+		row1.add(buildClueTierCell(CLUE_TIER_NAMES[1], CLUE_TIER_ITEM_IDS[1], true));
+		row1.add(buildClueTierCell(CLUE_TIER_NAMES[2], CLUE_TIER_ITEM_IDS[2], true));
+		grid.add(row1);
+
+		// Row 2: [Hard*] [Elite] [Master]
+		JPanel row2 = new JPanel(new GridLayout(1, CLUE_GRID_COLS));
+		row2.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row2.setAlignmentX(0f);
+		row2.add(buildClueTierCell(CLUE_TIER_NAMES[3], CLUE_TIER_ITEM_IDS[3], true));
+		row2.add(buildClueTierCell(CLUE_TIER_NAMES[4], CLUE_TIER_ITEM_IDS[4], false));
+		row2.add(buildClueTierCell(CLUE_TIER_NAMES[5], CLUE_TIER_ITEM_IDS[5], false));
+		grid.add(row2);
+
 		return grid;
 	}
 
@@ -374,17 +400,17 @@ public class Cells
 	/** Convenience: build the Hard / Elite / Master custom rare cells with canonical icons + item lists. */
 	public JPanel buildHardRareCell()
 	{
-		return buildCustomRareCell("Hard Treasure (Rare)", HARD_RARE_ITEMS[0], RARE_HARD, HARD_RARE_ITEMS);
+		return buildCustomRareCell("Hard Treasure (Rare)", HARD_CASKET_ITEM_ID, RARE_HARD, HARD_RARE_ITEMS);
 	}
 
 	public JPanel buildEliteRareCell()
 	{
-		return buildCustomRareCell("Elite Treasure (Rare)", ELITE_RARE_ITEMS[0], RARE_ELITE, ELITE_RARE_ITEMS);
+		return buildCustomRareCell("Elite Treasure (Rare)", ELITE_CASKET_ITEM_ID, RARE_ELITE, ELITE_RARE_ITEMS);
 	}
 
 	public JPanel buildMasterRareCell()
 	{
-		return buildCustomRareCell("Master Treasure (Rare)", MASTER_RARE_ITEMS[0], RARE_MASTER, MASTER_RARE_ITEMS);
+		return buildCustomRareCell("Master Treasure (Rare)", MASTER_CASKET_ITEM_ID, RARE_MASTER, MASTER_RARE_ITEMS);
 	}
 
 	// ── Clan-result rendering ─────────────────────────────────────────────────
