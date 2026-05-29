@@ -64,6 +64,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final ClanClogBatch clogBatch;
 	private final LocalHiscoreCache hiscoreCache;
 	private final ClogFetchService clogFetchService;
+	private final LocalClanProfileCache clanProfileCache;
 	private final InGameClanReader clanReader;
 	private final KillclogApiClient apiClient;
 	private final ClanLookupSession clanLookupSession;
@@ -145,10 +146,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private String pendingClanName;
 
+	/** True only when the pending roster came from the verified in-game clan slot. */
+	private boolean pendingRosterSyncEligible;
+
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, ConfigManager configManager,
 		WomClient womClient, ClanHiscoreBatch batch, ClanClogBatch clogBatch,
 		LocalHiscoreCache hiscoreCache, ClogFetchService clogFetchService,
+		LocalClanProfileCache clanProfileCache,
 		InGameClanReader clanReader, KillclogApiClient apiClient,
 		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel)
 	{
@@ -160,6 +165,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		this.clogBatch = clogBatch;
 		this.hiscoreCache = hiscoreCache;
 		this.clogFetchService = clogFetchService;
+		this.clanProfileCache = clanProfileCache;
 		this.clanReader = clanReader;
 		this.apiClient = apiClient;
 		this.clanLookupSession = clanLookupSession;
@@ -303,6 +309,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			final String target = autoLoad;
 			SwingUtilities.invokeLater(() ->
 			{
+				if (renderStoredClanProfile(target))
+				{
+					return;
+				}
 				setSearchText(target);
 				onSubmit();
 			});
@@ -862,6 +872,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					lastLoadedRoster = roster;
 					lastLoadedClanName = clanName;
 					lastLoadedSlug = slug;
+					clanProfileCache.put(clanName, slug, roster, partialResult);
 				}
 				else
 				{
@@ -932,6 +943,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		pendingClanName = name;
 		pendingRoster = new ArrayList<>(roster);
+		pendingRosterSyncEligible = true;
 		setClanHeaderText(name);
 		clearSearchText();
 		if (!renderCachedClanProfile(name, pendingRoster, true))
@@ -1004,6 +1016,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			lastLoadedRoster = roster;
 			lastLoadedClanName = clanName;
 			lastLoadedSlug = slug;
+			clanProfileCache.put(clanName, slug, roster, cached);
 			showClanalyzeButton("refresh", "refresh clan profile");
 			updateSyncButtonVisibility();
 		}
@@ -1013,6 +1026,42 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		setStatus("cached · " + roster.size() + " members ("
 			+ hiscoreHits + " hiscores, " + clogHits + " clogs)");
+		return true;
+	}
+
+	private boolean renderStoredClanProfile(String clanNameOrSlug)
+	{
+		LocalClanProfileCache.StoredProfile stored = clanProfileCache.get(clanNameOrSlug);
+		if (stored == null)
+		{
+			return false;
+		}
+
+		String name = stored.getClanName();
+		String slug = stored.getSlug();
+		List<ClanMember> roster = new ArrayList<>(stored.getRoster());
+		ClanClogResult result = stored.getResult();
+
+		pendingClanName = name;
+		pendingRoster = roster;
+		pendingRosterSyncEligible = false;
+		lastRenderedResult = result;
+		lastLoadedRoster = roster;
+		lastLoadedClanName = name;
+		lastLoadedSlug = slug;
+		currentLoadSlug = null;
+
+		setClanHeaderText(name);
+		clearSearchText();
+		cells.renderClanResult(result);
+		membersPanel.renderRoster(name, roster);
+		showClanalyzeButton("refresh", "refresh clan profile");
+		updateSyncButtonVisibility();
+		String saved = stored.getSavedAt();
+		String date = saved != null && saved.contains("T")
+			? saved.substring(0, saved.indexOf('T')) : saved;
+		setStatus("cached profile · " + result.getMemberCount() + " members"
+			+ (date != null ? " · " + date : ""));
 		return true;
 	}
 
@@ -1039,7 +1088,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanalyzeButton.setVisible(false);
 		revalidate();
 		repaint();
-		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster), true);
+		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster), pendingRosterSyncEligible);
 	}
 
 	private void clearSyncState()
@@ -1048,6 +1097,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedRoster = null;
 		lastLoadedClanName = null;
 		lastLoadedSlug = null;
+		pendingRosterSyncEligible = false;
 		syncButton.setEnabled(true);
 		syncButton.setVisible(false);
 		revalidate();
@@ -1062,6 +1112,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void updateSyncButtonVisibility()
 	{
 		boolean show = config.enableSync()
+			&& pendingRosterSyncEligible
 			&& lastRenderedResult != null
 			&& lastLoadedRoster != null
 			&& lastLoadedClanName != null
