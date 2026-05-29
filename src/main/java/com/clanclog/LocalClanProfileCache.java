@@ -106,7 +106,7 @@ public class LocalClanProfileCache
 			}
 			return profile;
 		}
-		catch (Exception e)
+		catch (Exception | AssertionError e)
 		{
 			log.debug("Failed to load clan profile cache for '{}': {}", slug, e.getMessage());
 			return null;
@@ -135,7 +135,7 @@ public class LocalClanProfileCache
 			}
 			log.debug("Saved clan profile cache: {}", file.getName());
 		}
-		catch (IOException e)
+		catch (IOException | AssertionError e)
 		{
 			log.debug("Failed to save clan profile cache for '{}': {}", slug, e.getMessage());
 		}
