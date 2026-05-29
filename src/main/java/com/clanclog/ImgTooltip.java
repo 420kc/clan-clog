@@ -41,7 +41,7 @@ public class ImgTooltip extends TitleTooltip
 	private final int spriteSize;
 	private int effectiveCols;
 	private int hoveredItemIndex = -1;
-	private String notice = "No TempleOSRS Data";
+	private String notice = "No clan data";
 	private BufferedImage noticeIcon;
 
 	private int totalItems;
