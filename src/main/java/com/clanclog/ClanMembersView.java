@@ -30,6 +30,7 @@ public class ClanMembersView extends JPanel
 {
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
 	private static final Color KC_TEXT = new Color(215, 215, 215);
+	private static final String KILLCLOG_PROFILE_ROOT = "https://killclog.com/p/";
 
 	private final JPanel list;
 
@@ -223,6 +224,19 @@ public class ClanMembersView extends JPanel
 		row.addMouseListener(new MouseAdapter()
 		{
 			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				if (e.getClickCount() >= 2 && javax.swing.SwingUtilities.isLeftMouseButton(e))
+				{
+					String url = memberProfileUrl(m);
+					if (url != null)
+					{
+						net.runelite.client.util.LinkBrowser.browse(url);
+					}
+				}
+			}
+
+			@Override
 			public void mouseEntered(MouseEvent e)
 			{
 				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
@@ -242,6 +256,7 @@ public class ClanMembersView extends JPanel
 		StringBuilder out = new StringBuilder("<html><b>")
 			.append(escapeHtml(member.getDisplayName()))
 			.append("</b>");
+		appendTooltipLine(out, "Double-click", "open Kill Clog profile");
 		appendTooltipLine(out, "Role", prettyRole(member.getRole()));
 		appendTooltipLine(out, "Account", accountLabel(member));
 		appendTooltipLine(out, "Build", member.getBuild());
@@ -265,6 +280,28 @@ public class ClanMembersView extends JPanel
 		appendTooltipLine(out, "Joined", member.getJoinDate() != null
 			? member.getJoinDate().toString() : null);
 		return out.append("</html>").toString();
+	}
+
+	static String memberProfileUrl(ClanMember member)
+	{
+		if (member == null)
+		{
+			return null;
+		}
+		return profileUrl(member.getRsn());
+	}
+
+	static String profileUrl(String rsn)
+	{
+		String normalized = RsnNormalizer.normalize(rsn);
+		if (normalized.isEmpty())
+		{
+			return null;
+		}
+		String slug = normalized.toLowerCase()
+			.replaceAll("[^a-z0-9]+", "-")
+			.replaceAll("^-+|-+$", "");
+		return slug.isEmpty() ? null : KILLCLOG_PROFILE_ROOT + slug;
 	}
 
 	private static void appendTooltipLine(StringBuilder out, String label, String value)

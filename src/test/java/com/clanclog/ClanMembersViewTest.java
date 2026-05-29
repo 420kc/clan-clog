@@ -54,9 +54,12 @@ public class ClanMembersViewTest
 		assertEquals(ClogHelper.COLOR_COMPLETED, labelColor(viewRef.get(), "420 kc"));
 
 		List<String> tooltips = tooltips(viewRef.get());
-		assertTrue(tooltips.stream().anyMatch(t -> t.contains("Collection log: 420 / 1,600")
+		assertTrue(tooltips.stream().anyMatch(t -> t.contains("Double-click: open Kill Clog profile")
+			&& t.contains("Collection log: 420 / 1,600")
 			&& t.contains("Clog sync: 2026-05-29T10:00:00Z")
 			&& t.contains("Joined: 2026-05-28")));
+		assertEquals("https://killclog.com/p/420-kc",
+			ClanMembersView.memberProfileUrl(member));
 	}
 
 	@Test
