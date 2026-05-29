@@ -277,6 +277,7 @@ public class LocalClogCache
 		String key = RsnNormalizer.cacheKey(normalized);
 		PlayerClogData data = players.computeIfAbsent(key, ignored -> newPlayerData(normalized));
 
+		data.lastUpdated = Instant.now().toString();
 		data.categories.put(categoryKey, new ArrayList<>(allItems));
 		data.obtained.put(categoryKey, new ArrayList<>(obtained));
 
@@ -319,6 +320,7 @@ public class LocalClogCache
 
 		if (changed)
 		{
+			data.lastUpdated = Instant.now().toString();
 			final PlayerClogData snapshot = shallowCopy(data);
 			submitDiskWrite(normalized, () -> saveToDisk(normalized, snapshot));
 			log.debug("Updated clog totals for '{}': {}/{}", normalized, obtained, total);
