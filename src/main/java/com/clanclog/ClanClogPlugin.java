@@ -5,6 +5,8 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -13,8 +15,10 @@ import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -22,6 +26,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.Text;
 
 @Slf4j
 @PluginDescriptor(
@@ -31,6 +36,14 @@ import net.runelite.client.ui.NavigationButton;
 )
 public class ClanClogPlugin extends Plugin
 {
+	private static final int CLOG_INTERFACE = 621;
+	private static final int CLOG_HEADER_CHILD = 20;
+	private static final int CLOG_ITEMS_CHILD = 37;
+	private static final int VARP_CLOG_OBTAINED = 2943;
+	private static final int VARP_CLOG_TOTAL = 2944;
+	private static final java.util.regex.Pattern OBTAINED_PATTERN =
+		java.util.regex.Pattern.compile("(\\d+)/(\\d+)");
+
 	@Inject
 	private ClientToolbar clientToolbar;
 
@@ -75,6 +88,7 @@ public class ClanClogPlugin extends Plugin
 	private ClogsworthDispatcher clogsworth;
 
 	private NavigationButton navButton;
+	private String lastVisibleClogSignature;
 
 	@Provides
 	ClanClogConfig provideConfig(ConfigManager configManager)
@@ -145,7 +159,14 @@ public class ClanClogPlugin extends Plugin
 		else if (event.getGameState() == GameState.LOGIN_SCREEN)
 		{
 			clogCache.setActivePlayer(null);
+			lastVisibleClogSignature = null;
 		}
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		captureVisibleClogCategory();
 	}
 
 	private void refreshInGameClanSoon()
@@ -171,6 +192,115 @@ public class ClanClogPlugin extends Plugin
 		{
 			clogCache.setActivePlayer(local.getName());
 		}
+	}
+
+	private void captureVisibleClogCategory()
+	{
+		Player local = client.getLocalPlayer();
+		if (local == null || local.getName() == null)
+		{
+			return;
+		}
+
+		Widget header = client.getWidget(CLOG_INTERFACE, CLOG_HEADER_CHILD);
+		if (header == null)
+		{
+			lastVisibleClogSignature = null;
+			return;
+		}
+		Widget[] headerKids = header.getDynamicChildren();
+		if (headerKids == null || headerKids.length < 2 || headerKids[0] == null)
+		{
+			return;
+		}
+
+		String headerText = headerKids[0].getText();
+		if (headerText == null || headerText.isEmpty())
+		{
+			return;
+		}
+		String categoryName = Text.removeTags(headerText);
+		String categoryKey = ClogHelper.bossToCategory(categoryName);
+
+		int obtainedCount = -1;
+		int totalCount = -1;
+		if (headerKids[1] != null)
+		{
+			String obtainedText = Text.removeTags(headerKids[1].getText());
+			java.util.regex.Matcher matcher = OBTAINED_PATTERN.matcher(obtainedText);
+			if (matcher.find())
+			{
+				obtainedCount = Integer.parseInt(matcher.group(1));
+				totalCount = Integer.parseInt(matcher.group(2));
+			}
+		}
+
+		Widget items = client.getWidget(CLOG_INTERFACE, CLOG_ITEMS_CHILD);
+		if (items == null)
+		{
+			return;
+		}
+		Widget[] children = items.getChildren();
+		if (children == null || children.length == 0)
+		{
+			return;
+		}
+
+		List<Integer> allItemIds = new ArrayList<>();
+		List<ClogResult.ClogItem> obtained = new ArrayList<>();
+		for (Widget child : children)
+		{
+			if (child == null)
+			{
+				continue;
+			}
+			int itemId = child.getItemId();
+			if (itemId <= 0)
+			{
+				continue;
+			}
+			allItemIds.add(itemId);
+			if (child.getOpacity() == 0)
+			{
+				obtained.add(new ClogResult.ClogItem(itemId, Math.max(child.getItemQuantity(), 1), null));
+			}
+		}
+
+		if (allItemIds.isEmpty())
+		{
+			return;
+		}
+
+		String signature = local.getName() + "|" + categoryKey + "|" + allItemIds.hashCode()
+			+ "|" + itemSignature(obtained) + "|" + obtainedCount + "|" + totalCount;
+		if (signature.equals(lastVisibleClogSignature))
+		{
+			return;
+		}
+		lastVisibleClogSignature = signature;
+
+		clogCache.setActivePlayer(local.getName());
+		clogCache.mergeCategory(local.getName(), categoryKey, allItemIds, obtained);
+
+		int liveObtained = client.getVarpValue(VARP_CLOG_OBTAINED);
+		int liveTotal = client.getVarpValue(VARP_CLOG_TOTAL);
+		if (liveObtained > 0 || liveTotal > 0)
+		{
+			clogCache.updateTotals(local.getName(), liveObtained, liveTotal);
+		}
+		log.debug("Captured local clog category '{}': {}/{} for '{}'",
+			categoryKey, obtained.size(), allItemIds.size(), local.getName());
+	}
+
+	private static int itemSignature(List<ClogResult.ClogItem> items)
+	{
+		int hash = 1;
+		for (ClogResult.ClogItem item : items)
+		{
+			hash = 31 * hash + item.getId();
+			hash = 31 * hash + item.getCount();
+		}
+		return hash;
 	}
 
 	/**
