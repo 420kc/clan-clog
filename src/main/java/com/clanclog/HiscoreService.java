@@ -193,6 +193,48 @@ public class HiscoreService
 	}
 
 	/**
+	 * Batch-friendly lookup used when a roster source already knows the account
+	 * type. Known UIM/iron/HCIM members are checked against their specialty
+	 * endpoint first, which catches low-level irons that have no regular hiscore
+	 * row yet without paying for a guaranteed regular miss.
+	 */
+	public CompletableFuture<HiscoreResult> lookupForClanBatch(String playerName,
+		AccountType knownType)
+	{
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return CompletableFuture.completedFuture(null);
+		}
+
+		String directEndpoint = directEndpoint(knownType);
+		if (directEndpoint != null)
+		{
+			String encoded = RsnNormalizer.encodeQueryValue(normalized);
+			return fetchAsync(directEndpoint, encoded).thenCompose(body ->
+			{
+				if (body != null)
+				{
+					HiscoreResult result = parseHiscoreBody(body, knownType);
+					cache.put(RsnNormalizer.cacheKey(normalized),
+						new CachedResult(result, System.currentTimeMillis()));
+					return CompletableFuture.completedFuture(result);
+				}
+				return lookup(normalized, null);
+			});
+		}
+
+		return lookupRegularOnly(normalized).thenCompose(result ->
+		{
+			if (result != null)
+			{
+				return CompletableFuture.completedFuture(result);
+			}
+			return lookup(normalized, null);
+		});
+	}
+
+	/**
 	 * Look up a player across all 4 hiscore endpoints in parallel.
 	 * Retries once on transient failure (Jagex 502/503/rate-limit).
 	 */
@@ -286,6 +328,25 @@ public class HiscoreService
 				return CompletableFuture.completedFuture(
 					parseHiscoreBody(bestBody, type));
 			});
+	}
+
+	static String directEndpoint(AccountType type)
+	{
+		if (type == null)
+		{
+			return null;
+		}
+		switch (type)
+		{
+			case ULTIMATE_IRONMAN:
+				return "hiscore_oldschool_ultimate";
+			case HARDCORE_IRONMAN:
+				return "hiscore_oldschool_hardcore_ironman";
+			case IRONMAN:
+				return "hiscore_oldschool_ironman";
+			default:
+				return null;
+		}
 	}
 
 	/* package */ AccountType detectAccountType(String uimBody, String hcimBody, String ironBody, String regBody)

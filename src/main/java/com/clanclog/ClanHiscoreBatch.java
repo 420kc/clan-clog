@@ -136,8 +136,8 @@ public class ClanHiscoreBatch
 
 		// Stale-while-revalidate: if a cached result exists and isn't stale,
 		// return it immediately without hitting Jagex at all. If stale or
-		// missing, fetch fresh data. Regular is cheapest; only misses fall back
-		// to full account-type detection so irons/UIMs with no regular row still count.
+		// missing, fetch fresh data. Known iron/UIM members use their specialty
+		// endpoint first; unknowns still take the cheap regular-first path.
 		HiscoreResult cached = hiscoreCache.get(member.getRsn());
 		if (cached != null && !hiscoreCache.isStale(member.getRsn()))
 		{
@@ -166,15 +166,7 @@ public class ClanHiscoreBatch
 
 			try
 			{
-				hiscoreService.lookupRegularOnly(member.getRsn())
-					.thenCompose(result ->
-					{
-						if (result != null)
-						{
-							return CompletableFuture.completedFuture(result);
-						}
-						return hiscoreService.lookup(member.getRsn(), null);
-					})
+				hiscoreService.lookupForClanBatch(member.getRsn(), member.getAccountType())
 					.orTimeout(LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 					.whenComplete((result, ex) ->
 					{

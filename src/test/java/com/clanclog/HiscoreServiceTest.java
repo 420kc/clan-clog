@@ -29,6 +29,26 @@ public class HiscoreServiceTest
 			service.detectAccountType(null, null, null, hiscoreBody(420)));
 	}
 
+	@Test
+	public void mapsKnownSpecialtyTypesToDirectEndpoints()
+	{
+		assertEquals("hiscore_oldschool_ultimate",
+			HiscoreService.directEndpoint(AccountType.ULTIMATE_IRONMAN));
+		assertEquals("hiscore_oldschool_hardcore_ironman",
+			HiscoreService.directEndpoint(AccountType.HARDCORE_IRONMAN));
+		assertEquals("hiscore_oldschool_ironman",
+			HiscoreService.directEndpoint(AccountType.IRONMAN));
+	}
+
+	@Test
+	public void skipsDirectEndpointForRegularAndGroupIron()
+	{
+		assertEquals(null, HiscoreService.directEndpoint(AccountType.REGULAR));
+		assertEquals(null, HiscoreService.directEndpoint(AccountType.GROUP_IRONMAN));
+		assertEquals(null, HiscoreService.directEndpoint(AccountType.HARDCORE_GROUP_IRONMAN));
+		assertEquals(null, HiscoreService.directEndpoint(AccountType.UNRANKED_GROUP_IRONMAN));
+	}
+
 	private static String hiscoreBody(long totalXp)
 	{
 		return "1,100," + totalXp + "\n";
