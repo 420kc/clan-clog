@@ -43,10 +43,9 @@ import net.runelite.client.RuneLite;
 @Singleton
 public class LocalClogCache
 {
-	private static final File CACHE_DIR = new File(RuneLite.RUNELITE_DIR, "clan-clog");
-
 	private final Map<String, PlayerClogData> players = new ConcurrentHashMap<>();
 	private final Gson gson;
+	private final File cacheDir;
 	private volatile String activePlayer;
 
 	/**
@@ -109,7 +108,13 @@ public class LocalClogCache
 	@Inject
 	public LocalClogCache(Gson gson)
 	{
+		this(gson, new File(RuneLite.RUNELITE_DIR, "clan-clog"));
+	}
+
+	LocalClogCache(Gson gson, File cacheDir)
+	{
 		this.gson = gson;
+		this.cacheDir = cacheDir;
 	}
 
 	/**
@@ -426,12 +431,12 @@ public class LocalClogCache
 		File tmp = null;
 		try
 		{
-			if (!CACHE_DIR.exists())
+			if (!cacheDir.exists())
 			{
-				CACHE_DIR.mkdirs();
+				cacheDir.mkdirs();
 			}
 			File file = getCacheFile(playerName);
-			tmp = File.createTempFile(file.getName() + "-", ".tmp", CACHE_DIR);
+			tmp = File.createTempFile(file.getName() + "-", ".tmp", cacheDir);
 			try (BufferedWriter writer = Files.newBufferedWriter(tmp.toPath(), StandardCharsets.UTF_8))
 			{
 				gson.toJson(data, writer);
@@ -501,7 +506,7 @@ public class LocalClogCache
 		String sanitized = RsnNormalizer.cacheKey(playerName)
 			.replace(' ', '_')
 			.replaceAll("[^a-z0-9_-]", "");
-		return new File(CACHE_DIR, sanitized + ".json");
+		return new File(cacheDir, sanitized + ".json");
 	}
 
 	private static boolean hasUsableData(PlayerClogData data)
