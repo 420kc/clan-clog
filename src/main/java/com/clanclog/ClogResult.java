@@ -6,11 +6,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Parsed collection log data for a player from TempleOSRS.
+ * Parsed collection log data for a player from any supported source:
+ * local client cache, TempleOSRS, or RuneProfile.
  */
 public class ClogResult
 {
-	/** Canonical player name with correct capitalization from TempleOSRS */
+	/** Canonical player name with the best casing returned by the source. */
 	private final String playerName;
 	/** category key -> list of obtained items with counts */
 	private final Map<String, List<ClogItem>> obtainedItems;
@@ -18,7 +19,7 @@ public class ClogResult
 	private final Map<String, List<Integer>> categoryItems;
 	/** item IDs whose names have been resolved (concurrent: written from client thread, read from EDT) */
 	private final Set<Integer> resolvedItemIds;
-	/** When the player last synced clog data to TempleOSRS (from last_changed field) */
+	/** When the source last reported a collection-log sync, or null if unavailable. */
 	private final String lastChanged;
 	/** Account type detected from Temple's game_mode, or null if unknown */
 	private final AccountType templeAccountType;

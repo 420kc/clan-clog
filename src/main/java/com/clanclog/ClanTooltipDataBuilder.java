@@ -60,7 +60,7 @@ public class ClanTooltipDataBuilder
 			return null;
 		}
 
-		// When the client-side catalog is available (from per-member Temple
+		// When the client-side catalog is available (from per-member clog
 		// data), use it as the full item list so completion shows X/Y
 		// correctly. Falls back to obtained-only when no catalog exists
 		// (e.g. backend-only data without catalog support).

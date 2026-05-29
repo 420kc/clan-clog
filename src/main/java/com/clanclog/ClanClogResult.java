@@ -272,7 +272,7 @@ public class ClanClogResult
 
 	/**
 	 * Build a ClanClogResult from roster hiscore data when no backend data
-	 * exists. Clog stays null (requires a clog provider like Temple/RuneProfile).
+	 * exists. Clog stays null until a collection-log source covers members.
 	 */
 	static ClanClogResult forRoster(String slug, String displayName,
 		int memberCount, Map<String, BossAggregate> bosses)
@@ -361,7 +361,7 @@ public class ClanClogResult
 	}
 
 	/**
-	 * Clan combined clog: items unioned across members with temple coverage,
+	 * Clan combined clog: items unioned across covered members with source coverage,
 	 * per-item enrichment (holder counts + first-seen history), recently-
 	 * acquired feed sorted by first_seen_at desc.
 	 */
@@ -375,7 +375,7 @@ public class ClanClogResult
 		/**
 		 * Full catalog per category: every item ID that exists in the category,
 		 * not just the ones the clan obtained. Populated by client-side
-		 * aggregation from per-member Temple clog data. Null when deserialized
+		 * aggregation from per-member collection-log data. Null when deserialized
 		 * from a backend response (the backend doesn't ship catalogs yet).
 		 */
 		private transient Map<String, List<Integer>> catalogByCategory;
