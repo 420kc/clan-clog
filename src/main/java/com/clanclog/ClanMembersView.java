@@ -19,10 +19,9 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 
 /**
- * Slide-out content surface that lists every member of the currently-loaded
- * clan. Lives inside a {@link SlidePanel}, hidden by default. Same row layout
- * as before the panel restructure: name on the left, role centered, total
- * level + combat on the right.
+ * Content surface that lists every member of the currently-loaded clan. Same
+ * row layout as before the panel restructure: name on the left, role centered,
+ * total level + combat on the right.
  */
 public class ClanMembersView extends JPanel
 {
@@ -53,7 +52,7 @@ public class ClanMembersView extends JPanel
 		scroll.setPreferredSize(new Dimension(0, 320));
 		add(scroll, BorderLayout.CENTER);
 
-		showPlaceholder("no clan loaded");
+		showPlaceholder(" ");
 	}
 
 	public void renderRoster(List<ClanMember> roster)

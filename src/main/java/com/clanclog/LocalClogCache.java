@@ -205,22 +205,40 @@ public class LocalClogCache
 		data.obtained = new ConcurrentHashMap<>();
 		data.categories = new ConcurrentHashMap<>();
 
+		if (result.getCategoryItems() != null)
+		{
+			for (Map.Entry<String, List<Integer>> entry
+				: result.getCategoryItems().entrySet())
+			{
+				data.categories.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+			}
+		}
+		if (data.categories.isEmpty() && hasUsableData(existing))
+		{
+			for (Map.Entry<String, List<Integer>> entry : existing.categories.entrySet())
+			{
+				data.categories.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+			}
+		}
+
 		for (Map.Entry<String, List<ClogResult.ClogItem>> entry
 			: result.getObtainedItems().entrySet())
 		{
 			String cat = entry.getKey();
 			data.obtained.put(cat, new ArrayList<>(entry.getValue()));
-			List<Integer> catItems = result.getCategoryItems().get(cat);
-			if (catItems != null)
-			{
-				data.categories.put(cat, new ArrayList<>(catItems));
-			}
+		}
+
+		if (data.categories.isEmpty())
+		{
+			log.debug("Skipping clog cache for '{}' with no category catalog", name);
+			return;
 		}
 
 		players.put(key, data);
 		final PlayerClogData snapshot = shallowCopy(data);
 		submitDiskWrite(name, () -> saveToDisk(name, snapshot));
-		log.debug("Cached clog data for '{}' ({} categories)", name, data.obtained.size());
+		log.debug("Cached clog data for '{}' ({} categories, {} obtained categories)",
+			name, data.categories.size(), data.obtained.size());
 	}
 
 	public void mergeCategory(String playerName, String categoryKey,
@@ -289,9 +307,14 @@ public class LocalClogCache
 		}
 
 		String key = playerName.toLowerCase();
-		if (players.containsKey(key))
+		PlayerClogData cached = players.get(key);
+		if (hasUsableData(cached))
 		{
 			return true;
+		}
+		if (cached != null)
+		{
+			players.remove(key);
 		}
 
 		PlayerClogData loaded = loadFromDisk(playerName);
@@ -408,6 +431,13 @@ public class LocalClogCache
 			.replace(' ', '_')
 			.replaceAll("[^a-z0-9_-]", "");
 		return new File(CACHE_DIR, sanitized + ".json");
+	}
+
+	private static boolean hasUsableData(PlayerClogData data)
+	{
+		return data != null
+			&& data.categories != null
+			&& !data.categories.isEmpty();
 	}
 
 	/** Shallow copy sufficient for async disk write , lists are already copied in callers. */

@@ -32,9 +32,9 @@ import net.runelite.client.ui.components.FlatTextField;
 import net.runelite.client.ui.components.IconTextField;
 
 /**
- * Main clan clog surface. Layout mirrors Kill Clog: search header, collapsible
- * activities tray (clue tiers + rares) above the boss grid, members slide-out
- * below. PluginPanel(true) wraps everything in a single scroll pane with a
+ * Main clan clog surface. Layout mirrors Kill Clog: search header and
+ * activities tray (clue tiers + rares) above the boss grid. The members list
+ * lives in {@link ClanMembersPanel}. PluginPanel(true) wraps this surface in a
  * 7px MinimalScrollBarUI thumb, no nested scroll surfaces.
  *
  * <p>Data source priority per the 2026-05-13 runtime-first lock:
@@ -48,9 +48,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final int SEARCH_RESULT_LIMIT = 10;
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
 	private static final Color KC_TEXT = new Color(215, 215, 215);
+	private static final Color KC4 = new Color(0xFF, 0x57, 0x00);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 
 	private final ClanClogConfig config;
+	private final ConfigManager configManager;
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
 	private final ClanClogBatch clogBatch;
@@ -58,14 +60,34 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final KillclogApiClient apiClient;
 	private final ClanLookupSession clanLookupSession;
 	private final Cells cells;
+	private final ClanMembersPanel membersPanel;
 
 	private final JLabel statusLabel = new JLabel(" ");
 	private final IconTextField searchBar = new IconTextField();
-	private final JLabel clanHeader = new JLabel(" ");
+	private final JLabel clanHeader = new JLabel(" ")
+	{
+		@Override
+		protected void paintComponent(java.awt.Graphics g)
+		{
+			super.paintComponent(g);
+			if (Boolean.TRUE.equals(getClientProperty("underlined")))
+			{
+				String text = getText();
+				if (text != null && !text.isBlank())
+				{
+					java.awt.FontMetrics fm = g.getFontMetrics();
+					int textWidth = fm.stringWidth(text.trim());
+					int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2 + 1;
+					g.setColor(getForeground());
+					// centered alignment: text starts at midpoint minus half width
+					int textStart = (getWidth() - textWidth) / 2;
+					g.drawLine(textStart, y, textStart + textWidth, y);
+				}
+			}
+		}
+	};
 	private final JButton clanalyzeButton = new JButton("clanalyze");
 	private final JButton syncButton = new JButton("sync to killclog.com");
-	private final ClanMembersView membersView = new ClanMembersView();
-	private final SlidePanel membersTray = new SlidePanel("members", membersView, false);
 	private final ActivitiesTray activitiesTray;
 
 	/** Last backend/fixture ClanClogResult. Merged with hiscore data after batch completes. */
@@ -92,6 +114,21 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private String currentLoadSlug;
 
+	/**
+	 * Monotonic token bumped on every user-initiated lookup. Async batch + WOM
+	 * completions capture it at launch and bail if a newer lookup superseded
+	 * them, so a stale run can never overwrite the cells, lastRenderedResult,
+	 * lastLoadedSlug, sync button, or status of a newer one.
+	 */
+	private volatile int loadVersion;
+
+	/** loadVersion stamped when the current backend view lookup fired; gates its listener callbacks. */
+	private volatile int viewVersion = -1;
+
+	/** Original query for the in-flight backend view, replayed as a WOM search if the backend has no record. */
+	@Nullable
+	private String viewQuery;
+
 	/** Roster pending clanalyze (populated by in-game reader, not yet batch-fetched). */
 	@Nullable
 	private List<ClanMember> pendingRoster;
@@ -104,10 +141,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	public ClanClogPanel(ClanClogConfig config, ConfigManager configManager,
 		WomClient womClient, ClanHiscoreBatch batch, ClanClogBatch clogBatch,
 		InGameClanReader clanReader, KillclogApiClient apiClient,
-		ClanLookupSession clanLookupSession, Cells cells)
+		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel)
 	{
 		super(true);
 		this.config = config;
+		this.configManager = configManager;
 		this.womClient = womClient;
 		this.batch = batch;
 		this.clogBatch = clogBatch;
@@ -115,6 +153,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		this.apiClient = apiClient;
 		this.clanLookupSession = clanLookupSession;
 		this.cells = cells;
+		this.membersPanel = membersPanel;
 
 		// Configure PluginPanel's scroll pane (Kill Clog parity)
 		JScrollPane sp = getScrollPane();
@@ -194,14 +233,48 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		installPlaceholder(searchBar);
 		add(searchBar, c);
 
-		// ── Clan header ─────────────────────────────────────────────────────
+		// ── Clan header (centered, k4, clickable link with hover underline) ──
 		c.gridy++;
 		c.insets = new Insets(0, 0, 5, 0);
 		clanHeader.setFont(FontManager.getRunescapeFont());
-		clanHeader.setForeground(KC_TEXT);
+		clanHeader.setForeground(KC4);
+		clanHeader.setHorizontalAlignment(JLabel.CENTER);
 		clanHeader.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		clanHeader.setText("no clan loaded");
+		clanHeader.setText(" ");
+		clanHeader.addMouseListener(new java.awt.event.MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(java.awt.event.MouseEvent e)
+			{
+				if (clanHeader.getText() != null && !clanHeader.getText().isBlank()
+					&& !" ".equals(clanHeader.getText()))
+				{
+					clanHeader.putClientProperty("underlined", true);
+					clanHeader.repaint();
+				}
+			}
+
+			@Override
+			public void mouseExited(java.awt.event.MouseEvent e)
+			{
+				clanHeader.putClientProperty("underlined", null);
+				clanHeader.repaint();
+			}
+
+			@Override
+			public void mousePressed(java.awt.event.MouseEvent e)
+			{
+				String url = config.clanUrl();
+				String text = clanHeader.getText();
+				if (SwingUtilities.isLeftMouseButton(e)
+					&& text != null && !text.isBlank()
+					&& url != null && !url.isBlank())
+				{
+					net.runelite.client.util.LinkBrowser.browse(url);
+				}
+			}
+		});
 		add(clanHeader, c);
 
 		// ── Content ─────────────────────────────────────────────────────────
@@ -215,30 +288,50 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.gridy++;
 		add(cells.buildBossGrid(), c);
 
-		c.gridy++;
-		c.insets = new Insets(0, 0, 0, 0);
-		add(membersTray.getHeader(), c);
-
-		c.gridy++;
-		add(membersTray.getClip(), c);
-
 		clanReader.addListener(roster ->
 			SwingUtilities.invokeLater(() -> onInGameRosterRefreshed(roster)));
 
-		// Auto-load default clan if configured (same path as manual search)
-		String defaultClan = config.defaultClan().trim();
-		if (!defaultClan.isEmpty())
+		// Auto-load on open. An explicit Default Clan wins; otherwise, when
+		// "Remember Last Clan" is enabled, restore the last analyzed clan. Opening
+		// the clan tab in-game later swaps in the live roster, so this never traps
+		// the user on a stale clan.
+		// Deferred to the EDT: the panel is constructed off-thread during plugin
+		// injection, and IconTextField.setText asserts the EDT (fatal under -ea,
+		// which the dev launcher enables, so the plugin silently fails to load).
+		String autoLoad = config.defaultClan().trim();
+		if (autoLoad.isEmpty() && config.rememberLastClan())
 		{
-			searchBar.setText(defaultClan);
-			for (Component child : searchBar.getComponents())
+			String last = configManager.getConfiguration("clanclog", "lastClanName");
+			if (last != null && !last.trim().isEmpty())
 			{
-				if (child instanceof FlatTextField)
-				{
-					((FlatTextField) child).getTextField().setForeground(KC_TEXT);
-					break;
-				}
+				autoLoad = last.trim();
 			}
-			SwingUtilities.invokeLater(this::onSubmit);
+		}
+		if (!autoLoad.isEmpty())
+		{
+			final String target = autoLoad;
+			SwingUtilities.invokeLater(() ->
+			{
+				searchBar.setText(target);
+				for (Component child : searchBar.getComponents())
+				{
+					if (child instanceof FlatTextField)
+					{
+						((FlatTextField) child).getTextField().setForeground(KC_TEXT);
+						break;
+					}
+				}
+				onSubmit();
+			});
+		}
+	}
+
+	/** Persist the last analyzed/viewed clan name so "Remember Last Clan" can restore it. */
+	private void rememberClan(@Nullable String name)
+	{
+		if (config.rememberLastClan() && name != null && !name.isBlank())
+		{
+			configManager.setConfiguration("clanclog", "lastClanName", name);
 		}
 	}
 
@@ -393,8 +486,22 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 
-		// Secondary: WOM search (for clans the user isn't in)
-		searchByName(raw);
+		// A clan you're not in: read Kill Clog backend first (pre-computed
+		// combined clog from a prior sync), then fall back to a WOM roster view.
+		startBackendView(raw);
+	}
+
+	/**
+	 * Backend-first lookup for a clan the user isn't in. Fires the version-
+	 * stamped {@link ClanLookupSession} read; on a hit the listener renders the
+	 * pre-computed combined clog, on a miss it falls back to a WOM roster view.
+	 */
+	private void startBackendView(String query)
+	{
+		final int version = ++loadVersion;
+		viewVersion = version;
+		viewQuery = query;
+		clanLookupSession.start(slugify(query), this);
 	}
 
 	/**
@@ -414,30 +521,35 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 		currentLoadSlug = slug;
+		final int version = ++loadVersion;
 
 		clanalyzeButton.setVisible(false);
-		clanHeader.setText(clanName + " · " + roster.size() + " members");
+		clanHeader.setText(clanName);
 		setStatus("Clanalyzing your members: 0/" + roster.size());
-		membersView.renderRoster(roster);
-		if (!membersTray.isExpanded())
-		{
-			membersTray.toggle();
-		}
+		membersPanel.renderRoster(clanName, roster);
 
 		// Phase 1: per-member hiscore fan-out
 		final String name = clanName;
 		batch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
 		{
+			if (version != loadVersion)
+			{
+				return;
+			}
 			setStatus("Clanalyzing your members: " + completed + "/" + roster.size());
-			membersView.renderRoster(roster);
+			membersPanel.renderRoster(name, roster);
 		})).whenComplete((v, batchEx) ->
 			SwingUtilities.invokeLater(() ->
 			{
+				if (version != loadVersion)
+				{
+					return;
+				}
 				// Render boss KCs immediately from hiscore data
 				ClanClogResult merged = RosterClogBuilder.fromHiscores(
 					name, slug, roster, lastBackendResult);
 				cells.renderClanResult(merged);
-				membersView.renderRoster(roster);
+				membersPanel.renderRoster(name, roster);
 
 				int hiscoreHits = 0;
 				for (ClanMember m : roster)
@@ -451,41 +563,41 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				// Phase 2: per-member clog fetch (Temple + RuneProfile)
 				setStatus(hiscoreHits + "/" + roster.size()
 					+ " hiscores · fetching clogs: 0/" + roster.size());
-				fireClogBatch(name, slug, roster, merged, hiscoreHits);
+				fireClogBatch(name, slug, roster, merged, hiscoreHits, version);
 			}));
 	}
 
 	private void searchByName(String query)
 	{
+		final int version = ++loadVersion;
 		setStatus("searching for \"" + query + "\"...");
-		if (!membersTray.isExpanded())
-		{
-			membersTray.toggle();
-		}
-		membersView.showPlaceholder("searching...");
+		membersPanel.showPlaceholder("searching...");
 
 		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
 			SwingUtilities.invokeLater(() ->
 			{
+				if (version != loadVersion)
+				{
+					return;
+				}
 				if (results == null || results.length == 0)
 				{
 					setStatus("no wom match for \"" + query + "\"");
-					membersView.showPlaceholder("no roster source");
+					membersPanel.showPlaceholder("no roster source");
 					return;
 				}
 				setStatus("matched " + results.length
-					+ " · open your clan tab in-game to clanalyze");
-				membersView.renderSearchResults(results, id ->
-				{
-				});
+					+ " · open members panel to pick one");
+				membersPanel.renderSearchResults(query, results, this::loadGroupById);
 			}));
 	}
 
 	private void loadGroupById(int id)
 	{
+		final int version = ++loadVersion;
 		setStatus("fetching roster for group " + id + "...");
-		clanHeader.setText("loading clan " + id + "...");
-		membersView.showPlaceholder("loading...");
+		clanHeader.setText(" ");
+		membersPanel.showPlaceholder("loading...");
 
 		womClient.getGroup(id).whenComplete((group, ex) ->
 		{
@@ -493,8 +605,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			{
 				SwingUtilities.invokeLater(() ->
 				{
+					if (version != loadVersion)
+					{
+						return;
+					}
 					setStatus("no group returned (network, missing id, or wom timeout)");
-					clanHeader.setText("no clan loaded");
+					clanHeader.setText(" ");
 				});
 				return;
 			}
@@ -511,13 +627,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			final String groupName = group.name;
 			SwingUtilities.invokeLater(() ->
 			{
-				clanHeader.setText(groupName + " · " + roster.size() + " members");
-				setStatus("view only · open your clan tab in-game to clanalyze");
-				membersView.renderRoster(roster);
-				if (!membersTray.isExpanded())
+				if (version != loadVersion)
 				{
-					membersTray.toggle();
+					return;
 				}
+				clanHeader.setText(groupName);
+				setStatus("view only · open your clan tab in-game to clanalyze");
+				membersPanel.renderRoster(groupName, roster);
+				rememberClan(groupName);
 			});
 		});
 	}
@@ -529,14 +646,23 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 * the cells surface with highlight colors.
 	 */
 	private void fireClogBatch(String clanName, String slug,
-		List<ClanMember> roster, ClanClogResult partialResult, int hiscoreHits)
+		List<ClanMember> roster, ClanClogResult partialResult, int hiscoreHits, int version)
 	{
 		clogBatch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
+		{
+			if (version != loadVersion)
+			{
+				return;
+			}
 			setStatus(hiscoreHits + "/" + roster.size()
-				+ " hiscores · clogs: " + completed + "/" + roster.size())
-		)).whenComplete((v, clogEx) ->
+				+ " hiscores · clogs: " + completed + "/" + roster.size());
+		})).whenComplete((v, clogEx) ->
 			SwingUtilities.invokeLater(() ->
 			{
+				if (version != loadVersion)
+				{
+					return;
+				}
 				// Build client-side ClogUnion from per-member clog data
 				ClanClogResult.ClogUnion union = RosterClogBuilder.buildClogUnion(roster);
 				if (union != null)
@@ -546,22 +672,39 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 				// Re-render with clog highlight colors + tooltips
 				cells.renderClanResult(partialResult);
-				membersView.renderRoster(roster);
+				membersPanel.renderRoster(clanName, roster);
 
 				// Stash state for sync button
 				lastRenderedResult = partialResult;
 				lastLoadedRoster = roster;
 				lastLoadedClanName = clanName;
 				lastLoadedSlug = slug;
+				rememberClan(clanName);
 
-				int clogCount = 0;
+				// Coverage buckets, mutually exclusive so they sum to the roster
+				// size. Honest input for the sync + the killclog.com/c surface:
+				// don't imply complete data when only a subset resolved.
+				int templeOk = 0;       // clog data obtained (Temple/RuneProfile)
+				int templeMissing = 0;  // on hiscores but no clog
+				int notFound = 0;       // neither hiscore nor clog
 				for (ClanMember m : roster)
 				{
 					if (m.getClog() != null)
 					{
-						clogCount++;
+						templeOk++;
+					}
+					else if (m.getHiscore() != null)
+					{
+						templeMissing++;
+					}
+					else
+					{
+						notFound++;
 					}
 				}
+				int clogCount = templeOk;
+				partialResult.setMemberCoverage(new ClanClogResult.MemberCoverage(
+					roster.size(), templeOk, templeMissing, 0, notFound, 0));
 				setStatus("done · " + roster.size() + " members ("
 					+ hiscoreHits + " hiscores, " + clogCount + " clogs)");
 
@@ -585,6 +728,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return;
 		}
+		// Showing the live in-game roster supersedes a pending backend VIEW, so
+		// invalidate its listener guard (onClanResult/NotFound/Error bail when
+		// viewVersion != loadVersion). Do NOT bump loadVersion here: this method
+		// fires on every clan-tab open, including mid-clanalyze, and bumping the
+		// shared token would cancel an in-flight clanalyze batch.
+		viewVersion = -1;
 		String name = clanReader.currentClanName();
 		if (name == null)
 		{
@@ -592,12 +741,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		pendingClanName = name;
 		pendingRoster = new ArrayList<>(roster);
-		clanHeader.setText(name + " · " + roster.size() + " members");
-		membersView.renderRoster(pendingRoster);
-		if (!membersTray.isExpanded())
-		{
-			membersTray.toggle();
-		}
+		clanHeader.setText(name);
+		membersPanel.renderRoster(name, pendingRoster);
 		setStatus("ready · press clanalyze to start");
 		clanalyzeButton.setVisible(true);
 		clanalyzeButton.setEnabled(true);
@@ -671,24 +816,29 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		List<ClanMember> roster = lastLoadedRoster;
 		ClanClogResult result = lastRenderedResult;
 
-		// Step 1: sync roster
+		// Step 1: sync roster. On failure, surface the backend's error code
+		// (rank_not_authorized, slug_mismatch, owner_not_in_roster, ...) and stop.
 		apiClient.syncRoster(slug, clanName, ownerRsn, keyRank, roster)
-			.thenCompose(rosterOk ->
+			.thenCompose(rosterResp ->
 			{
-				if (!rosterOk)
+				if (!rosterResp.isOk())
 				{
-					return java.util.concurrent.CompletableFuture.completedFuture(false);
+					return java.util.concurrent.CompletableFuture.completedFuture(rosterResp);
 				}
 				// Step 2: sync pre-computed result
 				return apiClient.syncResult(slug, ownerRsn, keyRank, result);
 			})
-			.whenComplete((ok, ex) ->
+			.whenComplete((resp, ex) ->
 				SwingUtilities.invokeLater(() ->
 				{
 					syncButton.setEnabled(true);
-					if (ok != null && ok)
+					if (ex == null && resp != null && resp.isOk())
 					{
 						setStatus("synced to killclog.com/c/" + slug);
+					}
+					else if (resp != null)
+					{
+						setStatus("sync failed: " + resp.describe());
 					}
 					else
 					{
@@ -716,31 +866,71 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Override
 	public void onClanResult(String slug, ClanClogResult result)
 	{
+		if (viewVersion != loadVersion)
+		{
+			return;
+		}
 		lastBackendResult = result;
-		int memberCount = result.getMemberCount();
 		String name = result.getDisplayName();
 		if (name != null && !name.isEmpty())
 		{
-			clanHeader.setText(name + " · " + memberCount + " members");
+			clanHeader.setText(name);
+			rememberClan(name);
 		}
-		setStatus("clog loaded · " + memberCount + " members · " + slug);
+		// Surface coverage honestly: show how many members actually have clog
+		// data and when the clan was last synced, not just a member count.
+		ClanClogResult.MemberCoverage cov = result.getMemberCoverage();
+		String coverage = cov != null
+			? cov.getTempleOk() + "/" + cov.getTotal() + " with clog"
+			: result.getMemberCount() + " members";
+		String synced = result.getLastSyncedAt();
+		String when = synced != null && synced.contains("T")
+			? synced.substring(0, synced.indexOf('T')) : synced;
+		setStatus("synced clog · " + coverage + (when != null ? " · " + when : ""));
 		cells.renderClanResult(result);
 	}
 
 	@Override
 	public void onClanNotFound(String slug)
 	{
+		if (viewVersion != loadVersion)
+		{
+			return;
+		}
 		lastBackendResult = null;
-		setStatus("no clog data for " + slug);
 		cells.clearCells();
+		// Backend has no record of this clan -- fall back to a WOM roster view.
+		if (viewQuery != null && !viewQuery.isBlank())
+		{
+			setStatus("not synced to killclog.com yet · searching WOM...");
+			searchByName(viewQuery);
+		}
+		else
+		{
+			setStatus("no clog data for " + slug);
+		}
 	}
 
 	@Override
 	public void onClanError(String slug, @Nullable String detail)
 	{
+		if (viewVersion != loadVersion)
+		{
+			return;
+		}
 		lastBackendResult = null;
-		setStatus("clog error for " + slug + (detail != null ? ": " + detail : ""));
 		cells.clearCells();
+		// Backend unreachable/errored -- try WOM so the user still sees a roster.
+		if (viewQuery != null && !viewQuery.isBlank())
+		{
+			setStatus("backend unavailable"
+				+ (detail != null ? " (" + detail + ")" : "") + " · searching WOM...");
+			searchByName(viewQuery);
+		}
+		else
+		{
+			setStatus("clog error for " + slug + (detail != null ? ": " + detail : ""));
+		}
 	}
 
 	/**

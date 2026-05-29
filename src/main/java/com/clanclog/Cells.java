@@ -11,6 +11,8 @@ import java.awt.Color;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.InputStream;
+import javax.imageio.ImageIO;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -458,16 +460,21 @@ public class Cells
 		JLabel label = new JLabel();
 		styleLabel(label, "Members");
 
-		// Clan icon sprite (clan chat icon, sprite 647)
-		spriteManager.getSpriteAsync(647, 0, sprite ->
-			SwingUtilities.invokeLater(() ->
+		// Clan icon from bundled resource (sprite 647 doesn't resolve via getSpriteAsync)
+		try (InputStream in = Cells.class.getResourceAsStream("icon.png"))
+		{
+			if (in != null)
 			{
-				if (sprite != null)
+				BufferedImage img = ImageIO.read(in);
+				if (img != null)
 				{
-					label.setIcon(new ImageIcon(ImageUtil.resizeImage(
-						ImageUtil.resizeCanvas(sprite, 25, 25), 20, 20)));
+					label.setIcon(new ImageIcon(ImageUtil.resizeImage(img, 20, 20)));
 				}
-			}));
+			}
+		}
+		catch (Exception ignored)
+		{
+		}
 
 		membersCell = label;
 		return wrapInCell(label);
@@ -515,12 +522,14 @@ public class Cells
 		styleLabel(label, "PvP Summary");
 
 		// PvP skull sprite (sprite 439, same as Kill Clog)
+		// Resize to 16x16 first then pad canvas to 20x20 (Kill Clog parity)
 		spriteManager.getSpriteAsync(439, 0, sprite ->
 			SwingUtilities.invokeLater(() ->
 			{
 				if (sprite != null)
 				{
-					BufferedImage padded = ImageUtil.resizeCanvas(sprite, 20, 20);
+					BufferedImage padded = ImageUtil.resizeCanvas(
+						ImageUtil.resizeImage(sprite, 16, 16), 20, 20);
 					label.setIcon(new ImageIcon(padded));
 				}
 			}));

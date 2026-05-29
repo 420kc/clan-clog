@@ -54,6 +54,7 @@ public class ClanHiscoreBatch
 	 * something has gone wrong upstream -- bail rather than wedge the EDT.
 	 */
 	private static final long ACQUIRE_TIMEOUT_SECONDS = 30;
+	private static final long LOOKUP_TIMEOUT_SECONDS = 15;
 
 	private final HiscoreService hiscoreService;
 	private final LocalHiscoreCache hiscoreCache;
@@ -169,6 +170,7 @@ public class ClanHiscoreBatch
 			try
 			{
 				hiscoreService.lookupRegularOnly(member.getRsn())
+					.orTimeout(LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 					.whenComplete((result, ex) ->
 					{
 						gate.release();

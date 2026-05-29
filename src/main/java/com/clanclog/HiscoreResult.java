@@ -46,6 +46,27 @@ public class HiscoreResult
 		return bossKills;
 	}
 
+	/** Full maps, exposed so the disk cache can round-trip the complete result. */
+	public Map<String, Integer> getBossRanks()
+	{
+		return bossRanks;
+	}
+
+	public Map<String, Integer> getActivityScores()
+	{
+		return activityScores;
+	}
+
+	public Map<String, Integer> getActivityRanks()
+	{
+		return activityRanks;
+	}
+
+	public Map<String, Integer> getSkillLevels()
+	{
+		return skillLevels;
+	}
+
 	public int getTotalLevel()
 	{
 		return totalLevel;

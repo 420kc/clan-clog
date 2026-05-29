@@ -29,6 +29,7 @@ public class HiscoreService
 {
 	private static final String BASE_URL = "https://secure.runescape.com/m=";
 	private static final String SUFFIX = "/index_lite.ws?player=";
+	private static final long CALL_TIMEOUT_SECONDS = 12;
 
 	// Skill names in hiscore CSV order (lines 1-24).
 	private static final String[] SKILL_NAMES = {
@@ -484,7 +485,9 @@ public class HiscoreService
 			.header("User-Agent", "clan-clog-RuneLite-Plugin/0.1 (https://github.com/420kc/clan-clog)")
 			.build();
 
-		httpClient.newCall(request).enqueue(new Callback()
+		Call call = httpClient.newCall(request);
+		call.timeout().timeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		call.enqueue(new Callback()
 		{
 			@Override
 			public void onFailure(Call call, IOException e)

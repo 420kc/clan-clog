@@ -52,10 +52,21 @@ public interface ClanClogConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "clanUrl",
+		name = "Clan URL",
+		description = "URL opened when clicking the clan name in the info bar (WOM page, private clan site, etc). Leave empty to disable.",
+		position = 4
+	)
+	default String clanUrl()
+	{
+		return "";
+	}
+
+	@ConfigItem(
 		keyName = "enableSync",
 		name = "Enable Sync to killclog.com",
 		description = "Allow syncing clan roster and aggregated data to killclog.com. Sends RSNs, ranks, boss KCs, and collection log items.",
-		position = 4
+		position = 5
 	)
 	default boolean enableSync()
 	{

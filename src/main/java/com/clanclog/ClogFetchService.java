@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,8 @@ public class ClogFetchService
 
 	/** Skip a provider for this player if it failed within this window. */
 	private static final long FAILURE_TTL_MS = 3 * 60 * 1000;
+	private static final long GLOBAL_FETCH_TIMEOUT_SECONDS = 8;
+	private static final long PROVIDER_FETCH_TIMEOUT_SECONDS = 15;
 
 	/** RuneProfile page names that don't normalize cleanly to Temple category keys. */
 	private static final Map<String, String> PAGE_KEY_OVERRIDES = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -97,11 +100,22 @@ public class ClogFetchService
 	{
 		String key = playerName.toLowerCase();
 
-		// Kick off global data in parallel (no-ops if already cached)
-		CompletableFuture<Map<String, List<Integer>>> catFuture = fetchCategories();
-		CompletableFuture<Map<Integer, String>> namesFuture = fetchItemNames();
+		// Kick off global data in parallel (no-ops if already cached).
+		CompletableFuture<Map<String, List<Integer>>> catFuture = withFallback(
+			fetchCategories(), new HashMap<>(), GLOBAL_FETCH_TIMEOUT_SECONDS,
+			"Temple category fetch");
+		CompletableFuture<Map<Integer, String>> namesFuture = withFallback(
+			fetchItemNames(), new HashMap<>(), GLOBAL_FETCH_TIMEOUT_SECONDS,
+			"item-name fetch");
 
-		return catFuture.thenCombine(namesFuture, (cats, names) -> new Object[] {cats, names})
+		CompletableFuture<ClogResult> rpFuture = withFallback(
+			tryRuneProfile(playerName, key, new HashMap<>()),
+			null,
+			PROVIDER_FETCH_TIMEOUT_SECONDS,
+			"RuneProfile clog lookup for " + playerName);
+
+		CompletableFuture<ClogResult> templeFuture = catFuture
+			.thenCombine(namesFuture, (cats, names) -> new Object[] {cats, names})
 			.thenCompose(globals ->
 			{
 				@SuppressWarnings("unchecked")
@@ -109,31 +123,29 @@ public class ClogFetchService
 				@SuppressWarnings("unchecked")
 				Map<Integer, String> names = (Map<Integer, String>) globals[1];
 
-				// Fire both providers in parallel, keep whichever has the
-				// freshest data.  Clog items only accumulate so the result
-				// with more obtained items is the most recent sync.
-				CompletableFuture<ClogResult> templeFuture =
-					tryTemple(playerName, key, cats, names);
-				CompletableFuture<ClogResult> rpFuture =
-					tryRuneProfile(playerName, key, names);
+				return withFallback(
+					tryTemple(playerName, key, cats, names),
+					null,
+					PROVIDER_FETCH_TIMEOUT_SECONDS,
+					"Temple clog lookup for " + playerName);
+			});
 
-				return templeFuture.thenCombine(rpFuture,
-					(temple, rp) -> pickFreshest(temple, rp))
-					.thenApply(result ->
-					{
-						if (result != null)
-						{
-							return result;
-						}
-						// Both providers failed -- fall back to local disk cache
-						if (localClogCache.hasDataFor(playerName))
-						{
-							log.debug("Both providers failed for '{}', using disk cache", playerName);
-							return localClogCache.toClogResult(playerName,
-								names != null ? names : new HashMap<>());
-						}
-						return null;
-					});
+		return templeFuture.thenCombine(rpFuture,
+			(temple, rp) -> pickFreshest(temple, rp))
+			.thenCombine(namesFuture, (result, names) ->
+			{
+				if (result != null)
+				{
+					return result;
+				}
+				// Both providers failed -- fall back to local disk cache.
+				if (localClogCache.hasDataFor(playerName))
+				{
+					log.debug("Both providers failed for '{}', using disk cache", playerName);
+					return localClogCache.toClogResult(playerName,
+						names != null ? names : new HashMap<>());
+				}
+				return null;
 			});
 	}
 
@@ -649,5 +661,31 @@ public class ClogFetchService
 	private CompletableFuture<HttpUtil.HttpResult> httpGet(String url)
 	{
 		return HttpUtil.httpGet(httpClient, url);
+	}
+
+	private <T> CompletableFuture<T> withFallback(CompletableFuture<T> source,
+		T fallback, long timeoutSeconds, String label)
+	{
+		CompletableFuture<T> guarded = new CompletableFuture<>();
+		source.whenComplete((value, ex) ->
+		{
+			if (ex != null)
+			{
+				log.debug("{} failed: {}", label, ex.getMessage());
+				guarded.complete(fallback);
+			}
+			else
+			{
+				guarded.complete(value != null ? value : fallback);
+			}
+		});
+		CompletableFuture.delayedExecutor(timeoutSeconds, TimeUnit.SECONDS).execute(() ->
+		{
+			if (guarded.complete(fallback))
+			{
+				log.debug("{} timed out after {}s", label, timeoutSeconds);
+			}
+		});
+		return guarded;
 	}
 }

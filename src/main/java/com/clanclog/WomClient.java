@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,8 @@ public class WomClient
 {
 	private static final String BASE_URL = "https://api.wiseoldman.net/v2";
 	private static final String USER_AGENT = "clan-clog-RuneLite-Plugin/0.1 (https://github.com/420kc/clan-clog)";
+	/** Name-search has been observed to hang; cap every call so the UI path can't wedge. */
+	private static final long CALL_TIMEOUT_SECONDS = 15;
 
 	private final OkHttpClient httpClient;
 	private final Gson gson;
@@ -80,7 +83,9 @@ public class WomClient
 	private <T> CompletableFuture<T> fetchAsync(Request request, Class<T> type)
 	{
 		CompletableFuture<T> future = new CompletableFuture<>();
-		httpClient.newCall(request).enqueue(new Callback()
+		Call call = httpClient.newCall(request);
+		call.timeout().timeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		call.enqueue(new Callback()
 		{
 			@Override
 			public void onFailure(Call call, IOException e)

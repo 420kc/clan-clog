@@ -1,11 +1,9 @@
 package com.clanclog;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -139,40 +137,58 @@ public class InGameClanReader
 	 */
 	public void refresh()
 	{
-		ClanSettings[] all = new ClanSettings[] {
-			client.getClanSettings(0),
-			client.getClanSettings(1),
-			client.getGuestClanSettings()
-		};
+		ClanSettings primary = client.getClanSettings(0);
+		ClanSettings secondary = client.getClanSettings(1);
+		ClanSettings guest = client.getGuestClanSettings();
 
-		// Extract the clan display name from the first non-null slot.
-		// Slot 0 is the user's primary clan; slot 1 is secondary; guest
-		// channel is tertiary. First non-null name wins.
-		String name = null;
-		for (ClanSettings cs : all)
+		// Pick ONE authoritative slot rather than merging members across slots.
+		// Merging let a guest/secondary clan's members into the synced roster
+		// while key-rank auth came from slot 0, mixing unrelated clans. Prefer
+		// the player's own clan (slot 0), then secondary, then the guest channel.
+		// Single-clan users are unaffected. Syncing a clan you only own in a
+		// non-primary slot is a deferred product decision.
+		//
+		// Prefer the first slot that actually carries a roster so a transient
+		// empty-but-non-null slot 0 can't suppress a populated secondary/guest.
+		// Fall back to the first non-null slot for the name when none have members.
+		ClanSettings[] order = { primary, secondary, guest };
+		String[] labels = { "primary", "secondary", "guest" };
+		ClanSettings source = null;
+		String slotLabel = "none";
+		for (int i = 0; i < order.length; i++)
 		{
-			if (cs != null && cs.getName() != null && !cs.getName().isEmpty())
+			if (order[i] != null && !order[i].getMembers().isEmpty())
 			{
-				name = cs.getName();
+				source = order[i];
+				slotLabel = labels[i];
 				break;
 			}
 		}
-		clanName = name;
-
-		// Dedup by lowercase RSN across slots. If a user is in multiple
-		// clans (primary + guest), the same RSN can appear in multiple
-		// slots. Without dedup, the batch fires duplicate hiscore lookups.
-		Set<String> seen = new HashSet<>();
-		List<ClanMember> next = new ArrayList<>();
-		for (ClanSettings cs : all)
+		if (source == null)
 		{
-			if (cs == null)
+			for (int i = 0; i < order.length; i++)
 			{
-				continue;
+				if (order[i] != null)
+				{
+					source = order[i];
+					slotLabel = labels[i] + " (empty)";
+					break;
+				}
 			}
-			for (net.runelite.api.clan.ClanMember m : cs.getMembers())
+		}
+
+		clanName = (source != null && source.getName() != null && !source.getName().isEmpty())
+			? source.getName() : null;
+
+		// Dedup by lowercase RSN within the chosen slot (defensive; a slot
+		// shouldn't list a member twice, but the batch must not double-fire).
+		List<ClanMember> next = new ArrayList<>();
+		if (source != null)
+		{
+			Set<String> seen = new HashSet<>();
+			for (net.runelite.api.clan.ClanMember m : source.getMembers())
 			{
-				ClanMember adapted = ClanMember.fromInGame(m, cs);
+				ClanMember adapted = ClanMember.fromInGame(m, source);
 				if (adapted != null && seen.add(adapted.getRsn().toLowerCase()))
 				{
 					next.add(adapted);
@@ -183,14 +199,14 @@ public class InGameClanReader
 		cached = Collections.unmodifiableList(next);
 
 		// Cache local player info on the client thread so EDT callers
-		// never touch the Client API directly.
+		// never touch the Client API directly. Key rank comes from the SAME
+		// slot as the roster so sync auth always matches the synced clan.
 		Player local = client.getLocalPlayer();
 		cachedLocalName = local != null ? local.getName() : null;
-		cachedKeyRank = resolveKeyRank(all[0], cachedLocalName);
+		cachedKeyRank = resolveKeyRank(source, cachedLocalName);
 
-		long activeSlots = Arrays.stream(all).filter(Objects::nonNull).count();
-		log.debug("clan reader refresh: {} ({}) across {} slots",
-			cached.size(), clanName != null ? clanName : "unnamed", activeSlots);
+		log.debug("clan reader refresh: {} members from {} slot ({})",
+			cached.size(), slotLabel, clanName != null ? clanName : "unnamed");
 
 		for (Consumer<List<ClanMember>> l : listeners)
 		{

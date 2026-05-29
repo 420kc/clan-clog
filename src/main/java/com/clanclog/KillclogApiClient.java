@@ -6,6 +6,8 @@ import com.google.gson.JsonSyntaxException;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -19,10 +21,13 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 
 /**
- * Thin async wrapper around the killclog-api backend ({@code api.killclog.com}
- * in prod, {@code 127.0.0.1:3010} for dev). Mirrors the WomClient shape from
- * the earlier vertical slice; the WomClient is now superseded by this for
- * clan-aggregated data per the Option B revision in
+ * Thin async wrapper around the killclog-api backend. Same-origin contract:
+ * requests go to {@code https://killclog.com/api/*}, where nginx proxies the
+ * {@code /api/(profile|snapshot|optout|clan)} prefixes to the node service on
+ * {@code 127.0.0.1:3010}. There is no {@code api.killclog.com} subdomain; the
+ * web {@code /c/<slug>} page reads the same same-origin path. Mirrors the
+ * WomClient shape from the earlier vertical slice; WomClient is now superseded
+ * by this for clan-aggregated data per the Option B revision in
  * project_killclog_data_aggregation_layer.md.
  *
  * <p>v1 endpoints used:
@@ -35,9 +40,10 @@ import okhttp3.ResponseBody;
  * POST /events). Read-only is the first wire-up since Tab 1 renders from a
  * cached read.
  *
- * <p>Resolves to {@code null} on any non-200, network failure, or JSON parse
- * error. Callers log the absence and treat as "data unavailable"; no exception
- * is thrown.
+ * <p>Reads resolve to {@code null} only on a confirmed 404 (clan not found).
+ * Transport failures, non-404 error statuses, and parse errors complete
+ * exceptionally so callers can tell "no such clan" apart from "backend
+ * unavailable". Sync POSTs never throw -- they resolve to a {@link SyncResponse}.
  */
 @Slf4j
 @Singleton
@@ -45,6 +51,9 @@ public class KillclogApiClient
 {
 	private static final String BASE_URL = "https://killclog.com";
 	private static final String USER_AGENT = "clan-clog-RuneLite-Plugin/0.1 (+https://github.com/420kc/clan-clog)";
+
+	/** Per-call ceiling so a wedged backend can never hang a sync the user kicked off. */
+	private static final long CALL_TIMEOUT_SECONDS = 15;
 
 	private final OkHttpClient httpClient;
 	private final Gson gson;
@@ -57,10 +66,10 @@ public class KillclogApiClient
 	}
 
 	/**
-	 * Fetch the combined-clog union for a clan. Resolves to {@code null} when
-	 * the clan is not found (404), the backend is unreachable, or the response
-	 * fails to parse. Use the result's getters defensively; nested collections
-	 * are non-null but may be empty.
+	 * Fetch the combined-clog union for a clan. Resolves to {@code null} only on
+	 * a confirmed 404 (clan not synced yet); completes exceptionally on transport
+	 * failure, non-404 status, or parse error. Use the result's getters
+	 * defensively; nested collections are non-null but may be empty.
 	 */
 	public CompletableFuture<ClanClogResult> fetchClanClog(String slug)
 	{
@@ -75,11 +84,68 @@ public class KillclogApiClient
 	private static final MediaType JSON_TYPE = MediaType.get("application/json; charset=utf-8");
 
 	/**
-	 * Sync the clan roster to the backend. Creates or updates the clan
-	 * record at {@code /api/clan/<slug>/sync}. Returns true on success
-	 * (200 or 201), false on any error.
+	 * Outcome of a sync POST. Carries enough detail to debug a failure from the
+	 * UI or logs without a packet capture: HTTP status, the backend's
+	 * {@code error} code when the body is JSON (e.g. {@code rank_not_authorized},
+	 * {@code slug_mismatch}, {@code owner_not_in_roster}), and an exception
+	 * summary on transport failure.
 	 */
-	public CompletableFuture<Boolean> syncRoster(String slug, String clanName,
+	public static final class SyncResponse
+	{
+		private final boolean ok;
+		private final int status;
+		@Nullable private final String errorCode;
+		@Nullable private final String detail;
+
+		SyncResponse(boolean ok, int status, @Nullable String errorCode, @Nullable String detail)
+		{
+			this.ok = ok;
+			this.status = status;
+			this.errorCode = errorCode;
+			this.detail = detail;
+		}
+
+		public boolean isOk()
+		{
+			return ok;
+		}
+
+		public int getStatus()
+		{
+			return status;
+		}
+
+		@Nullable
+		public String getErrorCode()
+		{
+			return errorCode;
+		}
+
+		/** Short human-readable failure summary for status lines + logs. */
+		public String describe()
+		{
+			if (ok)
+			{
+				return "ok";
+			}
+			if (errorCode != null)
+			{
+				return errorCode + (status > 0 ? " (" + status + ")" : "");
+			}
+			if (status > 0)
+			{
+				return "http " + status;
+			}
+			return detail != null ? detail : "network error";
+		}
+	}
+
+	/**
+	 * Sync the clan roster to the backend. Creates or updates the clan
+	 * record at {@code /api/clan/<slug>/sync}. Resolves to a {@link SyncResponse}
+	 * carrying success + failure detail; never throws.
+	 */
+	public CompletableFuture<SyncResponse> syncRoster(String slug, String clanName,
 		String ownerRsn, String claimedRank, List<ClanMember> roster)
 	{
 		JsonObject body = new JsonObject();
@@ -112,9 +178,9 @@ public class KillclogApiClient
 	/**
 	 * Sync the pre-computed ClanClogResult to the backend. Stores the
 	 * boss aggregates + clog union at {@code /api/clan/<slug>/result}.
-	 * Returns true on success, false on any error.
+	 * Resolves to a {@link SyncResponse} carrying success + failure detail.
 	 */
-	public CompletableFuture<Boolean> syncResult(String slug,
+	public CompletableFuture<SyncResponse> syncResult(String slug,
 		String ownerRsn, String claimedRank, ClanClogResult result)
 	{
 		JsonObject body = new JsonObject();
@@ -131,16 +197,18 @@ public class KillclogApiClient
 		return postAsync(request);
 	}
 
-	private CompletableFuture<Boolean> postAsync(Request request)
+	private CompletableFuture<SyncResponse> postAsync(Request request)
 	{
-		CompletableFuture<Boolean> future = new CompletableFuture<>();
-		httpClient.newCall(request).enqueue(new Callback()
+		CompletableFuture<SyncResponse> future = new CompletableFuture<>();
+		Call call = httpClient.newCall(request);
+		call.timeout().timeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		call.enqueue(new Callback()
 		{
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
 				log.debug("killclog-api POST failed for {}: {}", request.url(), e.getMessage());
-				future.complete(false);
+				future.complete(new SyncResponse(false, -1, null, e.getMessage()));
 			}
 
 			@Override
@@ -148,29 +216,60 @@ public class KillclogApiClient
 			{
 				try (ResponseBody responseBody = response.body())
 				{
-					boolean ok = response.isSuccessful();
-					if (!ok)
+					int status = response.code();
+					if (response.isSuccessful())
 					{
-						log.debug("killclog-api POST non-2xx for {}: status={}",
-							request.url(), response.code());
+						future.complete(new SyncResponse(true, status, null, null));
+						return;
 					}
-					future.complete(ok);
+					String errorCode = extractErrorCode(responseBody);
+					log.debug("killclog-api POST non-2xx for {}: status={} error={}",
+						request.url(), status, errorCode);
+					future.complete(new SyncResponse(false, status, errorCode, errorCode));
 				}
 			}
 		});
 		return future;
 	}
 
+	/** Pull the backend's {@code {"error": "..."}} code from a failure body, or null. */
+	@Nullable
+	private String extractErrorCode(@Nullable ResponseBody body)
+	{
+		if (body == null)
+		{
+			return null;
+		}
+		try
+		{
+			JsonObject json = gson.fromJson(body.string(), JsonObject.class);
+			if (json != null && json.has("error") && json.get("error").isJsonPrimitive())
+			{
+				return json.get("error").getAsString();
+			}
+		}
+		catch (IOException | JsonSyntaxException | IllegalStateException ignored)
+		{
+			// Non-JSON or unreadable body -- the HTTP status alone carries the signal.
+		}
+		return null;
+	}
+
 	private <T> CompletableFuture<T> fetchAsync(Request request, Class<T> type)
 	{
 		CompletableFuture<T> future = new CompletableFuture<>();
-		httpClient.newCall(request).enqueue(new Callback()
+		Call call = httpClient.newCall(request);
+		call.timeout().timeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		call.enqueue(new Callback()
 		{
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
+				// Transport/timeout failure is an error, not a "not found" --
+				// complete exceptionally so the caller can distinguish a missing
+				// clan (404 -> null) from an unreachable backend.
 				log.debug("killclog-api fetch failed for {}: {}", request.url(), e.getMessage());
-				future.complete(null);
+				future.completeExceptionally(e);
 			}
 
 			@Override
@@ -178,19 +277,25 @@ public class KillclogApiClient
 			{
 				try (ResponseBody body = response.body())
 				{
-					if (!response.isSuccessful() || body == null)
+					int status = response.code();
+					if (status == 404)
 					{
-						log.debug("killclog-api non-200 for {}: status={}", request.url(), response.code());
+						// Confirmed not-found: the one case that resolves to null.
 						future.complete(null);
 						return;
 					}
-					String json = body.string();
-					future.complete(gson.fromJson(json, type));
+					if (!response.isSuccessful() || body == null)
+					{
+						log.debug("killclog-api non-200 for {}: status={}", request.url(), status);
+						future.completeExceptionally(new IOException("http " + status));
+						return;
+					}
+					future.complete(gson.fromJson(body.string(), type));
 				}
 				catch (IOException | JsonSyntaxException e)
 				{
 					log.debug("killclog-api parse/read failure for {}: {}", request.url(), e.getMessage());
-					future.complete(null);
+					future.completeExceptionally(e);
 				}
 			}
 		});

@@ -136,6 +136,12 @@ public class ClanClogResult
 		this.clog = clog;
 	}
 
+	/** Attach roster-derived coverage so a sync reports honestly what was collected. */
+	void setMemberCoverage(MemberCoverage memberCoverage)
+	{
+		this.memberCoverage = memberCoverage;
+	}
+
 	/** Replace activity totals with live hiscore-derived data. */
 	void setActivityTotals(Map<String, Long> activityTotals)
 	{
@@ -171,6 +177,24 @@ public class ClanClogResult
 		@SerializedName("opted_out")      private int optedOut;
 		@SerializedName("not_found")      private int notFound;
 		@SerializedName("error")          private int error;
+
+		/** Gson reflective constructor. */
+		@SuppressWarnings("unused")
+		private MemberCoverage()
+		{
+		}
+
+		/** Built client-side from the analyzed roster before sync. */
+		MemberCoverage(int total, int templeOk, int templeMissing,
+			int optedOut, int notFound, int error)
+		{
+			this.total = total;
+			this.templeOk = templeOk;
+			this.templeMissing = templeMissing;
+			this.optedOut = optedOut;
+			this.notFound = notFound;
+			this.error = error;
+		}
 
 		public int getTotal()
 		{

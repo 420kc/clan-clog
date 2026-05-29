@@ -23,6 +23,14 @@ Alpha. Active development on `master`. Public Plugin Hub submission gated on the
 - render a Kill Clog-style profile for the clan with the combined collection log across all members
 - surface a clan badge on each member's individual Kill Clog Profile automatically once the clan is synced
 
+## data
+
+Clan Clog reads from and (opt-in) writes to external services:
+
+- **Jagex hiscores** (`secure.runescape.com`), **Temple OSRS**, and **RuneProfile** — read-only lookups of public boss KCs, levels, and collection-log data for clan members.
+- **Wise Old Man** (`api.wiseoldman.net`) — read-only roster search for clans you are not in.
+- **killclog.com** — only when **Enable Sync** is turned on (off by default) and you hold a key clan rank. Syncing transmits the clan roster (RSNs + ranks), aggregated boss KCs, and the combined collection log so the clan profile renders at `killclog.com/c/<slug>`. Clogsworth's clan-event narration stays local and is never transmitted.
+
 ## development
 
 ```
@@ -30,7 +38,7 @@ Alpha. Active development on `master`. Public Plugin Hub submission gated on the
 ./gradlew run           # boot RuneLite with the plugin loaded (test classpath)
 ```
 
-If `../kcpdev/build/libs/kill-clog-plugin-1.4.0.jar` is present, `./gradlew run` boots Kill Clog alongside for combined-plugin smoke.
+If `../kcpdev/build/libs/kill-clog-plugin-1.3.2.jar` is present, `./gradlew run` boots Kill Clog alongside for combined-plugin smoke.
 
 ## ecosystem
 

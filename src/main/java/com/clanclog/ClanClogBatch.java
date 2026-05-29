@@ -43,6 +43,7 @@ public class ClanClogBatch
 
 	/** Per-acquire wait before bailing on this member. */
 	private static final long ACQUIRE_TIMEOUT_SECONDS = 60;
+	private static final long LOOKUP_TIMEOUT_SECONDS = 30;
 
 	/**
 	 * Milliseconds between submitting each lookup. Temple and RuneProfile are
@@ -158,6 +159,7 @@ public class ClanClogBatch
 			try
 			{
 				clogFetchService.lookup(member.getRsn())
+					.orTimeout(LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 					.whenComplete((result, ex) ->
 					{
 						gate.release();

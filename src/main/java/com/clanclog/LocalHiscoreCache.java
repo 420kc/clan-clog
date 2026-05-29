@@ -113,6 +113,10 @@ public class LocalHiscoreCache
 		record.timestamp = entry.timestamp;
 		record.accountType = result.getAccountType().name();
 		record.bossKills = result.getBossKills();
+		record.bossRanks = result.getBossRanks();
+		record.activityScores = result.getActivityScores();
+		record.activityRanks = result.getActivityRanks();
+		record.skillLevels = result.getSkillLevels();
 		record.totalLevel = result.getTotalLevel();
 		record.totalXp = result.getTotalXp();
 		record.combatLevel = result.getCombatLevel();
@@ -170,6 +174,13 @@ public class LocalHiscoreCache
 			{
 				return null;
 			}
+			// Guard against sanitized-filename collisions (e.g. "a b" and "a_b"
+			// both map to "a_b.json"): only trust a record whose stored RSN
+			// matches the one we were asked for, otherwise treat as a cache miss.
+			if (record.rsn == null || !record.rsn.equalsIgnoreCase(rsn))
+			{
+				return null;
+			}
 
 			AccountType type;
 			try
@@ -181,10 +192,14 @@ public class LocalHiscoreCache
 				type = AccountType.REGULAR;
 			}
 
-			// Rebuild HiscoreResult from the cached boss kills + metadata.
-			// Activity/skill data not cached yet (not needed for clan aggregate).
+			// Rebuild HiscoreResult from the cached data. Activity + skill maps
+			// are restored so cached members keep their clue/PvP/activity
+			// aggregates (RosterClogBuilder reads getActivityScore). Older cache
+			// files predating these fields deserialize them as null, which the
+			// HiscoreResult constructor coerces to empty maps.
 			HiscoreResult result = new HiscoreResult(
-				type, record.bossKills, null, null, null, null,
+				type, record.bossKills, record.bossRanks,
+				record.activityScores, record.activityRanks, record.skillLevels,
 				record.totalLevel, record.totalXp, record.combatLevel,
 				record.overallRank);
 
@@ -239,6 +254,10 @@ public class LocalHiscoreCache
 		long timestamp;
 		String accountType;
 		Map<String, Integer> bossKills;
+		Map<String, Integer> bossRanks;
+		Map<String, Integer> activityScores;
+		Map<String, Integer> activityRanks;
+		Map<String, Integer> skillLevels;
 		int totalLevel;
 		long totalXp;
 		int combatLevel;
