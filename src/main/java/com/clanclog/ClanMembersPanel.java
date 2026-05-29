@@ -5,6 +5,7 @@ import java.awt.Color;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.JLabel;
@@ -23,12 +24,23 @@ public class ClanMembersPanel extends PluginPanel
 
 	private final JLabel titleLabel = new JLabel("members");
 	private final JLabel statusLabel = new JLabel(" ");
-	private final ClanMembersView membersView = new ClanMembersView();
+	private final ClanMembersView membersView;
 
 	@Inject
-	public ClanMembersPanel()
+	public ClanMembersPanel(KillClogBridge killClogBridge)
+	{
+		this(killClogBridge::lookup);
+	}
+
+	ClanMembersPanel()
+	{
+		this(rsn -> false);
+	}
+
+	private ClanMembersPanel(Predicate<String> killClogLookup)
 	{
 		super(false);
+		membersView = new ClanMembersView(killClogLookup);
 		setLayout(new BorderLayout(0, 6));
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 		setBorder(new EmptyBorder(8, 8, 8, 8));

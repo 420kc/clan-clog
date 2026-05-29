@@ -100,6 +100,29 @@ public class ClanMembersViewTest
 	}
 
 	@Test
+	public void memberRowsUseKillClogBridgeOnDoubleClick() throws Exception
+	{
+		ClanMember member = new ClanMember("420 kc", "420 kc", "Founder", "OWNER",
+			AccountType.REGULAR, "main", 0L, null, null);
+		AtomicReference<String> lookedUp = new AtomicReference<>();
+		AtomicReference<ClanMembersView> viewRef = new AtomicReference<>();
+
+		SwingUtilities.invokeAndWait(() ->
+		{
+			ClanMembersView view = new ClanMembersView(rsn ->
+			{
+				lookedUp.set(rsn);
+				return true;
+			});
+			view.renderRoster(Collections.singletonList(member));
+			viewRef.set(view);
+		});
+
+		SwingUtilities.invokeAndWait(() -> doubleClickFirstMemberRow(viewRef.get()));
+		assertEquals("420 kc", lookedUp.get());
+	}
+
+	@Test
 	public void publicSearchRowsRenderSourceReceipts() throws Exception
 	{
 		WomGroup group = new WomGroup();
@@ -241,6 +264,54 @@ public class ClanMembersViewTest
 
 	private static void clickFirstRow(Container root)
 	{
+		clickFirstRow(root, 1);
+	}
+
+	private static void doubleClickFirstRow(Container root)
+	{
+		clickFirstRow(root, 2);
+	}
+
+	private static void doubleClickFirstMemberRow(Container root)
+	{
+		Component row = findMemberRow(root);
+		if (row == null)
+		{
+			throw new AssertionError("missing member row");
+		}
+		MouseEvent click = new MouseEvent(row, MouseEvent.MOUSE_CLICKED,
+			System.currentTimeMillis(), 0, 4, 4, 2, false, MouseEvent.BUTTON1);
+		for (MouseListener listener : row.getMouseListeners())
+		{
+			listener.mouseClicked(click);
+		}
+	}
+
+	private static Component findMemberRow(Component component)
+	{
+		if (component instanceof javax.swing.JComponent
+			&& ((javax.swing.JComponent) component).getToolTipText() != null
+			&& ((javax.swing.JComponent) component).getToolTipText().contains("Double-click")
+			&& component.getMouseListeners().length > 0)
+		{
+			return component;
+		}
+		if (component instanceof Container)
+		{
+			for (Component child : ((Container) component).getComponents())
+			{
+				Component match = findMemberRow(child);
+				if (match != null)
+				{
+					return match;
+				}
+			}
+		}
+		return null;
+	}
+
+	private static boolean clickFirstRow(Container root, int clickCount)
+	{
 		for (Component component : root.getComponents())
 		{
 			if (component instanceof Container)
@@ -249,19 +320,19 @@ public class ClanMembersViewTest
 				if (child.getMouseListeners().length > 0)
 				{
 					MouseEvent click = new MouseEvent(child, MouseEvent.MOUSE_CLICKED,
-						System.currentTimeMillis(), 0, 4, 4, 1, false);
+						System.currentTimeMillis(), 0, 4, 4, clickCount, false);
 					for (MouseListener listener : child.getMouseListeners())
 					{
 						listener.mouseClicked(click);
 					}
-					return;
+					return true;
 				}
-				clickFirstRow(child);
-				if (root instanceof ClanMembersView)
+				if (clickFirstRow(child, clickCount))
 				{
-					return;
+					return true;
 				}
 			}
 		}
+		return false;
 	}
 }

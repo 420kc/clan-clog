@@ -12,14 +12,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.LinkBrowser;
 
 /**
  * Content surface that lists every member of the currently-loaded clan. Same
@@ -33,10 +38,17 @@ public class ClanMembersView extends JPanel
 	private static final String KILLCLOG_PROFILE_ROOT = "https://killclog.com/p/";
 
 	private final JPanel list;
+	private final Predicate<String> killClogLookup;
 
 	public ClanMembersView()
 	{
+		this(rsn -> false);
+	}
+
+	ClanMembersView(Predicate<String> killClogLookup)
+	{
 		super(new BorderLayout());
+		this.killClogLookup = killClogLookup;
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 
 		list = new JPanel();
@@ -152,7 +164,7 @@ public class ClanMembersView extends JPanel
 		list.repaint();
 	}
 
-	private static Component buildMemberRow(ClanMember m)
+	private Component buildMemberRow(ClanMember m)
 	{
 		JPanel row = new JPanel(new BorderLayout(8, 0));
 		row.setOpaque(true);
@@ -226,13 +238,29 @@ public class ClanMembersView extends JPanel
 			@Override
 			public void mouseClicked(MouseEvent e)
 			{
-				if (e.getClickCount() >= 2 && javax.swing.SwingUtilities.isLeftMouseButton(e))
+				if (e.getClickCount() >= 2 && SwingUtilities.isLeftMouseButton(e))
 				{
-					String url = memberProfileUrl(m);
-					if (url != null)
-					{
-						net.runelite.client.util.LinkBrowser.browse(url);
-					}
+					openKillClog(m);
+				}
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				maybeShowMemberMenu(row, m, e);
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				maybeShowMemberMenu(row, m, e);
+			}
+
+			private void maybeShowMemberMenu(Component source, ClanMember member, MouseEvent e)
+			{
+				if (e.isPopupTrigger())
+				{
+					showMemberMenu(source, member, e.getX(), e.getY());
 				}
 			}
 
@@ -251,12 +279,39 @@ public class ClanMembersView extends JPanel
 		return row;
 	}
 
+	private void showMemberMenu(Component source, ClanMember member, int x, int y)
+	{
+		JPopupMenu menu = new JPopupMenu();
+		JMenuItem lookup = new JMenuItem("Kill Clog");
+		lookup.addActionListener(e -> openKillClog(member));
+		menu.add(lookup);
+		menu.show(source, x, y);
+	}
+
+	private void openKillClog(ClanMember member)
+	{
+		if (member == null || member.getRsn() == null || member.getRsn().isBlank())
+		{
+			return;
+		}
+		if (killClogLookup != null && killClogLookup.test(member.getRsn()))
+		{
+			return;
+		}
+		String url = memberProfileUrl(member);
+		if (url != null)
+		{
+			LinkBrowser.browse(url);
+		}
+	}
+
 	private static String memberTooltip(ClanMember member)
 	{
 		StringBuilder out = new StringBuilder("<html><b>")
 			.append(escapeHtml(member.getDisplayName()))
 			.append("</b>");
 		appendTooltipLine(out, "Double-click", "open Kill Clog profile");
+		appendTooltipLine(out, "Right-click", "Kill Clog");
 		appendTooltipLine(out, "Role", prettyRole(member.getRole()));
 		appendTooltipLine(out, "Account", accountLabel(member));
 		appendTooltipLine(out, "Build", member.getBuild());
