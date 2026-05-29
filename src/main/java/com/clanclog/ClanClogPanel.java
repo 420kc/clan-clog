@@ -1421,8 +1421,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clearCoverageCounts();
 			return;
 		}
-		int hiscoreHits = cov.getClogOk() + cov.getHiscoreOnly() + cov.getOptedOut();
-		setCoverageCounts(hiscoreHits, cov.getClogOk());
+		setCoverageCounts(cov.getHiscoreRepresented(), cov.getClogRepresented());
 	}
 
 	private void clearCoverageCounts()

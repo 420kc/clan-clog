@@ -77,6 +77,8 @@ public class ClanClogResultTest
 		assertEquals(4, neutral.getClogOk());
 		assertEquals(5, neutral.getHiscoreOnly());
 		assertEquals(5, neutral.getTempleMissing());
+		assertEquals(9, neutral.getHiscoreRepresented());
+		assertEquals(4, neutral.getClogRepresented());
 
 		ClanClogResult.MemberCoverage legacy = GSON.fromJson("{"
 			+ "\"total\":10,"

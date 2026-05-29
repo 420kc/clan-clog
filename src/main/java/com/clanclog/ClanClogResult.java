@@ -352,6 +352,16 @@ public class ClanClogResult
 			return hiscoreOnly != null ? hiscoreOnly : templeMissing;
 		}
 
+		public int getHiscoreRepresented()
+		{
+			return getClogOk() + getHiscoreOnly() + optedOut;
+		}
+
+		public int getClogRepresented()
+		{
+			return getClogOk();
+		}
+
 		public int getOptedOut()
 		{
 			return optedOut;
