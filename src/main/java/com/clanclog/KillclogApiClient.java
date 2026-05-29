@@ -32,6 +32,8 @@ import okhttp3.ResponseBody;
  *
  * <p>v1 endpoints used:
  * <ul>
+ *   <li>{@code GET /api/clan/<slug>} - discovery profile with roster status
+ *       and cached aggregate fields when available</li>
  *   <li>{@code GET /api/clan/<slug>/clog} - combined-clog union with per-boss
  *       aggregation + per-item meta + recently-acquired feed</li>
  * </ul>
@@ -63,6 +65,21 @@ public class KillclogApiClient
 	{
 		this.httpClient = httpClient;
 		this.gson = gson;
+	}
+
+	/**
+	 * Fetch the Clan Profile contract. When the profile is only roster-shaped,
+	 * callers can fall back to {@link #fetchClanClog(String)} for the legacy
+	 * aggregate endpoint.
+	 */
+	public CompletableFuture<ClanClogResult> fetchClanProfile(String slug)
+	{
+		Request request = new Request.Builder()
+			.url(BASE_URL + "/api/clan/" + slug)
+			.header("User-Agent", USER_AGENT)
+			.header("Accept", "application/json")
+			.build();
+		return fetchAsync(request, ClanClogResult.class);
 	}
 
 	/**

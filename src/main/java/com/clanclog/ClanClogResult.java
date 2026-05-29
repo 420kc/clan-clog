@@ -47,6 +47,18 @@ public class ClanClogResult
 	@SerializedName("display_name")
 	private String displayName;
 
+	@SerializedName("schema")
+	private String schema;
+
+	@SerializedName("source_tier")
+	private String sourceTier;
+
+	@SerializedName("build_status")
+	private String buildStatus;
+
+	@SerializedName("last_built_at")
+	private String lastBuiltAt;
+
 	@SerializedName("member_count")
 	private int memberCount;
 
@@ -69,7 +81,7 @@ public class ClanClogResult
 	private Map<String, BossAggregate> bosses;
 
 	/** Clan-aggregate activity totals (keyed by HiscoreService.ACTIVITY_NAMES). */
-	@SerializedName("activities")
+	@SerializedName(value = "activities", alternate = "activity_totals")
 	private Map<String, Long> activityTotals;
 
 	public String getSlug()
@@ -80,6 +92,26 @@ public class ClanClogResult
 	public String getDisplayName()
 	{
 		return displayName;
+	}
+
+	public String getSchema()
+	{
+		return schema;
+	}
+
+	public String getSourceTier()
+	{
+		return sourceTier;
+	}
+
+	public String getBuildStatus()
+	{
+		return buildStatus;
+	}
+
+	public String getLastBuiltAt()
+	{
+		return lastBuiltAt;
 	}
 
 	public int getMemberCount()
@@ -120,6 +152,29 @@ public class ClanClogResult
 	public Map<String, Long> getActivityTotals()
 	{
 		return activityTotals != null ? activityTotals : Collections.emptyMap();
+	}
+
+	/**
+	 * True when this result carries data worth rendering in the grid. The new
+	 * Clan Profile endpoint can legally return a roster-only shell, so callers
+	 * use this before deciding whether to fall back to the legacy /clog route.
+	 */
+	public boolean hasAggregateData()
+	{
+		return clog != null
+			|| memberCoverage != null
+			|| !getBosses().isEmpty()
+			|| !getActivityTotals().isEmpty();
+	}
+
+	public boolean isReadyProfile()
+	{
+		return "ready".equalsIgnoreCase(buildStatus);
+	}
+
+	public boolean isRosterOnlyProfile()
+	{
+		return "roster_only".equalsIgnoreCase(buildStatus);
 	}
 
 	// ── Package-private mutators for roster-derived overlays ──────────────

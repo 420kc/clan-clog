@@ -4,6 +4,7 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
+import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -13,9 +14,8 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>Differences from the kcpdev per-player LookupSession:
  * <ul>
- *   <li>Single async call (backend /api/clan/<slug>/clog) instead of parallel
- *       hiscores + clog API fan-out. The backend already did the fan-out via
- *       its reducer (3a + 3c on track-c-clan-clog); the plugin just reads.</li>
+ *   <li>Clan Profile first (backend /api/clan/<slug>), with the legacy
+ *       /clog endpoint as the aggregate fallback for roster-only profiles.</li>
  *   <li>No first-self-greeting flow (clan profile isn't "your own", it's the
  *       clan's combined surface).</li>
  *   <li>No knownType (account types are per-member, surfaced inside the
@@ -79,7 +79,7 @@ public class ClanLookupSession
 		currentSlug = slug;
 		listener.onClanLookupStart(slug);
 
-		apiClient.fetchClanClog(slug).whenComplete((result, error) ->
+		fetchBestClanResult(slug).whenComplete((result, error) ->
 			SwingUtilities.invokeLater(() ->
 			{
 				if (version != currentVersion)
@@ -96,14 +96,35 @@ public class ClanLookupSession
 				}
 				if (result == null)
 				{
-					// fetchClanClog returns null on 404 + network failure + parse
-					// failure indistinguishably. Treat as not-found for v1; the
-					// distinction matters for retry logic, deferred to v1.5.
 					listener.onClanNotFound(slug);
 					return;
 				}
 				listener.onClanResult(slug, result);
 			}));
+	}
+
+	private CompletableFuture<ClanClogResult> fetchBestClanResult(String slug)
+	{
+		return apiClient.fetchClanProfile(slug).thenCompose(profile ->
+		{
+			if (profile == null)
+			{
+				return CompletableFuture.completedFuture(null);
+			}
+			if (profile.hasAggregateData() || profile.isReadyProfile())
+			{
+				return CompletableFuture.completedFuture(profile);
+			}
+			return apiClient.fetchClanClog(slug).handle((clog, error) ->
+			{
+				if (error != null)
+				{
+					log.debug("clan clog fallback failed for {}: {}", slug, error.getMessage());
+					return profile;
+				}
+				return clog != null ? clog : profile;
+			});
+		});
 	}
 
 	/** The most-recently-requested slug. May be null if no lookup has fired yet. */
