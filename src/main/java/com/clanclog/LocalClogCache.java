@@ -275,11 +275,7 @@ public class LocalClogCache
 			return;
 		}
 		String key = RsnNormalizer.cacheKey(normalized);
-		PlayerClogData data = players.get(key);
-		if (data == null)
-		{
-			return;
-		}
+		PlayerClogData data = players.computeIfAbsent(key, ignored -> newPlayerData(normalized));
 
 		data.categories.put(categoryKey, new ArrayList<>(allItems));
 		data.obtained.put(categoryKey, new ArrayList<>(obtained));
@@ -504,6 +500,16 @@ public class LocalClogCache
 		return data != null
 			&& data.categories != null
 			&& !data.categories.isEmpty();
+	}
+
+	private static PlayerClogData newPlayerData(String playerName)
+	{
+		PlayerClogData data = new PlayerClogData();
+		data.playerName = playerName;
+		data.lastUpdated = Instant.now().toString();
+		data.categories = new ConcurrentHashMap<>();
+		data.obtained = new ConcurrentHashMap<>();
+		return data;
 	}
 
 	/** Shallow copy sufficient for async disk write , lists are already copied in callers. */
