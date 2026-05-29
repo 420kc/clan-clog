@@ -38,8 +38,6 @@ Clan Clog reads from and (opt-in) writes to external services:
 ./gradlew run           # boot RuneLite with the plugin loaded (test classpath)
 ```
 
-If `../kcpdev/build/libs/kill-clog-plugin-1.3.2.jar` is present, `./gradlew run` boots Kill Clog alongside for combined-plugin smoke.
-
 ## ecosystem
 
 - [Kill Clog plugin](https://github.com/420kc/kill-clog-plugin), the player-scale sibling
