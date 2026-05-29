@@ -578,6 +578,26 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		setStatus("searching for \"" + query + "\"...");
 		membersPanel.showPlaceholder("searching...");
 
+		apiClient.searchClanProfiles(query, SEARCH_RESULT_LIMIT).whenComplete((response, apiEx) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (version != loadVersion)
+				{
+					return;
+				}
+				if (response != null && !response.getMatches().isEmpty())
+				{
+					setStatus("matched " + response.getMatches().size()
+						+ " on killclog.com");
+					membersPanel.renderProfileSearchResults(query, response.getMatches(), this::startBackendView);
+					return;
+				}
+				searchWomByName(query, version);
+			}));
+	}
+
+	private void searchWomByName(String query, int version)
+	{
 		womClient.searchGroups(query, SEARCH_RESULT_LIMIT).whenComplete((results, ex) ->
 			SwingUtilities.invokeLater(() ->
 			{

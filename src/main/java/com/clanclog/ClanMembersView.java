@@ -9,6 +9,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
@@ -83,6 +84,24 @@ public class ClanMembersView extends JPanel
 		for (WomGroup g : results)
 		{
 			list.add(buildSearchRow(g, onPick));
+		}
+		list.add(Box.createVerticalGlue());
+		list.revalidate();
+		list.repaint();
+	}
+
+	public void renderProfileSearchResults(List<KillclogApiClient.ClanSearchMatch> results,
+		Consumer<String> onPick)
+	{
+		list.removeAll();
+		if (results == null || results.isEmpty())
+		{
+			showPlaceholder("no matches");
+			return;
+		}
+		for (KillclogApiClient.ClanSearchMatch match : results)
+		{
+			list.add(buildProfileSearchRow(match, onPick));
 		}
 		list.add(Box.createVerticalGlue());
 		list.revalidate();
@@ -193,6 +212,55 @@ public class ClanMembersView extends JPanel
 			public void mouseClicked(MouseEvent e)
 			{
 				onPick.accept(g.id);
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			}
+		});
+		return row;
+	}
+
+	private static Component buildProfileSearchRow(KillclogApiClient.ClanSearchMatch match,
+		Consumer<String> onPick)
+	{
+		JPanel row = new JPanel(new BorderLayout(8, 0));
+		row.setOpaque(true);
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setBorder(new EmptyBorder(4, 6, 4, 6));
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+
+		JLabel name = new JLabel(match.getDisplayName() != null
+			? match.getDisplayName() : match.getSlug());
+		name.setFont(FontManager.getRunescapeSmallFont());
+		name.setForeground(KC_TEXT);
+
+		JLabel meta = new JLabel(match.getMemberCount() + " · "
+			+ prettyRole(match.getSourceTier()));
+		meta.setFont(FontManager.getRunescapeSmallFont());
+		meta.setForeground(TEXT_DIM);
+		meta.setHorizontalAlignment(JLabel.RIGHT);
+
+		row.add(name, BorderLayout.WEST);
+		row.add(meta, BorderLayout.EAST);
+
+		row.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				if (match.getSlug() != null && !match.getSlug().isBlank())
+				{
+					onPick.accept(match.getSlug());
+				}
 			}
 
 			@Override

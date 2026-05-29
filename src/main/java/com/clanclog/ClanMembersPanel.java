@@ -3,6 +3,7 @@ package com.clanclog;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -63,6 +64,14 @@ public class ClanMembersPanel extends PluginPanel
 		titleLabel.setText("clan matches");
 		statusLabel.setText(query == null || query.isBlank() ? "search results" : query);
 		membersView.renderSearchResults(results, onPick);
+	}
+
+	public void renderProfileSearchResults(String query,
+		List<KillclogApiClient.ClanSearchMatch> results, Consumer<String> onPick)
+	{
+		titleLabel.setText("killclog.com matches");
+		statusLabel.setText(query == null || query.isBlank() ? "search results" : query);
+		membersView.renderProfileSearchResults(results, onPick);
 	}
 
 	public void showPlaceholder(String text)

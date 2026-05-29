@@ -4,12 +4,16 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import com.google.gson.annotations.SerializedName;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -80,6 +84,68 @@ public class KillclogApiClient
 			.header("Accept", "application/json")
 			.build();
 		return fetchAsync(request, ClanClogResult.class);
+	}
+
+	public CompletableFuture<ClanSearchResponse> searchClanProfiles(String query, int limit)
+	{
+		String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
+		Request request = new Request.Builder()
+			.url(BASE_URL + "/api/clan/search?q=" + encoded + "&limit=" + limit)
+			.header("User-Agent", USER_AGENT)
+			.header("Accept", "application/json")
+			.build();
+		return fetchAsync(request, ClanSearchResponse.class);
+	}
+
+	public static final class ClanSearchResponse
+	{
+		@SerializedName("matches")
+		private List<ClanSearchMatch> matches;
+
+		public List<ClanSearchMatch> getMatches()
+		{
+			return matches != null ? matches : Collections.emptyList();
+		}
+	}
+
+	public static final class ClanSearchMatch
+	{
+		@SerializedName("slug")          private String slug;
+		@SerializedName("display_name")  private String displayName;
+		@SerializedName("source_tier")   private String sourceTier;
+		@SerializedName("build_status")  private String buildStatus;
+		@SerializedName("member_count")  private int memberCount;
+		@SerializedName("last_built_at") private String lastBuiltAt;
+
+		public String getSlug()
+		{
+			return slug;
+		}
+
+		public String getDisplayName()
+		{
+			return displayName;
+		}
+
+		public String getSourceTier()
+		{
+			return sourceTier;
+		}
+
+		public String getBuildStatus()
+		{
+			return buildStatus;
+		}
+
+		public int getMemberCount()
+		{
+			return memberCount;
+		}
+
+		public String getLastBuiltAt()
+		{
+			return lastBuiltAt;
+		}
 	}
 
 	/**
