@@ -129,6 +129,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private String currentLoadSlug;
 
+	/** loadVersion that owns {@link #currentLoadSlug}; prevents stale completions clearing newer loads. */
+	private int currentLoadVersion = -1;
+
 	/**
 	 * Monotonic token bumped on every user-initiated lookup. Async batch + WOM
 	 * completions capture it at launch and bail if a newer lookup superseded
@@ -775,10 +778,30 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void startBackendView(String query)
 	{
 		final int version = ++loadVersion;
-		currentLoadSlug = null;
+		clearCurrentLoad();
 		viewVersion = version;
 		viewQuery = query;
 		clanLookupSession.start(slugify(query), this);
+	}
+
+	private void startCurrentLoad(String slug, int version)
+	{
+		currentLoadSlug = slug;
+		currentLoadVersion = version;
+	}
+
+	private void clearCurrentLoad()
+	{
+		currentLoadSlug = null;
+		currentLoadVersion = -1;
+	}
+
+	private void clearCurrentLoadIfOwner(String slug, int version)
+	{
+		if (version == currentLoadVersion && slug.equals(currentLoadSlug))
+		{
+			clearCurrentLoad();
+		}
 	}
 
 	/**
@@ -796,8 +819,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return;
 		}
-		currentLoadSlug = slug;
 		final int version = ++loadVersion;
+		startCurrentLoad(slug, version);
 
 		clanalyzeButton.setVisible(false);
 		if (!syncEligible)
@@ -817,6 +840,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			if (version != loadVersion)
 			{
+				clearCurrentLoadIfOwner(slug, version);
 				return;
 			}
 			setStatus(progressPrefix + completed + "/" + roster.size());
@@ -826,6 +850,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			{
 				if (version != loadVersion)
 				{
+					clearCurrentLoadIfOwner(slug, version);
 					return;
 				}
 				// Render boss KCs immediately from hiscore data
@@ -853,7 +878,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void searchByName(String query)
 	{
 		final int version = ++loadVersion;
-		currentLoadSlug = null;
+		clearCurrentLoad();
 		setStatus("searching for \"" + query + "\"...");
 		membersPanel.showPlaceholder("searching...");
 
@@ -899,7 +924,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void loadGroupById(int id)
 	{
 		final int version = ++loadVersion;
-		currentLoadSlug = null;
+		clearCurrentLoad();
 		setStatus("fetching roster for group " + id + "...");
 		setClanHeaderText(" ");
 		membersPanel.showPlaceholder("loading...");
@@ -955,6 +980,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			if (version != loadVersion)
 			{
+				clearCurrentLoadIfOwner(slug, version);
 				return;
 			}
 			setStatus("fetching clogs: " + completed + "/" + roster.size());
@@ -963,6 +989,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			{
 				if (version != loadVersion)
 				{
+					clearCurrentLoadIfOwner(slug, version);
 					return;
 				}
 				// Build client-side ClogUnion from per-member clog data
@@ -1019,7 +1046,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				setStatus("done");
 
 				// Allow re-clanalyze on same clan after completion
-				currentLoadSlug = null;
+				clearCurrentLoadIfOwner(slug, version);
 
 				// Show sync button only for the user's verified in-game clan.
 				if (syncEligible)
@@ -1180,7 +1207,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedRoster = roster;
 		lastLoadedClanName = name;
 		lastLoadedSlug = slug;
-		currentLoadSlug = null;
+		clearCurrentLoad();
 
 		setClanHeaderText(name);
 		clearSearchText();
