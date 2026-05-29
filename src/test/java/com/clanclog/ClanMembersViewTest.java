@@ -66,7 +66,8 @@ public class ClanMembersViewTest
 			+ "\"display_name\":\"Clannabis\","
 			+ "\"source_tier\":\"game_verified\","
 			+ "\"build_status\":\"ready\","
-			+ "\"member_count\":37"
+			+ "\"member_count\":37,"
+			+ "\"last_built_at\":\"2026-05-29T12:00:00Z\""
 			+ "}]"
 			+ "}", KillclogApiClient.ClanSearchResponse.class);
 
@@ -83,9 +84,38 @@ public class ClanMembersViewTest
 		List<String> labels = labelTexts(viewRef.get());
 		assertTrue(labels.contains("Clannabis"));
 		assertTrue(labels.contains("37 · game verified"));
+		assertTrue(tooltips(viewRef.get()).stream().anyMatch(t -> t.contains("Build: ready")
+			&& t.contains("Last built: 2026-05-29T12:00:00Z")
+			&& t.contains("Slug: clannabis")));
 
 		SwingUtilities.invokeAndWait(() -> clickFirstRow(viewRef.get()));
 		assertEquals("clannabis", pickedSlug.get());
+	}
+
+	@Test
+	public void publicSearchRowsRenderSourceReceipts() throws Exception
+	{
+		WomGroup group = new WomGroup();
+		group.id = 101;
+		group.name = "Clannabis CC";
+		group.memberCount = 101;
+
+		AtomicReference<ClanMembersView> viewRef = new AtomicReference<>();
+		SwingUtilities.invokeAndWait(() ->
+		{
+			ClanMembersView view = new ClanMembersView();
+			view.renderSearchResults(new WomGroup[]{group}, id ->
+			{
+			});
+			viewRef.set(view);
+		});
+
+		assertTrue(labelTexts(viewRef.get()).contains("Clannabis CC"));
+		assertTrue(labelTexts(viewRef.get()).contains("101 · #101"));
+		assertTrue(tooltips(viewRef.get()).stream().anyMatch(t ->
+			t.contains("Source: Wise Old Man public roster")
+				&& t.contains("Members: 101")
+				&& t.contains("Group id: 101")));
 	}
 
 	@Test

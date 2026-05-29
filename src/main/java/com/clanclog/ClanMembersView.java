@@ -394,6 +394,13 @@ public class ClanMembersView extends JPanel
 
 		row.add(name, BorderLayout.WEST);
 		row.add(meta, BorderLayout.EAST);
+		String tooltip = "<html><b>" + escapeHtml(name.getText()) + "</b><br>"
+			+ "Source: Wise Old Man public roster<br>"
+			+ "Members: " + String.format("%,d", g.memberCount) + "<br>"
+			+ "Group id: " + g.id + "</html>";
+		row.setToolTipText(tooltip);
+		name.setToolTipText(tooltip);
+		meta.setToolTipText(tooltip);
 
 		row.addMouseListener(new MouseAdapter()
 		{
@@ -440,6 +447,10 @@ public class ClanMembersView extends JPanel
 
 		row.add(name, BorderLayout.WEST);
 		row.add(meta, BorderLayout.EAST);
+		String tooltip = profileSearchTooltip(match, name.getText());
+		row.setToolTipText(tooltip);
+		name.setToolTipText(tooltip);
+		meta.setToolTipText(tooltip);
 
 		row.addMouseListener(new MouseAdapter()
 		{
@@ -465,6 +476,20 @@ public class ClanMembersView extends JPanel
 			}
 		});
 		return row;
+	}
+
+	private static String profileSearchTooltip(KillclogApiClient.ClanSearchMatch match,
+		String fallbackName)
+	{
+		StringBuilder out = new StringBuilder("<html><b>")
+			.append(escapeHtml(fallbackName))
+			.append("</b>");
+		appendTooltipLine(out, "Source", prettyRole(match.getSourceTier()));
+		appendTooltipLine(out, "Build", prettyRole(match.getBuildStatus()));
+		appendTooltipLine(out, "Members", String.format("%,d", match.getMemberCount()));
+		appendTooltipLine(out, "Last built", match.getLastBuiltAt());
+		appendTooltipLine(out, "Slug", match.getSlug());
+		return out.append("</html>").toString();
 	}
 
 	private static String prettyRole(String raw)
