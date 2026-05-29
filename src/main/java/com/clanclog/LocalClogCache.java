@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -278,8 +279,13 @@ public class LocalClogCache
 		PlayerClogData data = players.computeIfAbsent(key, ignored -> newPlayerData(normalized));
 
 		data.lastUpdated = Instant.now().toString();
-		data.categories.put(categoryKey, new ArrayList<>(allItems));
 		List<ClogResult.ClogItem> obtainedItems = obtained != null ? obtained : new ArrayList<>();
+		if (sameCatalog(data.categories.get(categoryKey), allItems))
+		{
+			obtainedItems = mergeObtainedItems(data.obtained.get(categoryKey), obtainedItems);
+		}
+
+		data.categories.put(categoryKey, new ArrayList<>(allItems));
 		data.obtained.put(categoryKey, new ArrayList<>(obtainedItems));
 
 		final PlayerClogData snapshot = shallowCopy(data);
@@ -503,6 +509,65 @@ public class LocalClogCache
 		return data != null
 			&& data.categories != null
 			&& !data.categories.isEmpty();
+	}
+
+	private static boolean sameCatalog(List<Integer> existing, List<Integer> next)
+	{
+		if (existing == null || next == null || existing.size() != next.size())
+		{
+			return false;
+		}
+		for (int i = 0; i < existing.size(); i++)
+		{
+			if (!existing.get(i).equals(next.get(i)))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static List<ClogResult.ClogItem> mergeObtainedItems(
+		List<ClogResult.ClogItem> existing,
+		List<ClogResult.ClogItem> next)
+	{
+		List<ClogResult.ClogItem> merged = existing != null
+			? new ArrayList<>(existing) : new ArrayList<>();
+		if (next == null)
+		{
+			return merged;
+		}
+
+		for (ClogResult.ClogItem item : next)
+		{
+			int index = indexOfItem(merged, item.getId());
+			if (index < 0)
+			{
+				merged.add(item);
+				continue;
+			}
+
+			ClogResult.ClogItem current = merged.get(index);
+			int count = Math.max(current.getCount(), item.getCount());
+			String date = current.getDate() != null ? current.getDate() : item.getDate();
+			if (count != current.getCount() || !Objects.equals(date, current.getDate()))
+			{
+				merged.set(index, new ClogResult.ClogItem(item.getId(), count, date));
+			}
+		}
+		return merged;
+	}
+
+	private static int indexOfItem(List<ClogResult.ClogItem> items, int itemId)
+	{
+		for (int i = 0; i < items.size(); i++)
+		{
+			if (items.get(i).getId() == itemId)
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private static PlayerClogData newPlayerData(String playerName)
