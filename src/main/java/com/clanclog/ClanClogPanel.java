@@ -27,6 +27,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -51,6 +52,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final int SEARCH_RESULT_LIMIT = 10;
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
 	private static final Color KC_TEXT = new Color(215, 215, 215);
+	private static final Color KC1 = new Color(0x4E, 0xF0, 0x15);
+	private static final Color KC2 = new Color(0xCA, 0xFF, 0x00);
 	private static final Color KC4 = new Color(0xFF, 0x57, 0x00);
 	private static final Color HAMBURGER_COLOR = new Color(70, 70, 70);
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
@@ -72,6 +75,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final ClanMembersPanel membersPanel;
 
 	private final JLabel statusLabel = new JLabel(" ");
+	private final JPanel coverageCounts = new JPanel(new GridBagLayout());
+	private final JLabel hiscoreCoverageLabel = new JLabel("--");
+	private final JLabel clogCoverageLabel = new JLabel("--");
 	private final IconTextField searchBar = new IconTextField();
 	private final JLabel clanHeader = new JLabel(" ")
 	{
@@ -203,7 +209,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.weightx = 1;
 		c.weighty = 0;
 
+		// Status + coverage sits above search so the profile row stays clean.
+		c.insets = new Insets(0, 0, 3, 0);
+		add(buildStatusRow(), c);
+
 		// Search bar with placeholder.
+		c.gridy++;
 		c.insets = new Insets(0, 0, 4, 0);
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
 		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -265,14 +276,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.insets = new Insets(0, 0, 2, 0);
 		add(buildProfileRow(), c);
 
-		c.gridy++;
-		c.insets = new Insets(0, 4, 5, 4);
-		statusLabel.setFont(FontManager.getRunescapeSmallFont());
-		statusLabel.setForeground(TEXT_DIM);
-		statusLabel.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		setStatus(noClanHint());
-		add(statusLabel, c);
 
 		// Content.
 		c.gridy++;
@@ -333,6 +337,59 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		String value = text == null || text.isBlank() ? " " : text;
 		clanHeader.setText(value);
 		clanHeader.setToolTipText(" ".equals(value) ? null : value);
+	}
+
+	private JPanel buildStatusRow()
+	{
+		JPanel row = new JPanel(new GridBagLayout());
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setPreferredSize(new Dimension(0, 18));
+
+		statusLabel.setFont(FontManager.getRunescapeSmallFont());
+		statusLabel.setForeground(TEXT_DIM);
+		statusLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+		coverageCounts.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		coverageCounts.setVisible(false);
+		styleCoverageLabel(hiscoreCoverageLabel, "hiscores represented");
+		styleCoverageLabel(clogCoverageLabel, "clogs represented");
+		cells.installCoverageIcons(hiscoreCoverageLabel, clogCoverageLabel);
+
+		GridBagConstraints cc = new GridBagConstraints();
+		cc.gridx = 0;
+		cc.gridy = 0;
+		cc.insets = new Insets(0, 0, 0, 8);
+		coverageCounts.add(hiscoreCoverageLabel, cc);
+		cc.gridx = 1;
+		cc.insets = new Insets(0, 0, 0, 0);
+		coverageCounts.add(clogCoverageLabel, cc);
+
+		GridBagConstraints rc = new GridBagConstraints();
+		rc.gridx = 0;
+		rc.gridy = 0;
+		rc.weightx = 1.0;
+		rc.fill = GridBagConstraints.HORIZONTAL;
+		rc.anchor = GridBagConstraints.WEST;
+		row.add(statusLabel, rc);
+
+		rc.gridx = 1;
+		rc.weightx = 0;
+		rc.fill = GridBagConstraints.NONE;
+		rc.anchor = GridBagConstraints.EAST;
+		row.add(coverageCounts, rc);
+
+		return row;
+	}
+
+	private static void styleCoverageLabel(JLabel label, String tooltip)
+	{
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setForeground(KC2);
+		label.setIconTextGap(3);
+		label.setToolTipText(tooltip);
+		label.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 	}
 
 	private JPanel buildProfileRow()
@@ -407,20 +464,64 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static void configureActionButton(JButton button, String tooltip)
 	{
 		button.setFont(FontManager.getRunescapeSmallFont());
-		button.setForeground(KC4);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		button.setFocusPainted(false);
-		button.setBorderPainted(false);
-		button.setContentAreaFilled(true);
-		button.setOpaque(true);
-		button.setBorder(new EmptyBorder(1, 5, 1, 5));
-		button.setMargin(new Insets(0, 0, 0, 0));
+		button.setBorderPainted(true);
+		button.setContentAreaFilled(false);
+		button.setOpaque(false);
+		button.setMargin(new Insets(0, 5, 0, 5));
+		applyActionButtonColor(button, KC4);
 		Dimension preferred = button.getPreferredSize();
 		button.setPreferredSize(new Dimension(Math.max(preferred.width, 30), 18));
 		button.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		button.setToolTipText(tooltip);
 		button.setVisible(false);
+		button.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				if (button.isEnabled())
+				{
+					applyActionButtonColor(button, KC2);
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				if (button.isEnabled())
+				{
+					applyActionButtonColor(button, KC4);
+				}
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				if (button.isEnabled() && SwingUtilities.isLeftMouseButton(e))
+				{
+					applyActionButtonColor(button, KC1);
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				if (button.isEnabled())
+				{
+					applyActionButtonColor(button,
+						button.contains(e.getPoint()) ? KC2 : KC4);
+				}
+			}
+		});
+	}
+
+	private static void applyActionButtonColor(JButton button, Color color)
+	{
+		button.setForeground(color);
+		button.setBorder(new LineBorder(color, 1, false));
 	}
 
 	/**
@@ -629,6 +730,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		if (raw.matches("\\d+"))
 		{
+			clearCoverageCounts();
 			try
 			{
 				loadGroupById(Integer.parseInt(raw));
@@ -654,6 +756,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		// A clan you're not in: read Kill Clog backend first (pre-computed
 		// combined clog from a prior sync), then fall back to a WOM roster view.
+		clearCoverageCounts();
 		startBackendView(raw);
 	}
 
@@ -693,10 +796,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			clearSyncState();
 		}
+		clearCoverageCounts();
 		setClanHeaderText(clanName);
 		clearSearchText();
-		String progressPrefix = syncEligible ? "Clanalyzing your members: "
-			: "building public clan profile: ";
+		String progressPrefix = syncEligible ? "clanalyzing: " : "building: ";
 		setStatus(progressPrefix + "0/" + roster.size());
 		membersPanel.renderRoster(clanName, roster);
 
@@ -733,8 +836,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 
 				// Phase 2: per-member clog fetch (Temple + RuneProfile)
-				setStatus(hiscoreHits + "/" + roster.size()
-					+ " hiscores · fetching clogs: 0/" + roster.size());
+				setCoverageCounts(hiscoreHits, 0);
+				setStatus("fetching clogs: 0/" + roster.size());
 				fireClogBatch(name, slug, roster, merged, hiscoreHits, version, syncEligible);
 			}));
 	}
@@ -844,8 +947,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			{
 				return;
 			}
-			setStatus(hiscoreHits + "/" + roster.size()
-				+ " hiscores · clogs: " + completed + "/" + roster.size());
+			setStatus("fetching clogs: " + completed + "/" + roster.size());
 		})).whenComplete((v, clogEx) ->
 			SwingUtilities.invokeLater(() ->
 			{
@@ -903,8 +1005,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				int clogCount = templeOk;
 				partialResult.setMemberCoverage(new ClanClogResult.MemberCoverage(
 					roster.size(), templeOk, templeMissing, 0, notFound, 0));
-				setStatus("done · " + roster.size() + " members ("
-					+ hiscoreHits + " hiscores, " + clogCount + " clogs)");
+				setCoverageCounts(hiscoreHits, clogCount);
+				setStatus("done");
 
 				// Allow re-clanalyze on same clan after completion
 				currentLoadSlug = null;
@@ -1024,8 +1126,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			clearSyncState();
 		}
-		setStatus("cached · " + roster.size() + " members ("
-			+ hiscoreHits + " hiscores, " + clogHits + " clogs)");
+		setCoverageCounts(hiscoreHits, clogHits);
+		setStatus("cached");
 		return true;
 	}
 
@@ -1057,11 +1159,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		membersPanel.renderRoster(name, roster);
 		showClanalyzeButton("refresh", "refresh clan profile");
 		updateSyncButtonVisibility();
+		setCoverageFromRoster(roster);
+		if (!coverageCounts.isVisible())
+		{
+			setCoverageFromResult(result);
+		}
 		String saved = stored.getSavedAt();
 		String date = saved != null && saved.contains("T")
 			? saved.substring(0, saved.indexOf('T')) : saved;
-		setStatus("cached profile · " + result.getMemberCount() + " members"
-			+ (date != null ? " · " + date : ""));
+		setStatus("cached profile" + (date != null ? " · " + date : ""));
 		return true;
 	}
 
@@ -1070,6 +1176,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanalyzeButton.setText(text);
 		clanalyzeButton.setToolTipText(tooltip);
 		clanalyzeButton.setEnabled(true);
+		applyActionButtonColor(clanalyzeButton, KC4);
 		clanalyzeButton.setVisible(true);
 	}
 
@@ -1146,6 +1253,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 
 		syncButton.setEnabled(false);
+		applyActionButtonColor(syncButton, KC4);
 		setStatus("syncing to killclog.com...");
 
 		String slug = lastLoadedSlug;
@@ -1169,6 +1277,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				SwingUtilities.invokeLater(() ->
 				{
 					syncButton.setEnabled(true);
+					applyActionButtonColor(syncButton, KC4);
 					if (ex == null && resp != null && resp.isOk())
 					{
 						setStatus("synced to killclog.com/c/" + slug);
@@ -1190,6 +1299,60 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		statusLabel.setText(text);
 		statusLabel.setForeground(statusColor(text));
 		statusLabel.setToolTipText(text);
+		revalidate();
+		repaint();
+	}
+
+	private void setCoverageCounts(int hiscoreHits, int clogHits)
+	{
+		boolean show = hiscoreHits > 0 || clogHits > 0;
+		coverageCounts.setVisible(show);
+		hiscoreCoverageLabel.setText(formatCoverageCount(hiscoreHits));
+		clogCoverageLabel.setText(formatCoverageCount(clogHits));
+		hiscoreCoverageLabel.setToolTipText(hiscoreHits + " hiscores represented");
+		clogCoverageLabel.setToolTipText(clogHits + " clogs represented");
+		revalidate();
+		repaint();
+	}
+
+	private void setCoverageFromRoster(List<ClanMember> roster)
+	{
+		int hiscoreHits = 0;
+		int clogHits = 0;
+		for (ClanMember member : roster)
+		{
+			if (member.getHiscore() != null)
+			{
+				hiscoreHits++;
+			}
+			if (member.getClog() != null)
+			{
+				clogHits++;
+			}
+		}
+		setCoverageCounts(hiscoreHits, clogHits);
+	}
+
+	private void setCoverageFromResult(ClanClogResult result)
+	{
+		ClanClogResult.MemberCoverage cov = result.getMemberCoverage();
+		if (cov == null)
+		{
+			clearCoverageCounts();
+			return;
+		}
+		int hiscoreHits = cov.getTempleOk() + cov.getTempleMissing() + cov.getOptedOut();
+		setCoverageCounts(hiscoreHits, cov.getTempleOk());
+	}
+
+	private void clearCoverageCounts()
+	{
+		setCoverageCounts(0, 0);
+	}
+
+	private static String formatCoverageCount(int count)
+	{
+		return count > 0 ? String.format("%,d", count) : "--";
 	}
 
 	private static Color statusColor(String text)
@@ -1218,6 +1381,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	public void onClanLookupStart(String slug)
 	{
 		setStatus("fetching clog data for " + slug + "...");
+		clearCoverageCounts();
 		lastBackendResult = null;
 		clearSyncState();
 		cells.clearCells();
@@ -1244,17 +1408,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				result.getMembers(), false);
 			return;
 		}
-		// Surface coverage honestly: show how many members actually have clog
-		// data and when the clan was last synced, not just a member count.
-		ClanClogResult.MemberCoverage cov = result.getMemberCoverage();
-		String coverage = cov != null
-			? cov.getTempleOk() + "/" + cov.getTotal() + " with clog"
-			: result.getMemberCount() + " members";
+		setCoverageFromResult(result);
 		String synced = result.getLastSyncedAt();
 		String when = synced != null && synced.contains("T")
 			? synced.substring(0, synced.indexOf('T')) : synced;
 		String prefix = result.isRosterOnlyProfile() ? "clan profile" : "synced clog";
-		setStatus(prefix + " · " + coverage + (when != null ? " · " + when : ""));
+		setStatus(prefix + (when != null ? " · " + when : ""));
 		cells.renderClanResult(result);
 	}
 
@@ -1266,6 +1425,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 		lastBackendResult = null;
+		clearCoverageCounts();
 		cells.clearCells();
 		// Backend has no record of this clan -- fall back to a WOM roster view.
 		if (viewQuery != null && !viewQuery.isBlank())
@@ -1287,6 +1447,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 		lastBackendResult = null;
+		clearCoverageCounts();
 		cells.clearCells();
 		// Backend unreachable/errored -- try WOM so the user still sees a roster.
 		if (viewQuery != null && !viewQuery.isBlank())

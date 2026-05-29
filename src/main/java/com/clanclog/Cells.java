@@ -567,6 +567,12 @@ public class Cells
 		return wrapInCell(label);
 	}
 
+	public void installCoverageIcons(JLabel hiscoreLabel, JLabel clogLabel)
+	{
+		setHiscoreSkillIcon(hiscoreLabel, HiscoreSkill.OVERALL);
+		setHiscoreSkillIcon(clogLabel, HiscoreSkill.COLLECTIONS_LOGGED);
+	}
+
 	// ── Clan-result rendering ─────────────────────────────────────────────────
 
 	/**
@@ -1260,6 +1266,19 @@ public class Cells
 				SwingUtilities.invokeLater(() ->
 					label.setIcon(new ImageIcon(ImageUtil.resizeImage(img, 20, 20)))));
 		}
+	}
+
+	private void setHiscoreSkillIcon(JLabel label, HiscoreSkill skill)
+	{
+		spriteManager.getSpriteAsync(skill.getSpriteId(), 0, sprite ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (sprite != null)
+				{
+					label.setIcon(new ImageIcon(ImageUtil.resizeImage(
+						ImageUtil.resizeCanvas(sprite, 20, 20), 16, 16)));
+				}
+			}));
 	}
 
 	/** "Clue Scrolls (hard)" -> "Hard". Public for the panel's tooltip-text builder. */

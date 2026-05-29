@@ -21,10 +21,10 @@ import lombok.extern.slf4j.Slf4j;
  * {@code CompletableFuture<Void>} that completes once every member has either
  * a populated hiscore or has resolved to null.
  *
- * <p>Each {@code HiscoreService.lookup} call fires 4 hiscore endpoints in parallel
- * (UIM / HCIM / Iron / Reg). To respect Jagex's tolerance for sustained traffic,
- * this batcher caps concurrent {@code lookup} calls -- inflight HTTP requests
- * stay at roughly {@code 4 * concurrency}.
+ * <p>Each member tries the regular endpoint first. If regular returns nothing,
+ * it falls back to full account-type detection (UIM / HCIM / Iron / Reg). To
+ * respect Jagex's tolerance for sustained traffic, this batcher caps concurrent
+ * member lookups and staggers their starts.
  *
  * <p>Per-member failures are intentionally swallowed: a single timed-out
  * lookup must not abort the whole batch. The panel reads {@code getHiscore()}
@@ -54,7 +54,7 @@ public class ClanHiscoreBatch
 	 * something has gone wrong upstream -- bail rather than wedge the EDT.
 	 */
 	private static final long ACQUIRE_TIMEOUT_SECONDS = 30;
-	private static final long LOOKUP_TIMEOUT_SECONDS = 15;
+	private static final long LOOKUP_TIMEOUT_SECONDS = 35;
 
 	private final HiscoreService hiscoreService;
 	private final LocalHiscoreCache hiscoreCache;
@@ -136,7 +136,8 @@ public class ClanHiscoreBatch
 
 		// Stale-while-revalidate: if a cached result exists and isn't stale,
 		// return it immediately without hitting Jagex at all. If stale or
-		// missing, fetch fresh data (still uses only the regular endpoint).
+		// missing, fetch fresh data. Regular is cheapest; only misses fall back
+		// to full account-type detection so irons/UIMs with no regular row still count.
 		HiscoreResult cached = hiscoreCache.get(member.getRsn());
 		if (cached != null && !hiscoreCache.isStale(member.getRsn()))
 		{
@@ -163,13 +164,17 @@ public class ClanHiscoreBatch
 				return;
 			}
 
-			// Clan aggregate only needs the regular hiscore endpoint (1 request
-			// per member instead of 4). Account type detection is unnecessary
-			// since every player appears on the regular hiscores regardless of
-			// iron status. Cuts total HTTP requests by 75%.
 			try
 			{
 				hiscoreService.lookupRegularOnly(member.getRsn())
+					.thenCompose(result ->
+					{
+						if (result != null)
+						{
+							return CompletableFuture.completedFuture(result);
+						}
+						return hiscoreService.lookup(member.getRsn(), null);
+					})
 					.orTimeout(LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 					.whenComplete((result, ex) ->
 					{
