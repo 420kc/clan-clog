@@ -6,7 +6,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -416,6 +418,7 @@ public class LocalClogCache
 
 	private void saveToDisk(String playerName, PlayerClogData data)
 	{
+		File tmp = null;
 		try
 		{
 			if (!CACHE_DIR.exists())
@@ -423,15 +426,40 @@ public class LocalClogCache
 				CACHE_DIR.mkdirs();
 			}
 			File file = getCacheFile(playerName);
-			try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8))
+			tmp = File.createTempFile(file.getName() + "-", ".tmp", CACHE_DIR);
+			try (BufferedWriter writer = Files.newBufferedWriter(tmp.toPath(), StandardCharsets.UTF_8))
 			{
 				gson.toJson(data, writer);
 			}
+			replaceCacheFile(tmp, file);
+			tmp = null;
 			log.debug("Saved clog cache to disk: {}", file.getName());
 		}
-		catch (IOException e)
+		catch (IOException | AssertionError e)
 		{
+			deleteQuietly(tmp);
 			log.warn("Failed to save clog cache for '{}': {}", playerName, e.getMessage());
+		}
+	}
+
+	private static void replaceCacheFile(File source, File target) throws IOException
+	{
+		try
+		{
+			Files.move(source.toPath(), target.toPath(),
+				StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+		}
+		catch (AtomicMoveNotSupportedException ignored)
+		{
+			Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+
+	private static void deleteQuietly(File file)
+	{
+		if (file != null && file.exists() && !file.delete())
+		{
+			log.debug("Failed to delete clog cache temp file: {}", file.getName());
 		}
 	}
 
