@@ -394,10 +394,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private JPanel buildProfileRow()
 	{
-		JPanel row = new JPanel(new GridBagLayout());
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setPreferredSize(new Dimension(0, 22));
-
 		JLabel trayToggle = new JLabel();
 		ImageIcon hamburgerIcon = new ImageIcon(ClogHelper.makeHamburgerIcon(HAMBURGER_COLOR));
 		ImageIcon hamburgerHoverIcon = new ImageIcon(ClogHelper.makeHamburgerIcon(HAMBURGER_HOVER_COLOR));
@@ -437,26 +433,35 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		ac.insets = new Insets(0, 0, 0, 0);
 		actions.add(syncButton, ac);
 
-		GridBagConstraints rc = new GridBagConstraints();
-		rc.gridy = 0;
-		rc.gridx = 0;
-		rc.weightx = 1.0;
-		rc.fill = GridBagConstraints.HORIZONTAL;
-		rc.anchor = GridBagConstraints.WEST;
-		row.add(clanHeader, rc);
+		JPanel row = new JPanel(null)
+		{
+			@Override
+			public void doLayout()
+			{
+				int width = getWidth();
+				int height = getHeight();
+				Dimension toggleSize = trayToggle.getPreferredSize();
+				int toggleW = toggleSize.width;
+				int toggleH = Math.min(height, toggleSize.height);
+				int toggleX = Math.max(0, (width - toggleW) / 2);
+				int toggleY = Math.max(0, (height - toggleH) / 2);
 
-		rc.gridx = 1;
-		rc.weightx = 0;
-		rc.fill = GridBagConstraints.NONE;
-		rc.anchor = GridBagConstraints.CENTER;
-		row.add(trayToggle, rc);
+				Dimension actionSize = actions.getPreferredSize();
+				int actionMaxW = Math.max(0, width - toggleX - toggleW - 4);
+				int actionW = Math.min(actionSize.width, actionMaxW);
+				int actionH = Math.min(height, Math.max(actionSize.height, 18));
+				int actionY = Math.max(0, (height - actionH) / 2);
 
-		rc.gridx = 2;
-		rc.weightx = 1.0;
-		rc.fill = GridBagConstraints.HORIZONTAL;
-		rc.anchor = GridBagConstraints.EAST;
-		rc.insets = new Insets(0, 4, 0, 0);
-		row.add(actions, rc);
+				trayToggle.setBounds(toggleX, toggleY, toggleW, toggleH);
+				actions.setBounds(width - actionW, actionY, actionW, actionH);
+				clanHeader.setBounds(0, 0, Math.max(0, toggleX - 4), height);
+			}
+		};
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setPreferredSize(new Dimension(0, 22));
+		row.add(clanHeader);
+		row.add(trayToggle);
+		row.add(actions);
 
 		return row;
 	}
