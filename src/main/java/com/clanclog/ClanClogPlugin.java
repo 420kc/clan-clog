@@ -8,7 +8,9 @@ import java.io.InputStream;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.WidgetLoaded;
@@ -34,6 +36,9 @@ public class ClanClogPlugin extends Plugin
 
 	@Inject
 	private ClientThread clientThread;
+
+	@Inject
+	private Client client;
 
 	@Inject
 	private ClanClogPanel panel;
@@ -137,12 +142,17 @@ public class ClanClogPlugin extends Plugin
 		{
 			refreshInGameClanSoon();
 		}
+		else if (event.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			clogCache.setActivePlayer(null);
+		}
 	}
 
 	private void refreshInGameClanSoon()
 	{
 		clientThread.invokeLater(() ->
 		{
+			refreshActivePlayer();
 			try
 			{
 				clanReader.refresh();
@@ -152,6 +162,15 @@ public class ClanClogPlugin extends Plugin
 				log.debug("clan reader refresh skipped: {}", ex.getMessage());
 			}
 		});
+	}
+
+	private void refreshActivePlayer()
+	{
+		Player local = client.getLocalPlayer();
+		if (local != null && local.getName() != null)
+		{
+			clogCache.setActivePlayer(local.getName());
+		}
 	}
 
 	/**
