@@ -6,7 +6,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -28,7 +30,7 @@ import net.runelite.client.RuneLite;
  * for 100+ HTTP requests.
  *
  * <p>Follows the same disk I/O pattern as {@link LocalClogCache}: single
- * background writer thread, debounced writes, daemon thread.
+ * background writer thread, daemon thread, and atomic file replacement.
  */
 @Slf4j
 @Singleton
@@ -156,6 +158,7 @@ public class LocalHiscoreCache
 
 	private void saveToDisk(String rsn, DiskRecord record)
 	{
+		File tmp = null;
 		try
 		{
 			if (!CACHE_DIR.exists())
@@ -163,14 +166,39 @@ public class LocalHiscoreCache
 				CACHE_DIR.mkdirs();
 			}
 			File file = getCacheFile(rsn);
-			try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8))
+			tmp = File.createTempFile("hiscore-", ".tmp", CACHE_DIR);
+			try (BufferedWriter writer = Files.newBufferedWriter(tmp.toPath(), StandardCharsets.UTF_8))
 			{
 				gson.toJson(record, writer);
 			}
+			replaceCacheFile(tmp, file);
+			tmp = null;
 		}
 		catch (IOException e)
 		{
+			deleteQuietly(tmp);
 			log.debug("Failed to save hiscore cache for '{}': {}", rsn, e.getMessage());
+		}
+	}
+
+	private static void replaceCacheFile(File source, File target) throws IOException
+	{
+		try
+		{
+			Files.move(source.toPath(), target.toPath(),
+				StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+		}
+		catch (AtomicMoveNotSupportedException ignored)
+		{
+			Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+
+	private static void deleteQuietly(@Nullable File file)
+	{
+		if (file != null && file.exists() && !file.delete())
+		{
+			log.debug("Failed to delete hiscore cache temp file: {}", file.getName());
 		}
 	}
 
