@@ -288,7 +288,7 @@ public class HiscoreService
 			});
 	}
 
-	private AccountType detectAccountType(String uimBody, String hcimBody, String ironBody, String regBody)
+	/* package */ AccountType detectAccountType(String uimBody, String hcimBody, String ironBody, String regBody)
 	{
 		long regXp = extractTotalXp(regBody);
 		long uimXp = extractTotalXp(uimBody);
@@ -308,12 +308,13 @@ public class HiscoreService
 			return AccountType.IRONMAN;
 		}
 
-		// Fallback: regular endpoint failed , cross-check specialty endpoints
-		// to avoid false positives from dead HCIMs/UIMs with frozen XP
+		// Fallback: regular endpoint failed. Low-level irons/UIMs can have
+		// specialty rows before they have a regular hiscore row, so trust the
+		// specialty endpoint that actually returned data.
 		if (regXp <= 0)
 		{
-			if (uimBody != null && uimXp > 0 && uimXp == ironXp) return AccountType.ULTIMATE_IRONMAN;
-			if (hcimBody != null && hcimXp > 0 && hcimXp == ironXp) return AccountType.HARDCORE_IRONMAN;
+			if (uimBody != null && uimXp > 0) return AccountType.ULTIMATE_IRONMAN;
+			if (hcimBody != null && hcimXp > 0) return AccountType.HARDCORE_IRONMAN;
 			if (ironBody != null && ironXp > 0) return AccountType.IRONMAN;
 		}
 
