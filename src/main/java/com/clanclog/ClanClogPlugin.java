@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
+import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -290,6 +291,7 @@ public class ClanClogPlugin extends Plugin
 		}
 		log.debug("Captured local clog category '{}': {}/{} for '{}'",
 			categoryKey, obtained.size(), allItemIds.size(), local.getName());
+		SwingUtilities.invokeLater(() -> panel.onLocalClogCaptured(local.getName()));
 	}
 
 	private static int itemSignature(List<ClogResult.ClogItem> items)

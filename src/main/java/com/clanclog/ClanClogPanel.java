@@ -1141,6 +1141,25 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		return true;
 	}
 
+	void onLocalClogCaptured(String playerName)
+	{
+		if (playerName == null || pendingClanName == null || pendingRoster == null
+			|| currentLoadSlug != null)
+		{
+			return;
+		}
+
+		String key = normalize(playerName);
+		for (ClanMember member : pendingRoster)
+		{
+			if (normalize(member.getRsn()).equals(key))
+			{
+				renderCachedClanProfile(pendingClanName, pendingRoster, pendingRosterSyncEligible);
+				return;
+			}
+		}
+	}
+
 	private boolean renderStoredClanProfile(String clanNameOrSlug)
 	{
 		LocalClanProfileCache.StoredProfile stored = clanProfileCache.get(clanNameOrSlug);
