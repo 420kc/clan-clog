@@ -42,9 +42,13 @@ import okhttp3.ResponseBody;
  *       aggregation + per-item meta + recently-acquired feed</li>
  * </ul>
  *
- * <p>Subsequent slices will add the mutation endpoints (POST /sync, POST /check,
- * POST /events). Read-only is the first wire-up since Tab 1 renders from a
- * cached read.
+ * <p>Mutation endpoints used by the sync affordance:
+ * <ul>
+ *   <li>{@code POST /api/clan/<slug>/sync} - owner/deputy verified roster snapshot</li>
+ *   <li>{@code POST /api/clan/<slug>/result} - precomputed clan aggregate snapshot</li>
+ * </ul>
+ * {@code POST /check} and {@code POST /events} remain backend routes for
+ * freshness checks and future passive roster events, not primary render reads.
  *
  * <p>Reads resolve to {@code null} only on a confirmed 404 (clan not found).
  * Transport failures, non-404 error statuses, and parse errors complete

@@ -286,8 +286,9 @@ public class ClanClogResult
 	}
 
 	/**
-	 * Member-coverage tally. Every member ends up in exactly one bucket so
-	 * {@code total == temple_ok + temple_missing + opted_out + not_found + error}.
+	 * Member-coverage tally. Every member ends up in exactly one bucket. The
+	 * serialized provider-era keys are preserved for backend compatibility, but
+	 * user-facing copy should treat them as source-neutral coverage buckets.
 	 * The wire field names are legacy Temple-era names; in-plugin semantics are
 	 * source neutral: "ok" means any clog provider, and "missing" means hiscore
 	 * data exists but no collection-log provider covered that member.
