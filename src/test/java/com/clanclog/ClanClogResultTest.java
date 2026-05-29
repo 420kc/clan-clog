@@ -62,4 +62,40 @@ public class ClanClogResultTest
 		assertEquals(Long.valueOf(42L),
 			result.getActivityTotals().get("Clue Scrolls (all)"));
 	}
+
+	@Test
+	public void memberCoverageParsesNeutralAndLegacyKeys()
+	{
+		ClanClogResult.MemberCoverage neutral = GSON.fromJson("{"
+			+ "\"total\":10,"
+			+ "\"clog_ok\":4,"
+			+ "\"temple_missing\":5,"
+			+ "\"not_found\":1"
+			+ "}", ClanClogResult.MemberCoverage.class);
+
+		assertEquals(4, neutral.getClogOk());
+		assertEquals(5, neutral.getHiscoreOnly());
+
+		ClanClogResult.MemberCoverage legacy = GSON.fromJson("{"
+			+ "\"total\":10,"
+			+ "\"temple_ok\":3,"
+			+ "\"temple_missing\":6,"
+			+ "\"not_found\":1"
+			+ "}", ClanClogResult.MemberCoverage.class);
+
+		assertEquals(3, legacy.getClogOk());
+		assertEquals(6, legacy.getHiscoreOnly());
+	}
+
+	@Test
+	public void memberCoverageSerializesNeutralAndLegacyKeys()
+	{
+		ClanClogResult.MemberCoverage coverage =
+			new ClanClogResult.MemberCoverage(10, 4, 5, 0, 1, 0);
+
+		String json = GSON.toJson(coverage);
+
+		assertTrue(json.contains("\"clog_ok\":4"));
+		assertTrue(json.contains("\"temple_ok\":4"));
+	}
 }

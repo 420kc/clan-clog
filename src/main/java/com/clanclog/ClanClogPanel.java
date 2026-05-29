@@ -997,6 +997,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				if (union != null)
 				{
 					partialResult.setClog(union);
+					partialResult.setClogLastChanged(
+						RosterClogBuilder.newestClogLastChanged(roster));
 				}
 
 				// Re-render with clog highlight colors + tooltips
@@ -1128,6 +1130,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (union != null)
 		{
 			cached.setClog(union);
+			cached.setClogLastChanged(RosterClogBuilder.newestClogLastChanged(roster));
 		}
 
 		int hiscoreOnly = 0;

@@ -146,6 +146,25 @@ final class RosterClogBuilder
 			itemMeta, catalogMap);
 	}
 
+	static String newestClogLastChanged(List<ClanMember> roster)
+	{
+		String newest = null;
+		for (ClanMember member : roster)
+		{
+			ClogResult clog = member.getClog();
+			if (clog == null || clog.getLastChanged() == null)
+			{
+				continue;
+			}
+			String lastChanged = clog.getLastChanged();
+			if (newest == null || lastChanged.compareTo(newest) > 0)
+			{
+				newest = lastChanged;
+			}
+		}
+		return newest;
+	}
+
 	/**
 	 * Sum activity scores across all members. Score-type activities (clues,
 	 * soul wars, BH, colosseum glory) are summed; rank-type activities (LMS,

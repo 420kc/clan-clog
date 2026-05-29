@@ -28,7 +28,7 @@ import java.util.Map;
  *   "roster_hash": "abc123...",
  *   "last_synced_at": "2026-05-20T15:00:00Z",
  *   "clog_last_changed": "2026-05-20T14:30:00Z",
- *   "member_coverage": { "total": 11, "temple_ok": 9, ... },
+ *   "member_coverage": { "total": 11, "clog_ok": 9, "temple_ok": 9, ... },
  *   "clog": {
  *     "items_by_category": { "bosses": [11802, ...] },
  *     "total_obtained": 487,
@@ -258,6 +258,12 @@ public class ClanClogResult
 		this.clog = clog;
 	}
 
+	/** Record the freshest member collection-log sync represented in the union. */
+	void setClogLastChanged(String clogLastChanged)
+	{
+		this.clogLastChanged = clogLastChanged;
+	}
+
 	/** Attach roster-derived coverage so a sync reports honestly what was collected. */
 	void setMemberCoverage(MemberCoverage memberCoverage)
 	{
@@ -287,15 +293,13 @@ public class ClanClogResult
 
 	/**
 	 * Member-coverage tally. Every member ends up in exactly one bucket. The
-	 * serialized provider-era keys are preserved for backend compatibility, but
-	 * user-facing copy should treat them as source-neutral coverage buckets.
-	 * The wire field names are legacy Temple-era names; in-plugin semantics are
-	 * source neutral: "ok" means any clog provider, and "missing" means hiscore
-	 * data exists but no collection-log provider covered that member.
+	 * source-neutral keys are canonical, while provider-era keys are still
+	 * emitted and parsed for backend/web compatibility during the migration.
 	 */
 	public static class MemberCoverage
 	{
 		@SerializedName("total")          private int total;
+		@SerializedName("clog_ok")        private Integer clogOk;
 		@SerializedName("temple_ok")      private int templeOk;
 		@SerializedName("temple_missing") private int templeMissing;
 		@SerializedName("opted_out")      private int optedOut;
@@ -309,12 +313,13 @@ public class ClanClogResult
 		}
 
 		/** Built client-side from the analyzed roster before sync. */
-		MemberCoverage(int total, int templeOk, int templeMissing,
+		MemberCoverage(int total, int clogOk, int hiscoreOnly,
 			int optedOut, int notFound, int error)
 		{
 			this.total = total;
-			this.templeOk = templeOk;
-			this.templeMissing = templeMissing;
+			this.clogOk = clogOk;
+			this.templeOk = clogOk;
+			this.templeMissing = hiscoreOnly;
 			this.optedOut = optedOut;
 			this.notFound = notFound;
 			this.error = error;
@@ -327,12 +332,12 @@ public class ClanClogResult
 
 		public int getTempleOk()
 		{
-			return templeOk;
+			return getClogOk();
 		}
 
 		public int getClogOk()
 		{
-			return templeOk;
+			return clogOk != null ? clogOk : templeOk;
 		}
 
 		public int getTempleMissing()
