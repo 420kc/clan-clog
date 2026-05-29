@@ -264,7 +264,7 @@ public class LocalClogCache
 	public void mergeCategory(String playerName, String categoryKey,
 		List<Integer> allItems, List<ClogResult.ClogItem> obtained)
 	{
-		if (playerName == null)
+		if (playerName == null || categoryKey == null || allItems == null)
 		{
 			return;
 		}
@@ -279,12 +279,13 @@ public class LocalClogCache
 
 		data.lastUpdated = Instant.now().toString();
 		data.categories.put(categoryKey, new ArrayList<>(allItems));
-		data.obtained.put(categoryKey, new ArrayList<>(obtained));
+		List<ClogResult.ClogItem> obtainedItems = obtained != null ? obtained : new ArrayList<>();
+		data.obtained.put(categoryKey, new ArrayList<>(obtainedItems));
 
 		final PlayerClogData snapshot = shallowCopy(data);
 		submitDiskWrite(normalized, () -> saveToDisk(normalized, snapshot));
 		log.debug("Merged category '{}' for '{}': {}/{} obtained",
-			categoryKey, normalized, obtained.size(), allItems.size());
+			categoryKey, normalized, obtainedItems.size(), allItems.size());
 	}
 
 	public void updateTotals(String playerName, int obtained, int total)
