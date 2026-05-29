@@ -301,6 +301,7 @@ public class ClanClogResult
 		@SerializedName("total")          private int total;
 		@SerializedName("clog_ok")        private Integer clogOk;
 		@SerializedName("temple_ok")      private int templeOk;
+		@SerializedName("hiscore_only")   private Integer hiscoreOnly;
 		@SerializedName("temple_missing") private int templeMissing;
 		@SerializedName("opted_out")      private int optedOut;
 		@SerializedName("not_found")      private int notFound;
@@ -319,6 +320,7 @@ public class ClanClogResult
 			this.total = total;
 			this.clogOk = clogOk;
 			this.templeOk = clogOk;
+			this.hiscoreOnly = hiscoreOnly;
 			this.templeMissing = hiscoreOnly;
 			this.optedOut = optedOut;
 			this.notFound = notFound;
@@ -342,12 +344,12 @@ public class ClanClogResult
 
 		public int getTempleMissing()
 		{
-			return templeMissing;
+			return getHiscoreOnly();
 		}
 
 		public int getHiscoreOnly()
 		{
-			return templeMissing;
+			return hiscoreOnly != null ? hiscoreOnly : templeMissing;
 		}
 
 		public int getOptedOut()

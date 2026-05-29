@@ -69,12 +69,14 @@ public class ClanClogResultTest
 		ClanClogResult.MemberCoverage neutral = GSON.fromJson("{"
 			+ "\"total\":10,"
 			+ "\"clog_ok\":4,"
+			+ "\"hiscore_only\":5,"
 			+ "\"temple_missing\":5,"
 			+ "\"not_found\":1"
 			+ "}", ClanClogResult.MemberCoverage.class);
 
 		assertEquals(4, neutral.getClogOk());
 		assertEquals(5, neutral.getHiscoreOnly());
+		assertEquals(5, neutral.getTempleMissing());
 
 		ClanClogResult.MemberCoverage legacy = GSON.fromJson("{"
 			+ "\"total\":10,"
@@ -97,5 +99,7 @@ public class ClanClogResultTest
 
 		assertTrue(json.contains("\"clog_ok\":4"));
 		assertTrue(json.contains("\"temple_ok\":4"));
+		assertTrue(json.contains("\"hiscore_only\":5"));
+		assertTrue(json.contains("\"temple_missing\":5"));
 	}
 }
