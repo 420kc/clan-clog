@@ -11,12 +11,15 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -49,6 +52,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
 	private static final Color KC_TEXT = new Color(215, 215, 215);
 	private static final Color KC4 = new Color(0xFF, 0x57, 0x00);
+	private static final Color HAMBURGER_COLOR = new Color(70, 70, 70);
+	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 
 	private final ClanClogConfig config;
@@ -186,43 +191,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.weightx = 1;
 		c.weighty = 0;
 
-		// ── Status + action buttons at top ──────────────────────────────────
-		c.insets = new Insets(0, 0, 2, 0);
-		statusLabel.setFont(FontManager.getRunescapeSmallFont());
-		statusLabel.setForeground(TEXT_DIM);
-		statusLabel.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		statusLabel.setText("idle");
-		add(statusLabel, c);
-
-		c.gridy++;
-		c.insets = new Insets(2, 0, 2, 0);
-		clanalyzeButton.setFont(FontManager.getRunescapeSmallFont());
-		clanalyzeButton.setForeground(KC_TEXT);
-		clanalyzeButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		clanalyzeButton.setFocusPainted(false);
-		clanalyzeButton.setBorderPainted(false);
-		clanalyzeButton.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		clanalyzeButton.setVisible(false);
-		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
-		add(clanalyzeButton, c);
-
-		c.gridy++;
-		c.insets = new Insets(2, 0, 6, 0);
-		syncButton.setFont(FontManager.getRunescapeSmallFont());
-		syncButton.setForeground(KC_TEXT);
-		syncButton.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		syncButton.setFocusPainted(false);
-		syncButton.setBorderPainted(false);
-		syncButton.putClientProperty(
-			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		syncButton.setVisible(false);
-		syncButton.addActionListener(e -> onSyncClicked());
-		add(syncButton, c);
-
-		// ── Search bar with placeholder ─────────────────────────────────────
-		c.gridy++;
+		// Search bar with placeholder.
 		c.insets = new Insets(0, 0, 4, 0);
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
 		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -233,19 +202,18 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		installPlaceholder(searchBar);
 		add(searchBar, c);
 
-		// ── Clan header (centered, k4, clickable link with hover underline) ──
-		c.gridy++;
-		c.insets = new Insets(0, 0, 5, 0);
-		clanHeader.setFont(FontManager.getRunescapeFont());
+		// Compact profile row: clan name, activities toggle, contextual actions.
+		clanHeader.setFont(FontManager.getRunescapeSmallFont());
 		clanHeader.setForeground(KC4);
-		clanHeader.setHorizontalAlignment(JLabel.CENTER);
+		clanHeader.setHorizontalAlignment(JLabel.LEFT);
+		clanHeader.setBorder(new EmptyBorder(0, 4, 0, 0));
 		clanHeader.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		clanHeader.setText(" ");
-		clanHeader.addMouseListener(new java.awt.event.MouseAdapter()
+		clanHeader.addMouseListener(new MouseAdapter()
 		{
 			@Override
-			public void mouseEntered(java.awt.event.MouseEvent e)
+			public void mouseEntered(MouseEvent e)
 			{
 				if (clanHeader.getText() != null && !clanHeader.getText().isBlank()
 					&& !" ".equals(clanHeader.getText()))
@@ -256,14 +224,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			}
 
 			@Override
-			public void mouseExited(java.awt.event.MouseEvent e)
+			public void mouseExited(MouseEvent e)
 			{
 				clanHeader.putClientProperty("underlined", null);
 				clanHeader.repaint();
 			}
 
 			@Override
-			public void mousePressed(java.awt.event.MouseEvent e)
+			public void mousePressed(MouseEvent e)
 			{
 				String url = config.clanUrl();
 				String text = clanHeader.getText();
@@ -275,9 +243,26 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 			}
 		});
-		add(clanHeader, c);
+		configureActionButton(clanalyzeButton, "build clan profile");
+		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
+		configureActionButton(syncButton, "sync to killclog.com");
+		syncButton.setText("sync");
+		syncButton.addActionListener(e -> onSyncClicked());
 
-		// ── Content ─────────────────────────────────────────────────────────
+		c.gridy++;
+		c.insets = new Insets(0, 0, 2, 0);
+		add(buildProfileRow(), c);
+
+		c.gridy++;
+		c.insets = new Insets(0, 4, 5, 4);
+		statusLabel.setFont(FontManager.getRunescapeSmallFont());
+		statusLabel.setForeground(TEXT_DIM);
+		statusLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		statusLabel.setText("idle");
+		add(statusLabel, c);
+
+		// Content.
 		c.gridy++;
 		c.insets = new Insets(0, 0, 0, 0);
 		add(activitiesTray.getClip(), c);
@@ -333,6 +318,89 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			configManager.setConfiguration("clanclog", "lastClanName", name);
 		}
+	}
+
+	private JPanel buildProfileRow()
+	{
+		JPanel row = new JPanel(new GridBagLayout());
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setPreferredSize(new Dimension(0, 20));
+
+		JLabel trayToggle = new JLabel();
+		ImageIcon hamburgerIcon = new ImageIcon(ClogHelper.makeHamburgerIcon(HAMBURGER_COLOR));
+		ImageIcon hamburgerHoverIcon = new ImageIcon(ClogHelper.makeHamburgerIcon(HAMBURGER_HOVER_COLOR));
+		trayToggle.setIcon(hamburgerIcon);
+		trayToggle.setHorizontalAlignment(JLabel.CENTER);
+		trayToggle.setVerticalAlignment(JLabel.CENTER);
+		trayToggle.setPreferredSize(new Dimension(18, 18));
+		trayToggle.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				activitiesTray.toggle();
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				trayToggle.setIcon(hamburgerHoverIcon);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				trayToggle.setIcon(hamburgerIcon);
+			}
+		});
+
+		JPanel actions = new JPanel(new GridBagLayout());
+		actions.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		GridBagConstraints ac = new GridBagConstraints();
+		ac.gridx = 0;
+		ac.anchor = GridBagConstraints.EAST;
+		ac.insets = new Insets(0, 0, 0, 3);
+		actions.add(clanalyzeButton, ac);
+		ac.gridx = 1;
+		ac.insets = new Insets(0, 0, 0, 0);
+		actions.add(syncButton, ac);
+
+		GridBagConstraints rc = new GridBagConstraints();
+		rc.gridy = 0;
+		rc.gridx = 0;
+		rc.weightx = 1.0;
+		rc.fill = GridBagConstraints.HORIZONTAL;
+		rc.anchor = GridBagConstraints.WEST;
+		row.add(clanHeader, rc);
+
+		rc.gridx = 1;
+		rc.weightx = 0;
+		rc.fill = GridBagConstraints.NONE;
+		rc.anchor = GridBagConstraints.CENTER;
+		row.add(trayToggle, rc);
+
+		rc.gridx = 2;
+		rc.weightx = 1.0;
+		rc.fill = GridBagConstraints.HORIZONTAL;
+		rc.anchor = GridBagConstraints.EAST;
+		row.add(actions, rc);
+
+		return row;
+	}
+
+	private static void configureActionButton(JButton button, String tooltip)
+	{
+		button.setFont(FontManager.getRunescapeSmallFont());
+		button.setForeground(KC_TEXT);
+		button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		button.setFocusPainted(false);
+		button.setBorderPainted(false);
+		button.setBorder(new EmptyBorder(0, 4, 0, 4));
+		button.setPreferredSize(new Dimension(0, 18));
+		button.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		button.setToolTipText(tooltip);
+		button.setVisible(false);
 	}
 
 	/**
