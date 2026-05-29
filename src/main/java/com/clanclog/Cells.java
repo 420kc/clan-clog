@@ -804,6 +804,23 @@ public class Cells
 
 		tip.addLine("Members: ", formatTooltipCount(result.getMemberCount()),
 			tooltipValueColor(result.getMemberCount()));
+		addOptionalLine(tip, "Source: ", prettyToken(result.getSourceTier()));
+		addOptionalLine(tip, "Status: ", prettyToken(result.getBuildStatus()),
+			statusColor(result.getBuildStatus()));
+		addOptionalLine(tip, "Last sync: ", dateText(result.getLastSyncedAt()));
+
+		ClanClogResult.MemberCoverage coverage = result.getMemberCoverage();
+		if (coverage != null && coverage.getTotal() > 0)
+		{
+			tip.addLine("Synced members: ",
+				coverage.getTempleOk() + "/" + coverage.getTotal(),
+				coverageColor(coverage.getTempleOk(), coverage.getTotal()));
+			addPositiveLine(tip, "Missing: ", coverage.getTempleMissing());
+			addPositiveLine(tip, "Not found: ", coverage.getNotFound());
+			addPositiveLine(tip, "Opted out: ", coverage.getOptedOut());
+			addPositiveLine(tip, "Errors: ", coverage.getError(), ClogHelper.COLOR_EMPTY);
+		}
+
 		tip.addLine("Total Boss KC: ", formatTooltipCount(totalBossKc),
 			tooltipValueColor(totalBossKc));
 		tip.addLine("Bosses killed: ", bossesWithKc + "/" + BOSS_DISPLAY_ORDER.length,
@@ -883,6 +900,35 @@ public class Cells
 		tip.addLine(label, formatTooltipCount(count), tooltipValueColor(count));
 	}
 
+	private static void addOptionalLine(ClanSummaryTooltip tip, String label, String value)
+	{
+		addOptionalLine(tip, label, value, Color.WHITE);
+	}
+
+	private static void addOptionalLine(ClanSummaryTooltip tip, String label,
+		String value, Color valueColor)
+	{
+		if (value == null || value.isBlank())
+		{
+			return;
+		}
+		tip.addLine(label, value, valueColor);
+	}
+
+	private static void addPositiveLine(ClanSummaryTooltip tip, String label, int count)
+	{
+		addPositiveLine(tip, label, count, ClogHelper.COLOR_IN_PROGRESS);
+	}
+
+	private static void addPositiveLine(ClanSummaryTooltip tip, String label,
+		int count, Color valueColor)
+	{
+		if (count > 0)
+		{
+			tip.addLine(label, String.format("%,d", count), valueColor);
+		}
+	}
+
 	private static String formatTooltipCount(long count)
 	{
 		return count > 0 ? String.format("%,d", count) : "--";
@@ -891,6 +937,37 @@ public class Cells
 	private static Color tooltipValueColor(long count)
 	{
 		return count > 0 ? Color.WHITE : NativeTooltip.NOTICE_COLOR;
+	}
+
+	private static Color coverageColor(int synced, int total)
+	{
+		return synced >= total && total > 0 ? ClogHelper.COLOR_COMPLETED : ClogHelper.COLOR_IN_PROGRESS;
+	}
+
+	private static Color statusColor(String status)
+	{
+		return "ready".equalsIgnoreCase(status) ? ClogHelper.COLOR_COMPLETED : ClogHelper.COLOR_IN_PROGRESS;
+	}
+
+	@Nullable
+	private static String dateText(@Nullable String raw)
+	{
+		if (raw == null || raw.isBlank())
+		{
+			return null;
+		}
+		int timeIndex = raw.indexOf('T');
+		return timeIndex > 0 ? raw.substring(0, timeIndex) : raw;
+	}
+
+	@Nullable
+	private static String prettyToken(@Nullable String raw)
+	{
+		if (raw == null || raw.isBlank())
+		{
+			return null;
+		}
+		return raw.replace('_', ' ');
 	}
 
 	private void writeClueRare(@Nullable JLabel label, String name, String clogCategory,
