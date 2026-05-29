@@ -505,15 +505,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	/**
-	 * Load a clan directly from the in-game roster. Primary lookup path per
-	 * the roster-first architecture: the plugin compiles its own data using
-	 * the in-game clan roster + Jagex hiscores + external clog providers
-	 * (Temple + RuneProfile), no killclog.com backend dependency.
+	 * Build a clan profile from a roster. For the user's in-game clan this is a
+	 * sync-eligible clanalyze run. For a public WOM roster this is view-only, but
+	 * still renders the Kill Clog-style aggregate instead of stopping at a roster.
 	 *
 	 * <p>Two-phase batch: hiscores first (boss KCs render immediately), then
 	 * per-member clog fetch (highlight colors + clog tooltips render when done).
 	 */
-	private void loadFromRoster(String clanName, List<ClanMember> roster)
+	private void loadFromRoster(String clanName, List<ClanMember> roster, boolean syncEligible)
 	{
 		String slug = slugify(clanName);
 		if (slug.equals(currentLoadSlug))
@@ -524,8 +523,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		final int version = ++loadVersion;
 
 		clanalyzeButton.setVisible(false);
+		if (!syncEligible)
+		{
+			clearSyncState();
+		}
 		clanHeader.setText(clanName);
-		setStatus("Clanalyzing your members: 0/" + roster.size());
+		String progressPrefix = syncEligible ? "Clanalyzing your members: "
+			: "building public clan profile: ";
+		setStatus(progressPrefix + "0/" + roster.size());
 		membersPanel.renderRoster(clanName, roster);
 
 		// Phase 1: per-member hiscore fan-out
@@ -536,7 +541,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			{
 				return;
 			}
-			setStatus("Clanalyzing your members: " + completed + "/" + roster.size());
+			setStatus(progressPrefix + completed + "/" + roster.size());
 			membersPanel.renderRoster(name, roster);
 		})).whenComplete((v, batchEx) ->
 			SwingUtilities.invokeLater(() ->
@@ -563,7 +568,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				// Phase 2: per-member clog fetch (Temple + RuneProfile)
 				setStatus(hiscoreHits + "/" + roster.size()
 					+ " hiscores · fetching clogs: 0/" + roster.size());
-				fireClogBatch(name, slug, roster, merged, hiscoreHits, version);
+				fireClogBatch(name, slug, roster, merged, hiscoreHits, version, syncEligible);
 			}));
 	}
 
@@ -631,10 +636,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				{
 					return;
 				}
-				clanHeader.setText(groupName);
-				setStatus("view only · open your clan tab in-game to clanalyze");
-				membersPanel.renderRoster(groupName, roster);
-				rememberClan(groupName);
+				loadFromRoster(groupName, roster, false);
 			});
 		});
 	}
@@ -646,7 +648,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 * the cells surface with highlight colors.
 	 */
 	private void fireClogBatch(String clanName, String slug,
-		List<ClanMember> roster, ClanClogResult partialResult, int hiscoreHits, int version)
+		List<ClanMember> roster, ClanClogResult partialResult, int hiscoreHits, int version,
+		boolean syncEligible)
 	{
 		clogBatch.fetchAll(roster, completed -> SwingUtilities.invokeLater(() ->
 		{
@@ -674,12 +677,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				cells.renderClanResult(partialResult);
 				membersPanel.renderRoster(clanName, roster);
 
-				// Stash state for sync button
-				lastRenderedResult = partialResult;
-				lastLoadedRoster = roster;
-				lastLoadedClanName = clanName;
-				lastLoadedSlug = slug;
 				rememberClan(clanName);
+				if (syncEligible)
+				{
+					// Stash state for sync button
+					lastRenderedResult = partialResult;
+					lastLoadedRoster = roster;
+					lastLoadedClanName = clanName;
+					lastLoadedSlug = slug;
+				}
+				else
+				{
+					clearSyncState();
+				}
 
 				// Coverage buckets, mutually exclusive so they sum to the roster
 				// size. Honest input for the sync + the killclog.com/c surface:
@@ -711,8 +721,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				// Allow re-clanalyze on same clan after completion
 				currentLoadSlug = null;
 
-				// Show sync button if the local player is a key-rank holder
-				updateSyncButtonVisibility();
+				// Show sync button only for the user's verified in-game clan.
+				if (syncEligible)
+				{
+					updateSyncButtonVisibility();
+				}
 			}));
 	}
 
@@ -765,7 +778,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanalyzeButton.setVisible(false);
 		revalidate();
 		repaint();
-		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster));
+		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster), true);
+	}
+
+	private void clearSyncState()
+	{
+		lastRenderedResult = null;
+		lastLoadedRoster = null;
+		lastLoadedClanName = null;
+		lastLoadedSlug = null;
+		syncButton.setEnabled(true);
+		syncButton.setVisible(false);
+		revalidate();
+		repaint();
 	}
 
 	/**
@@ -860,6 +885,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		setStatus("fetching clog data for " + slug + "...");
 		lastBackendResult = null;
+		clearSyncState();
 		cells.clearCells();
 	}
 
