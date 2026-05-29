@@ -55,7 +55,7 @@ public class ClanMembersViewTest
 
 		List<String> tooltips = tooltips(viewRef.get());
 		assertTrue(tooltips.stream().anyMatch(t -> t.contains("Collection log: 420 / 1,600")
-			&& t.contains("Temple sync: 2026-05-29T10:00:00Z")
+			&& t.contains("Clog sync: 2026-05-29T10:00:00Z")
 			&& t.contains("Joined: 2026-05-28")));
 	}
 

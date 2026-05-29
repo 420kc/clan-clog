@@ -259,7 +259,7 @@ public class ClanMembersView extends JPanel
 		appendTooltipLine(out, "Collection log", clogTooltipText(member.getClog()));
 		if (member.getClog() != null)
 		{
-			appendTooltipLine(out, "Temple sync", member.getClog().getLastChanged());
+			appendTooltipLine(out, "Clog sync", member.getClog().getLastChanged());
 		}
 		appendTooltipLine(out, "Roster update", member.getLastUpdatedAt());
 		appendTooltipLine(out, "Joined", member.getJoinDate() != null
