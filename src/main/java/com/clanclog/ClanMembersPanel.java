@@ -55,7 +55,7 @@ public class ClanMembersPanel extends PluginPanel
 	public void renderRoster(String clanName, List<ClanMember> roster)
 	{
 		titleLabel.setText(clanName == null || clanName.isBlank() ? "members" : clanName + " members");
-		statusLabel.setText(roster == null ? "0 members" : roster.size() + " members");
+		statusLabel.setText(rosterStatus(roster));
 		membersView.renderRoster(roster);
 	}
 
@@ -79,5 +79,46 @@ public class ClanMembersPanel extends PluginPanel
 		titleLabel.setText("members");
 		statusLabel.setText(" ");
 		membersView.showPlaceholder(text);
+	}
+
+	private static String rosterStatus(List<ClanMember> roster)
+	{
+		if (roster == null || roster.isEmpty())
+		{
+			return "0 members";
+		}
+
+		int hiscores = 0;
+		int clogs = 0;
+		for (ClanMember member : roster)
+		{
+			if (member.getHiscore() != null)
+			{
+				hiscores++;
+			}
+			if (member.getClog() != null)
+			{
+				clogs++;
+			}
+		}
+
+		StringBuilder status = new StringBuilder();
+		status.append(roster.size()).append(" ").append(noun(roster.size(), "member", "members"));
+		if (hiscores > 0)
+		{
+			status.append(" · ").append(hiscores).append(" ")
+				.append(noun(hiscores, "hiscore", "hiscores"));
+		}
+		if (clogs > 0)
+		{
+			status.append(" · ").append(clogs).append(" ")
+				.append(noun(clogs, "clog", "clogs"));
+		}
+		return status.toString();
+	}
+
+	private static String noun(int count, String singular, String plural)
+	{
+		return count == 1 ? singular : plural;
 	}
 }
