@@ -773,6 +773,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void startBackendView(String query)
 	{
 		final int version = ++loadVersion;
+		currentLoadSlug = null;
 		viewVersion = version;
 		viewQuery = query;
 		clanLookupSession.start(slugify(query), this);
@@ -850,6 +851,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void searchByName(String query)
 	{
 		final int version = ++loadVersion;
+		currentLoadSlug = null;
 		setStatus("searching for \"" + query + "\"...");
 		membersPanel.showPlaceholder("searching...");
 
@@ -895,6 +897,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void loadGroupById(int id)
 	{
 		final int version = ++loadVersion;
+		currentLoadSlug = null;
 		setStatus("fetching roster for group " + id + "...");
 		setClanHeaderText(" ");
 		membersPanel.showPlaceholder("loading...");
