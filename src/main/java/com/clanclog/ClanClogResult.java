@@ -28,7 +28,13 @@ import java.util.Map;
  *   "roster_hash": "abc123...",
  *   "last_synced_at": "2026-05-20T15:00:00Z",
  *   "clog_last_changed": "2026-05-20T14:30:00Z",
- *   "member_coverage": { "total": 11, "clog_ok": 9, "temple_ok": 9, ... },
+ *   "member_coverage": {
+ *     "total": 11,
+ *     "clog_ok": 9,
+ *     "hiscore_only": 2,
+ *     "temple_ok": 9,
+ *     "temple_missing": 2
+ *   },
  *   "clog": {
  *     "items_by_category": { "bosses": [11802, ...] },
  *     "total_obtained": 487,

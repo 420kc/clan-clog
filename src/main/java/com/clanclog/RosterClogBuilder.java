@@ -32,8 +32,9 @@ final class RosterClogBuilder
 	 * aggregates while clog items, item_meta, and recently_acquired are
 	 * preserved from the existing result.
 	 *
-	 * <p>When {@code existing} is null, a new ClanClogResult is built with
-	 * only boss data (clog stays null until a clog provider is wired).
+	 * <p>When {@code existing} is null, a new ClanClogResult is built with only
+	 * boss data. The separate clog batch can later attach a source-neutral union
+	 * from local, killclog.com, TempleOSRS, or RuneProfile data.
 	 */
 	static ClanClogResult fromHiscores(String clanName, String slug,
 		List<ClanMember> roster, @Nullable ClanClogResult existing)

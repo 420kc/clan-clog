@@ -868,7 +868,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					}
 				}
 
-				// Phase 2: per-member clog fetch (Temple + RuneProfile)
+				// Phase 2: per-member clog fetch from local/provider caches.
 				setCoverageCounts(hiscoreHits, 0);
 				setStatus("fetching clogs: 0/" + roster.size());
 				fireClogBatch(name, slug, roster, merged, hiscoreHits, version, syncEligible);
@@ -967,7 +967,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	/**
-	 * Phase 2: fire the per-member clog batch (Temple + RuneProfile). Called
+	 * Phase 2: fire the per-member clog batch. Called
 	 * after the hiscore batch completes. Updates the ClanClogResult with a
 	 * client-side ClogUnion built from all members' clog data, then re-renders
 	 * the cells surface with highlight colors.
