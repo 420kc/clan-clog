@@ -1181,10 +1181,23 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			if (normalize(member.getRsn()).equals(key))
 			{
-				renderCachedClanProfile(pendingClanName, pendingRoster, pendingRosterSyncEligible);
+				if (renderCachedClanProfile(pendingClanName, pendingRoster, pendingRosterSyncEligible))
+				{
+					setStatus(localCaptureStatus(playerName));
+				}
 				return;
 			}
 		}
+	}
+
+	private String localCaptureStatus(String playerName)
+	{
+		int categories = clogFetchService.categoryCount(playerName);
+		if (categories <= 1)
+		{
+			return "1 clog category captured";
+		}
+		return categories + " clog categories captured";
 	}
 
 	private boolean renderStoredClanProfile(String clanNameOrSlug)

@@ -196,6 +196,12 @@ public class ClogFetchService
 			&& localClogCache.categoryCount(normalized) >= minCategories;
 	}
 
+	public int categoryCount(String playerName)
+	{
+		String normalized = RsnNormalizer.normalize(playerName);
+		return normalized.isEmpty() ? 0 : localClogCache.categoryCount(normalized);
+	}
+
 	/** Clear failure cooldowns (e.g. on login). TTLs auto-expire otherwise. */
 	public void clearFailures()
 	{
