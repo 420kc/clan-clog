@@ -142,7 +142,8 @@ public class ClogFetchService
 			{
 				if (result != null)
 				{
-					return result;
+					return mergedLocalResult(normalized, result,
+						names != null ? names : new HashMap<>());
 				}
 				// Both providers failed -- fall back to local disk cache.
 				if (localClogCache.hasDataFor(normalized))
@@ -153,6 +154,20 @@ public class ClogFetchService
 				}
 				return null;
 			});
+	}
+
+	private ClogResult mergedLocalResult(String playerName, ClogResult fallback,
+		Map<Integer, String> itemNames)
+	{
+		if (localClogCache.hasDataFor(playerName))
+		{
+			ClogResult merged = localClogCache.toClogResult(playerName, itemNames);
+			if (merged != null)
+			{
+				return merged;
+			}
+		}
+		return fallback;
 	}
 
 	/**
