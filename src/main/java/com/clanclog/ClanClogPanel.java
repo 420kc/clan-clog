@@ -347,6 +347,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		statusLabel.setFont(FontManager.getRunescapeSmallFont());
 		statusLabel.setForeground(TEXT_DIM);
+		statusLabel.setMinimumSize(new Dimension(0, 18));
+		statusLabel.setPreferredSize(new Dimension(0, 18));
 		statusLabel.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
