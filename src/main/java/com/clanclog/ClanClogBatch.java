@@ -45,9 +45,9 @@ public class ClanClogBatch
 	private static final long LOOKUP_TIMEOUT_SECONDS = 30;
 
 	/**
-	 * Milliseconds between submitting each lookup. Temple and RuneProfile are
-	 * stricter than Jagex, so we space requests further apart. 400ms * N members
-	 * keeps us under their sustained-burst thresholds.
+	 * Milliseconds between submitting each external provider lookup. Temple and
+	 * RuneProfile are stricter than Jagex, so we space real requests further apart
+	 * while allowing rich local-cache hits to resolve immediately.
 	 */
 	private static final long STAGGER_DELAY_MS = 400;
 	private static final int CACHED_SHORTCUT_MIN_CATEGORIES = 10;
@@ -94,14 +94,14 @@ public class ClanClogBatch
 
 		final Semaphore gate = new Semaphore(Math.max(1, concurrency));
 		final AtomicInteger completed = new AtomicInteger();
+		final AtomicInteger providerSlot = new AtomicInteger();
 		final int total = roster.size();
 
 		CompletableFuture<?>[] perMember = new CompletableFuture<?>[total];
 		for (int i = 0; i < total; i++)
 		{
 			final ClanMember member = roster.get(i);
-			long delay = (long) i * STAGGER_DELAY_MS;
-			perMember[i] = lookupOne(member, gate, delay).whenComplete((result, ex) ->
+			perMember[i] = lookupOne(member, gate, providerSlot).whenComplete((result, ex) ->
 			{
 				if (result != null)
 				{
@@ -124,7 +124,8 @@ public class ClanClogBatch
 		return CompletableFuture.allOf(perMember);
 	}
 
-	private CompletableFuture<ClogResult> lookupOne(ClanMember member, Semaphore gate, long delayMs)
+	private CompletableFuture<ClogResult> lookupOne(ClanMember member, Semaphore gate,
+		AtomicInteger providerSlot)
 	{
 		CompletableFuture<ClogResult> out = new CompletableFuture<>();
 
@@ -139,6 +140,7 @@ public class ClanClogBatch
 			return out;
 		}
 
+		long delayMs = (long) providerSlot.getAndIncrement() * STAGGER_DELAY_MS;
 		scheduler.schedule(() ->
 		{
 			try
