@@ -5,6 +5,7 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,7 +25,8 @@ public class ClanMembersViewTest
 	public void memberRowsRenderIdentityAndProgressDetails() throws Exception
 	{
 		ClanMember member = new ClanMember("420 kc", "420 kc", "Founder", "OWNER",
-			AccountType.REGULAR, "main", 0L, null, null);
+			AccountType.REGULAR, "main", 0L, "2026-05-29T09:00:00Z",
+			LocalDate.of(2026, 5, 28));
 		member.setHiscore(new HiscoreResult(AccountType.IRONMAN,
 			Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
 			Collections.emptyMap(), Collections.emptyMap(), 2277, 200_000_000L, 126, 1));
@@ -32,6 +34,7 @@ public class ClanMembersViewTest
 			Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
 			"2026-05-29T10:00:00Z", AccountType.IRONMAN);
 		clog.setUniqueObtained(420);
+		clog.setUniqueTotal(1600);
 		member.setClog(clog);
 
 		AtomicReference<ClanMembersView> viewRef = new AtomicReference<>();
@@ -47,6 +50,11 @@ public class ClanMembersViewTest
 		assertTrue(labels.contains("Founder · Ironman · main"));
 		assertTrue(labels.contains("tl 2277  cb 126"));
 		assertTrue(labels.contains("clog 420"));
+
+		List<String> tooltips = tooltips(viewRef.get());
+		assertTrue(tooltips.stream().anyMatch(t -> t.contains("Collection log: 420 / 1,600")
+			&& t.contains("Temple sync: 2026-05-29T10:00:00Z")
+			&& t.contains("Joined: 2026-05-28")));
 	}
 
 	@Test
@@ -87,6 +95,13 @@ public class ClanMembersViewTest
 		return labels;
 	}
 
+	private static List<String> tooltips(Container root)
+	{
+		List<String> values = new ArrayList<>();
+		collectTooltips(root, values);
+		return values;
+	}
+
 	private static void collectLabels(Component component, List<String> labels)
 	{
 		if (component instanceof JLabel)
@@ -98,6 +113,25 @@ public class ClanMembersViewTest
 			for (Component child : ((Container) component).getComponents())
 			{
 				collectLabels(child, labels);
+			}
+		}
+	}
+
+	private static void collectTooltips(Component component, List<String> values)
+	{
+		if (component instanceof javax.swing.JComponent)
+		{
+			String tooltip = ((javax.swing.JComponent) component).getToolTipText();
+			if (tooltip != null)
+			{
+				values.add(tooltip);
+			}
+		}
+		if (component instanceof Container)
+		{
+			for (Component child : ((Container) component).getComponents())
+			{
+				collectTooltips(child, values);
 			}
 		}
 	}

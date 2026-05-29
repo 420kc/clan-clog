@@ -187,6 +187,14 @@ public class ClanMembersView extends JPanel
 
 		row.add(identity, BorderLayout.CENTER);
 		row.add(scores, BorderLayout.EAST);
+		String tooltip = memberTooltip(m);
+		row.setToolTipText(tooltip);
+		name.setToolTipText(tooltip);
+		meta.setToolTipText(tooltip);
+		total.setToolTipText(tooltip);
+		clog.setToolTipText(tooltip);
+		identity.setToolTipText(tooltip);
+		scores.setToolTipText(tooltip);
 
 		row.addMouseListener(new MouseAdapter()
 		{
@@ -203,6 +211,73 @@ public class ClanMembersView extends JPanel
 			}
 		});
 		return row;
+	}
+
+	private static String memberTooltip(ClanMember member)
+	{
+		StringBuilder out = new StringBuilder("<html><b>")
+			.append(escapeHtml(member.getDisplayName()))
+			.append("</b>");
+		appendTooltipLine(out, "Role", prettyRole(member.getRole()));
+		appendTooltipLine(out, "Account", accountLabel(member));
+		appendTooltipLine(out, "Build", member.getBuild());
+		HiscoreResult hiscore = member.getHiscore();
+		if (hiscore != null)
+		{
+			appendTooltipLine(out, "Total level", String.format("%,d", hiscore.getTotalLevel()));
+			appendTooltipLine(out, "Combat", String.valueOf(hiscore.getCombatLevel()));
+			appendTooltipLine(out, "Total xp", String.format("%,d", hiscore.getTotalXp()));
+		}
+		else
+		{
+			appendTooltipLine(out, "Hiscores", "not loaded");
+		}
+		appendTooltipLine(out, "Collection log", clogTooltipText(member.getClog()));
+		if (member.getClog() != null)
+		{
+			appendTooltipLine(out, "Temple sync", member.getClog().getLastChanged());
+		}
+		appendTooltipLine(out, "Roster update", member.getLastUpdatedAt());
+		appendTooltipLine(out, "Joined", member.getJoinDate() != null
+			? member.getJoinDate().toString() : null);
+		return out.append("</html>").toString();
+	}
+
+	private static void appendTooltipLine(StringBuilder out, String label, String value)
+	{
+		if (value == null || value.isBlank())
+		{
+			return;
+		}
+		out.append("<br>")
+			.append(escapeHtml(label))
+			.append(": ")
+			.append(escapeHtml(value));
+	}
+
+	private static String clogTooltipText(ClogResult clog)
+	{
+		if (clog == null)
+		{
+			return "not synced";
+		}
+		int obtained = clogObtainedCount(clog);
+		String count = obtained >= 0 ? String.format("%,d", obtained) : "--";
+		if (clog.getUniqueTotal() >= 0)
+		{
+			return count + " / " + String.format("%,d", clog.getUniqueTotal());
+		}
+		return count;
+	}
+
+	private static String escapeHtml(String value)
+	{
+		return value
+			.replace("&", "&amp;")
+			.replace("<", "&lt;")
+			.replace(">", "&gt;")
+			.replace("\"", "&quot;")
+			.replace("'", "&#39;");
 	}
 
 	private static String memberMeta(ClanMember member)
