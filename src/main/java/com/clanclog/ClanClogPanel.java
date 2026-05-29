@@ -258,7 +258,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		statusLabel.setForeground(TEXT_DIM);
 		statusLabel.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		statusLabel.setText("idle");
+		setStatus("search or open your clan tab");
 		add(statusLabel, c);
 
 		// Content.
@@ -537,7 +537,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		String raw = searchBar.getText().trim();
 		if (raw.isEmpty() || raw.equals(SEARCH_PLACEHOLDER))
 		{
-			setStatus("type a clan name or wom group id");
+			setStatus("type a clan name or group id");
 			return;
 		}
 		if (raw.matches("\\d+"))
@@ -686,12 +686,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 				if (results == null || results.length == 0)
 				{
-					setStatus("no wom match for \"" + query + "\"");
+					setStatus("no public clan match for \"" + query + "\"");
 					membersPanel.showPlaceholder("no roster source");
 					return;
 				}
-				setStatus("matched " + results.length
-					+ " · open members panel to pick one");
+				setStatus("matched " + results.length + " public clan"
+					+ (results.length == 1 ? "" : "s"));
 				membersPanel.renderSearchResults(query, results, this::loadGroupById);
 			}));
 	}
@@ -713,7 +713,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					{
 						return;
 					}
-					setStatus("no group returned (network, missing id, or wom timeout)");
+					setStatus("no public roster returned");
 					setClanHeaderText(" ");
 				});
 				return;
@@ -1056,7 +1056,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		// Backend has no record of this clan -- fall back to a WOM roster view.
 		if (viewQuery != null && !viewQuery.isBlank())
 		{
-			setStatus("not synced to killclog.com yet · searching WOM...");
+			setStatus("not synced yet · searching public rosters...");
 			searchByName(viewQuery);
 		}
 		else
@@ -1077,8 +1077,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		// Backend unreachable/errored -- try WOM so the user still sees a roster.
 		if (viewQuery != null && !viewQuery.isBlank())
 		{
-			setStatus("backend unavailable"
-				+ (detail != null ? " (" + detail + ")" : "") + " · searching WOM...");
+			setStatus("profile lookup unavailable · searching public rosters...");
 			searchByName(viewQuery);
 		}
 		else
