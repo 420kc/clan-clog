@@ -50,6 +50,7 @@ public class ClanClogBatch
 	 * keeps us under their sustained-burst thresholds.
 	 */
 	private static final long STAGGER_DELAY_MS = 400;
+	private static final int CACHED_SHORTCUT_MIN_CATEGORIES = 10;
 
 	private final ClogFetchService clogFetchService;
 	private volatile ScheduledExecutorService scheduler = newScheduler();
@@ -127,11 +128,12 @@ public class ClanClogBatch
 	{
 		CompletableFuture<ClogResult> out = new CompletableFuture<>();
 
-		// Return cached clog data immediately if it exists. Clog data is
-		// persistent disk cache (collection log items change very rarely).
-		// Skips 2 external HTTP calls per member (Temple + RuneProfile).
+		// Return cached clog data immediately only when it has a meaningful
+		// category footprint. One visible local category is useful fallback
+		// data, but should not block a fuller Temple/RuneProfile result.
 		ClogResult cached = clogFetchService.getCached(member.getRsn());
-		if (cached != null)
+		if (cached != null && clogFetchService.hasRichCachedData(
+			member.getRsn(), CACHED_SHORTCUT_MIN_CATEGORIES))
 		{
 			out.complete(cached);
 			return out;

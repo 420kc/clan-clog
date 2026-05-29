@@ -63,6 +63,22 @@ public class LocalClogCacheTest
 		assertTrue(counts.containsKey(1));
 	}
 
+	@Test
+	public void categoryCountReflectsCapturedFootprint() throws Exception
+	{
+		LocalClogCache cache = new LocalClogCache(new Gson(), tempDir());
+
+		cache.mergeCategory("420 kc", "phantom_muspah",
+			Arrays.asList(1, 2, 3),
+			Arrays.asList(new ClogResult.ClogItem(1, 1, null)));
+		cache.mergeCategory("420 kc", "zulrah",
+			Arrays.asList(4, 5, 6),
+			Arrays.asList(new ClogResult.ClogItem(4, 1, null)));
+
+		assertEquals(2, cache.categoryCount("420 kc"));
+		assertEquals(0, cache.categoryCount("missing kc"));
+	}
+
 	private static File tempDir() throws Exception
 	{
 		return Files.createTempDirectory("clan-clog-cache-test").toFile();

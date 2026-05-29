@@ -374,6 +374,39 @@ public class LocalClogCache
 		return false;
 	}
 
+	public int categoryCount(String playerName)
+	{
+		if (playerName == null)
+		{
+			return 0;
+		}
+
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return 0;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
+		PlayerClogData cached = players.get(key);
+		if (hasUsableData(cached))
+		{
+			return cached.categories.size();
+		}
+		if (cached != null)
+		{
+			players.remove(key);
+		}
+
+		PlayerClogData loaded = loadFromDisk(normalized);
+		if (loaded != null)
+		{
+			players.put(key, loaded);
+			return loaded.categories.size();
+		}
+
+		return 0;
+	}
+
 	public ClogResult toClogResult(String playerName, Map<Integer, String> itemNames)
 	{
 		if (playerName == null)

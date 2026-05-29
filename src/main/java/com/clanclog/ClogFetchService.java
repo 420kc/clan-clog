@@ -174,6 +174,13 @@ public class ClogFetchService
 		return localClogCache.toClogResult(normalized, names != null ? names : new HashMap<>());
 	}
 
+	public boolean hasRichCachedData(String playerName, int minCategories)
+	{
+		String normalized = RsnNormalizer.normalize(playerName);
+		return !normalized.isEmpty()
+			&& localClogCache.categoryCount(normalized) >= minCategories;
+	}
+
 	/** Clear failure cooldowns (e.g. on login). TTLs auto-expire otherwise. */
 	public void clearFailures()
 	{
