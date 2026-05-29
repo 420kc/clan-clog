@@ -30,8 +30,8 @@ import okhttp3.ResponseBody;
  * audit, single-group reads return quickly; name-search has been observed to time out
  * on some queries -- callers should not block the EDT.
  *
- * <p>Phase 2 swap target: when killclog.com aggregation backend lands, this client
- * targets {@code https://killclog.com/api/clan/...} instead. The shape stays the same.
+ * <p>Clan Clog now searches stored killclog.com clan profiles first, then uses
+ * WOM as the public roster source when no stored profile covers the query.
  */
 @Slf4j
 @Singleton
