@@ -9,6 +9,7 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ClanMembersPanelTest
@@ -41,6 +42,8 @@ public class ClanMembersPanelTest
 		});
 
 		assertTrue(labelTexts(panelRef.get()).contains("2 members · 1 hiscore · 1 clog"));
+		assertEquals(new java.awt.Color(0xFF, 0x57, 0x00),
+			labelColor(panelRef.get(), "2 members · 1 hiscore · 1 clog"));
 	}
 
 	@Test
@@ -80,6 +83,8 @@ public class ClanMembersPanelTest
 		List<String> publicLabels = labelTexts(publicPanelRef.get());
 		assertTrue(publicLabels.contains("clan matches"));
 		assertTrue(publicLabels.contains("Clannabis · 1 public clan"));
+		assertEquals(new java.awt.Color(0xFF, 0x57, 0x00),
+			labelColor(publicPanelRef.get(), "Clannabis · 1 public clan"));
 
 		List<String> profileLabels = labelTexts(profilePanelRef.get());
 		assertTrue(profileLabels.contains("killclog.com matches"));
@@ -91,6 +96,36 @@ public class ClanMembersPanelTest
 		java.util.ArrayList<String> labels = new java.util.ArrayList<>();
 		collectLabels(panel, labels);
 		return labels;
+	}
+
+	private static java.awt.Color labelColor(ClanMembersPanel panel, String text)
+	{
+		java.awt.Color color = findLabelColor(panel, text);
+		if (color == null)
+		{
+			throw new AssertionError("missing label: " + text);
+		}
+		return color;
+	}
+
+	private static java.awt.Color findLabelColor(java.awt.Component component, String text)
+	{
+		if (component instanceof JLabel && text.equals(((JLabel) component).getText()))
+		{
+			return ((JLabel) component).getForeground();
+		}
+		if (component instanceof java.awt.Container)
+		{
+			for (java.awt.Component child : ((java.awt.Container) component).getComponents())
+			{
+				java.awt.Color color = findLabelColor(child, text);
+				if (color != null)
+				{
+					return color;
+				}
+			}
+		}
+		return null;
 	}
 
 	private static void collectLabels(java.awt.Component component, List<String> labels)

@@ -161,7 +161,7 @@ public class ClanMembersView extends JPanel
 
 		JLabel name = new JLabel(m.getDisplayName());
 		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(KC_TEXT);
+		name.setForeground(memberNameColor(m));
 		name.putClientProperty(
 			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -319,6 +319,19 @@ public class ClanMembersView extends JPanel
 			return "member";
 		}
 		return out.toString();
+	}
+
+	private static Color memberNameColor(ClanMember member)
+	{
+		if (member.getClog() != null)
+		{
+			return ClogHelper.COLOR_COMPLETED;
+		}
+		if (member.getHiscore() != null)
+		{
+			return ClogHelper.COLOR_IN_PROGRESS;
+		}
+		return TEXT_DIM;
 	}
 
 	private static String accountLabel(ClanMember member)

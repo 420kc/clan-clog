@@ -1,6 +1,7 @@
 package com.clanclog;
 
 import com.google.gson.Gson;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.event.MouseEvent;
@@ -50,6 +51,7 @@ public class ClanMembersViewTest
 		assertTrue(labels.contains("Founder · Ironman · main"));
 		assertTrue(labels.contains("tl 2277  cb 126"));
 		assertTrue(labels.contains("clog 420"));
+		assertEquals(ClogHelper.COLOR_COMPLETED, labelColor(viewRef.get(), "420 kc"));
 
 		List<String> tooltips = tooltips(viewRef.get());
 		assertTrue(tooltips.stream().anyMatch(t -> t.contains("Collection log: 420 / 1,600")
@@ -168,6 +170,36 @@ public class ClanMembersViewTest
 		List<String> values = new ArrayList<>();
 		collectTooltips(root, values);
 		return values;
+	}
+
+	private static Color labelColor(Container root, String text)
+	{
+		Color color = findLabelColor(root, text);
+		if (color == null)
+		{
+			throw new AssertionError("missing label: " + text);
+		}
+		return color;
+	}
+
+	private static Color findLabelColor(Component component, String text)
+	{
+		if (component instanceof JLabel && text.equals(((JLabel) component).getText()))
+		{
+			return ((JLabel) component).getForeground();
+		}
+		if (component instanceof Container)
+		{
+			for (Component child : ((Container) component).getComponents())
+			{
+				Color color = findLabelColor(child, text);
+				if (color != null)
+				{
+					return color;
+				}
+			}
+		}
+		return null;
 	}
 
 	private static void collectLabels(Component component, List<String> labels)

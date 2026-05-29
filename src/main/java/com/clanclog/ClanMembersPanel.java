@@ -19,6 +19,7 @@ public class ClanMembersPanel extends PluginPanel
 {
 	private static final Color TEXT_DIM = new Color(160, 160, 160);
 	private static final Color KC_TEXT = new Color(215, 215, 215);
+	private static final Color KC4 = new Color(0xFF, 0x57, 0x00);
 
 	private final JLabel titleLabel = new JLabel("members");
 	private final JLabel statusLabel = new JLabel(" ");
@@ -35,7 +36,7 @@ public class ClanMembersPanel extends PluginPanel
 		JPanel header = new JPanel(new BorderLayout());
 		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		titleLabel.setFont(FontManager.getRunescapeFont());
-		titleLabel.setForeground(KC_TEXT);
+		titleLabel.setForeground(KC4);
 		titleLabel.putClientProperty(
 			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -54,33 +55,39 @@ public class ClanMembersPanel extends PluginPanel
 
 	public void renderRoster(String clanName, List<ClanMember> roster)
 	{
-		titleLabel.setText(clanName == null || clanName.isBlank() ? "members" : clanName + " members");
-		statusLabel.setText(rosterStatus(roster));
+		setHeader(clanName == null || clanName.isBlank() ? "members" : clanName + " members",
+			rosterStatus(roster));
 		membersView.renderRoster(roster);
 	}
 
 	public void renderSearchResults(String query, WomGroup[] results, IntConsumer onPick)
 	{
-		titleLabel.setText("clan matches");
 		int count = results != null ? results.length : 0;
-		statusLabel.setText(searchStatus(query, count, "public clan", "public clans"));
+		setHeader("clan matches", searchStatus(query, count, "public clan", "public clans"));
 		membersView.renderSearchResults(results, onPick);
 	}
 
 	public void renderProfileSearchResults(String query,
 		List<KillclogApiClient.ClanSearchMatch> results, Consumer<String> onPick)
 	{
-		titleLabel.setText("killclog.com matches");
 		int count = results != null ? results.size() : 0;
-		statusLabel.setText(searchStatus(query, count, "profile", "profiles"));
+		setHeader("killclog.com matches", searchStatus(query, count, "profile", "profiles"));
 		membersView.renderProfileSearchResults(results, onPick);
 	}
 
 	public void showPlaceholder(String text)
 	{
-		titleLabel.setText("members");
-		statusLabel.setText(" ");
+		setHeader("members", " ");
 		membersView.showPlaceholder(text);
+	}
+
+	private void setHeader(String title, String status)
+	{
+		titleLabel.setText(title);
+		titleLabel.setToolTipText(title);
+		statusLabel.setText(status);
+		statusLabel.setForeground(statusColor(status));
+		statusLabel.setToolTipText(status == null || status.isBlank() ? null : status);
 	}
 
 	private static String rosterStatus(List<ClanMember> roster)
@@ -127,6 +134,24 @@ public class ClanMembersPanel extends PluginPanel
 			return countText;
 		}
 		return query.trim() + " · " + countText;
+	}
+
+	private static Color statusColor(String status)
+	{
+		if (status == null || status.isBlank())
+		{
+			return TEXT_DIM;
+		}
+		if (status.startsWith("0 ") || status.contains(" · 0 "))
+		{
+			return ClogHelper.COLOR_EMPTY;
+		}
+		if (status.contains("clog") || status.contains("profile")
+			|| status.contains("public clan"))
+		{
+			return KC4;
+		}
+		return TEXT_DIM;
 	}
 
 	private static String noun(int count, String singular, String plural)
