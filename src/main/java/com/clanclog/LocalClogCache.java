@@ -157,27 +157,33 @@ public class LocalClogCache
 			return;
 		}
 
-		activePlayer = name;
-		String key = name.toLowerCase();
+		String normalized = RsnNormalizer.normalize(name);
+		if (normalized.isEmpty())
+		{
+			activePlayer = null;
+			return;
+		}
+		activePlayer = normalized;
+		String key = RsnNormalizer.cacheKey(normalized);
 
 		if (!players.containsKey(key))
 		{
-			PlayerClogData loaded = loadFromDisk(name);
+			PlayerClogData loaded = loadFromDisk(normalized);
 			if (loaded != null)
 			{
 				players.put(key, loaded);
 				log.debug("Loaded persistent clog cache for '{}' ({} categories)",
-					name, loaded.categories.size());
+					normalized, loaded.categories.size());
 			}
 		}
 
-		log.debug("Active clog player set to: {}", name);
+		log.debug("Active clog player set to: {}", normalized);
 	}
 
 	public boolean isActivePlayer(String name)
 	{
 		return activePlayer != null && name != null
-			&& activePlayer.equalsIgnoreCase(name);
+			&& activePlayer.equalsIgnoreCase(RsnNormalizer.normalize(name));
 	}
 
 	public void cacheResult(ClogResult result)
@@ -187,8 +193,12 @@ public class LocalClogCache
 			return;
 		}
 
-		String name = result.getPlayerName();
-		String key = name.toLowerCase();
+		String name = RsnNormalizer.normalize(result.getPlayerName());
+		if (name.isEmpty())
+		{
+			return;
+		}
+		String key = RsnNormalizer.cacheKey(name);
 
 		// Preserve varp-sourced totals if they're higher than what Temple reports
 		PlayerClogData existing = players.get(key);
@@ -257,7 +267,12 @@ public class LocalClogCache
 			return;
 		}
 
-		String key = playerName.toLowerCase();
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 		PlayerClogData data = players.get(key);
 		if (data == null)
 		{
@@ -268,9 +283,9 @@ public class LocalClogCache
 		data.obtained.put(categoryKey, new ArrayList<>(obtained));
 
 		final PlayerClogData snapshot = shallowCopy(data);
-		submitDiskWrite(playerName, () -> saveToDisk(playerName, snapshot));
+		submitDiskWrite(normalized, () -> saveToDisk(normalized, snapshot));
 		log.debug("Merged category '{}' for '{}': {}/{} obtained",
-			categoryKey, playerName, obtained.size(), allItems.size());
+			categoryKey, normalized, obtained.size(), allItems.size());
 	}
 
 	public void updateTotals(String playerName, int obtained, int total)
@@ -280,7 +295,12 @@ public class LocalClogCache
 			return;
 		}
 
-		String key = playerName.toLowerCase();
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 		PlayerClogData data = players.get(key);
 		if (data == null)
 		{
@@ -302,8 +322,8 @@ public class LocalClogCache
 		if (changed)
 		{
 			final PlayerClogData snapshot = shallowCopy(data);
-			submitDiskWrite(playerName, () -> saveToDisk(playerName, snapshot));
-			log.debug("Updated clog totals for '{}': {}/{}", playerName, obtained, total);
+			submitDiskWrite(normalized, () -> saveToDisk(normalized, snapshot));
+			log.debug("Updated clog totals for '{}': {}/{}", normalized, obtained, total);
 		}
 	}
 
@@ -314,7 +334,12 @@ public class LocalClogCache
 			return false;
 		}
 
-		String key = playerName.toLowerCase();
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return false;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 		PlayerClogData cached = players.get(key);
 		if (hasUsableData(cached))
 		{
@@ -325,12 +350,12 @@ public class LocalClogCache
 			players.remove(key);
 		}
 
-		PlayerClogData loaded = loadFromDisk(playerName);
+		PlayerClogData loaded = loadFromDisk(normalized);
 		if (loaded != null)
 		{
 			players.put(key, loaded);
 			log.debug("Lazy-loaded persistent clog cache for '{}' ({} categories)",
-				playerName, loaded.categories.size());
+				normalized, loaded.categories.size());
 			return true;
 		}
 
@@ -344,7 +369,12 @@ public class LocalClogCache
 			return null;
 		}
 
-		PlayerClogData data = players.get(playerName.toLowerCase());
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return null;
+		}
+		PlayerClogData data = players.get(RsnNormalizer.cacheKey(normalized));
 		if (data == null)
 		{
 			return null;
@@ -435,7 +465,7 @@ public class LocalClogCache
 
 	private File getCacheFile(String playerName)
 	{
-		String sanitized = playerName.toLowerCase()
+		String sanitized = RsnNormalizer.cacheKey(playerName)
 			.replace(' ', '_')
 			.replaceAll("[^a-z0-9_-]", "");
 		return new File(CACHE_DIR, sanitized + ".json");

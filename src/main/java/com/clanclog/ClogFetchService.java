@@ -6,8 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -101,7 +99,12 @@ public class ClogFetchService
 	 */
 	public CompletableFuture<ClogResult> lookup(String playerName)
 	{
-		String key = playerName.toLowerCase();
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return CompletableFuture.completedFuture(null);
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 
 		// Kick off global data in parallel (no-ops if already cached).
 		CompletableFuture<Map<String, List<Integer>>> catFuture = withFallback(
@@ -112,10 +115,10 @@ public class ClogFetchService
 			"item-name fetch");
 
 		CompletableFuture<ClogResult> rpFuture = withFallback(
-			tryRuneProfile(playerName, key, new HashMap<>()),
+			tryRuneProfile(normalized, key, new HashMap<>()),
 			null,
 			PROVIDER_FETCH_TIMEOUT_SECONDS,
-			"RuneProfile clog lookup for " + playerName);
+			"RuneProfile clog lookup for " + normalized);
 
 		CompletableFuture<ClogResult> templeFuture = catFuture
 			.thenCombine(namesFuture, (cats, names) -> new Object[] {cats, names})
@@ -127,10 +130,10 @@ public class ClogFetchService
 				Map<Integer, String> names = (Map<Integer, String>) globals[1];
 
 				return withFallback(
-					tryTemple(playerName, key, cats, names),
+					tryTemple(normalized, key, cats, names),
 					null,
 					PROVIDER_FETCH_TIMEOUT_SECONDS,
-					"Temple clog lookup for " + playerName);
+					"Temple clog lookup for " + normalized);
 			});
 
 		return templeFuture.thenCombine(rpFuture,
@@ -142,10 +145,10 @@ public class ClogFetchService
 					return result;
 				}
 				// Both providers failed -- fall back to local disk cache.
-				if (localClogCache.hasDataFor(playerName))
+				if (localClogCache.hasDataFor(normalized))
 				{
-					log.debug("Both providers failed for '{}', using disk cache", playerName);
-					return localClogCache.toClogResult(playerName,
+					log.debug("Both providers failed for '{}', using disk cache", normalized);
+					return localClogCache.toClogResult(normalized,
 						names != null ? names : new HashMap<>());
 				}
 				return null;
@@ -158,12 +161,17 @@ public class ClogFetchService
 	 */
 	public ClogResult getCached(String playerName)
 	{
-		if (!localClogCache.hasDataFor(playerName))
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return null;
+		}
+		if (!localClogCache.hasDataFor(normalized))
 		{
 			return null;
 		}
 		Map<Integer, String> names = cachedItemNames;
-		return localClogCache.toClogResult(playerName, names != null ? names : new HashMap<>());
+		return localClogCache.toClogResult(normalized, names != null ? names : new HashMap<>());
 	}
 
 	/** Clear failure cooldowns (e.g. on login). TTLs auto-expire otherwise. */
@@ -234,7 +242,7 @@ public class ClogFetchService
 			return CompletableFuture.completedFuture(null);
 		}
 
-		String encoded = URLEncoder.encode(playerName, StandardCharsets.UTF_8);
+		String encoded = RsnNormalizer.encodeQueryValue(playerName);
 		String url = TEMPLE_PLAYER_URL + "?player=" + encoded + "&categories=all";
 
 		return httpGet(url).thenApply(resp ->
@@ -336,8 +344,7 @@ public class ClogFetchService
 			return CompletableFuture.completedFuture(null);
 		}
 
-		// RSN in path: spaces must be %20 (URLEncoder yields '+', valid only in query)
-		String encoded = URLEncoder.encode(playerName, StandardCharsets.UTF_8).replace("+", "%20");
+		String encoded = RsnNormalizer.encodeQueryValue(playerName);
 		String url = RUNEPROFILE_BASE_URL + encoded + "/collection-log";
 
 		return httpGet(url).thenApply(resp ->

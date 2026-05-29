@@ -1,8 +1,6 @@
 package com.clanclog;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -150,7 +148,7 @@ public class HiscoreService
 	 */
 	public HiscoreResult getCached(String playerName)
 	{
-		CachedResult cached = cache.get(playerName.toLowerCase());
+		CachedResult cached = cache.get(RsnNormalizer.cacheKey(playerName));
 		return cached != null ? cached.result : null;
 	}
 
@@ -159,7 +157,7 @@ public class HiscoreService
 	 */
 	public boolean isStale(String playerName)
 	{
-		CachedResult cached = cache.get(playerName.toLowerCase());
+		CachedResult cached = cache.get(RsnNormalizer.cacheKey(playerName));
 		return cached == null || cached.isStale();
 	}
 
@@ -175,13 +173,18 @@ public class HiscoreService
 	 */
 	public CompletableFuture<HiscoreResult> lookupRegularOnly(String playerName)
 	{
-		String encoded = URLEncoder.encode(playerName, StandardCharsets.UTF_8);
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return CompletableFuture.completedFuture(null);
+		}
+		String encoded = RsnNormalizer.encodeQueryValue(normalized);
 		return fetchAsync("hiscore_oldschool", encoded).thenApply(body ->
 		{
 			if (body != null)
 			{
 				HiscoreResult result = parseHiscoreBody(body, AccountType.REGULAR);
-				cache.put(playerName.toLowerCase(),
+				cache.put(RsnNormalizer.cacheKey(normalized),
 					new CachedResult(result, System.currentTimeMillis()));
 				return result;
 			}
@@ -195,22 +198,27 @@ public class HiscoreService
 	 */
 	public CompletableFuture<HiscoreResult> lookup(String playerName, AccountType knownType)
 	{
-		return attemptLookup(playerName, knownType).thenCompose(result ->
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return CompletableFuture.completedFuture(null);
+		}
+		return attemptLookup(normalized, knownType).thenCompose(result ->
 		{
 			if (result != null)
 			{
-				cache.put(playerName.toLowerCase(),
+				cache.put(RsnNormalizer.cacheKey(normalized),
 					new CachedResult(result, System.currentTimeMillis()));
 				return CompletableFuture.completedFuture(result);
 			}
 			CompletableFuture<HiscoreResult> retry = new CompletableFuture<>();
 			CompletableFuture.delayedExecutor(500, TimeUnit.MILLISECONDS)
-				.execute(() -> attemptLookup(playerName, knownType)
+				.execute(() -> attemptLookup(normalized, knownType)
 					.whenComplete((r, ex) ->
 					{
 						if (r != null)
 						{
-							cache.put(playerName.toLowerCase(),
+							cache.put(RsnNormalizer.cacheKey(normalized),
 								new CachedResult(r, System.currentTimeMillis()));
 						}
 						retry.complete(r);
@@ -222,7 +230,7 @@ public class HiscoreService
 	private CompletableFuture<HiscoreResult> attemptLookup(String playerName,
 		AccountType knownType)
 	{
-		String encoded = URLEncoder.encode(playerName, StandardCharsets.UTF_8);
+		String encoded = RsnNormalizer.encodeQueryValue(playerName);
 
 		CompletableFuture<String> uimFuture = fetchAsync("hiscore_oldschool_ultimate", encoded);
 		CompletableFuture<String> hcimFuture = fetchAsync("hiscore_oldschool_hardcore_ironman", encoded);
@@ -503,6 +511,8 @@ public class HiscoreService
 				{
 					if (!response.isSuccessful() || body == null)
 					{
+						log.debug("Hiscore {} returned HTTP {} for {}",
+							hiscoreKey, response.code(), encodedPlayer);
 						future.complete(null);
 						return;
 					}

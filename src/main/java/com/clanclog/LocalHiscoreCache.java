@@ -54,7 +54,12 @@ public class LocalHiscoreCache
 	@Nullable
 	public HiscoreResult get(String rsn)
 	{
-		String key = rsn.toLowerCase();
+		String normalized = RsnNormalizer.normalize(rsn);
+		if (normalized.isEmpty())
+		{
+			return null;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 		CachedEntry entry = memory.get(key);
 		if (entry != null)
 		{
@@ -62,7 +67,7 @@ public class LocalHiscoreCache
 		}
 
 		// Try disk
-		CachedEntry loaded = loadFromDisk(rsn);
+		CachedEntry loaded = loadFromDisk(normalized);
 		if (loaded != null)
 		{
 			memory.put(key, loaded);
@@ -77,12 +82,17 @@ public class LocalHiscoreCache
 	 */
 	public boolean isStale(String rsn)
 	{
-		String key = rsn.toLowerCase();
+		String normalized = RsnNormalizer.normalize(rsn);
+		if (normalized.isEmpty())
+		{
+			return true;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 		CachedEntry entry = memory.get(key);
 		if (entry == null)
 		{
 			// Check disk before declaring stale
-			CachedEntry loaded = loadFromDisk(rsn);
+			CachedEntry loaded = loadFromDisk(normalized);
 			if (loaded != null)
 			{
 				memory.put(key, loaded);
@@ -103,13 +113,18 @@ public class LocalHiscoreCache
 			return;
 		}
 
-		String key = rsn.toLowerCase();
+		String normalized = RsnNormalizer.normalize(rsn);
+		if (normalized.isEmpty())
+		{
+			return;
+		}
+		String key = RsnNormalizer.cacheKey(normalized);
 		CachedEntry entry = new CachedEntry(result, System.currentTimeMillis());
 		memory.put(key, entry);
 
 		// Async disk write
 		DiskRecord record = new DiskRecord();
-		record.rsn = rsn;
+		record.rsn = normalized;
 		record.timestamp = entry.timestamp;
 		record.accountType = result.getAccountType().name();
 		record.bossKills = result.getBossKills();
@@ -124,7 +139,7 @@ public class LocalHiscoreCache
 
 		try
 		{
-			diskWriter.execute(() -> saveToDisk(rsn, record));
+			diskWriter.execute(() -> saveToDisk(normalized, record));
 		}
 		catch (RejectedExecutionException ignored)
 		{
@@ -214,7 +229,7 @@ public class LocalHiscoreCache
 
 	private File getCacheFile(String rsn)
 	{
-		String sanitized = rsn.toLowerCase()
+		String sanitized = RsnNormalizer.cacheKey(rsn)
 			.replace(' ', '_')
 			.replaceAll("[^a-z0-9_-]", "");
 		return new File(CACHE_DIR, sanitized + ".json");

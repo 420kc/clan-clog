@@ -200,6 +200,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		searchBar.addActionListener(e -> onSubmit());
 		styleSearchBar(searchBar);
 		installPlaceholder(searchBar);
+		installOwnClanShortcut(searchBar);
 		add(searchBar, c);
 
 		// Compact profile row: clan name, activities toggle, contextual actions.
@@ -296,15 +297,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			final String target = autoLoad;
 			SwingUtilities.invokeLater(() ->
 			{
-				searchBar.setText(target);
-				for (Component child : searchBar.getComponents())
-				{
-					if (child instanceof FlatTextField)
-					{
-						((FlatTextField) child).getTextField().setForeground(KC_TEXT);
-						break;
-					}
-				}
+				setSearchText(target);
 				onSubmit();
 			});
 		}
@@ -386,8 +379,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		row.add(trayToggle, rc);
 
 		rc.gridx = 2;
-		rc.weightx = 0;
-		rc.fill = GridBagConstraints.NONE;
+		rc.weightx = 1.0;
+		rc.fill = GridBagConstraints.HORIZONTAL;
 		rc.anchor = GridBagConstraints.EAST;
 		rc.insets = new Insets(0, 4, 0, 0);
 		row.add(actions, rc);
@@ -532,6 +525,75 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 	}
 
+	private void installOwnClanShortcut(Container root)
+	{
+		MouseAdapter listener = new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				if (!SwingUtilities.isLeftMouseButton(e) || e.getClickCount() < 2)
+				{
+					return;
+				}
+				Component source = (Component) e.getSource();
+				java.awt.Point p = SwingUtilities.convertPoint(source, e.getPoint(), searchBar);
+				if (p.x <= 28)
+				{
+					loadOwnClanFromShortcut();
+				}
+			}
+		};
+		installMouseListener(root, listener);
+	}
+
+	private static void installMouseListener(Component component, MouseAdapter listener)
+	{
+		component.addMouseListener(listener);
+		if (component instanceof Container)
+		{
+			for (Component child : ((Container) component).getComponents())
+			{
+				installMouseListener(child, listener);
+			}
+		}
+	}
+
+	private void loadOwnClanFromShortcut()
+	{
+		String name = clanReader.currentClanName();
+		List<ClanMember> roster = clanReader.currentRoster();
+		if (name == null || roster == null || roster.isEmpty())
+		{
+			setStatus("open your clan tab in-game first");
+			return;
+		}
+		onInGameRosterRefreshed(new ArrayList<>(roster));
+	}
+
+	private void setSearchText(String text)
+	{
+		searchBar.setText(text == null ? "" : text);
+		setSearchForeground(KC_TEXT);
+	}
+
+	private void clearSearchText()
+	{
+		setSearchText("");
+	}
+
+	private void setSearchForeground(Color color)
+	{
+		for (Component child : searchBar.getComponents())
+		{
+			if (child instanceof FlatTextField)
+			{
+				((FlatTextField) child).getTextField().setForeground(color);
+				return;
+			}
+		}
+	}
+
 	private void onSubmit()
 	{
 		String raw = searchBar.getText().trim();
@@ -607,6 +669,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clearSyncState();
 		}
 		setClanHeaderText(clanName);
+		clearSearchText();
 		String progressPrefix = syncEligible ? "Clanalyzing your members: "
 			: "building public clan profile: ";
 		setStatus(progressPrefix + "0/" + roster.size());
@@ -854,6 +917,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingClanName = name;
 		pendingRoster = new ArrayList<>(roster);
 		setClanHeaderText(name);
+		clearSearchText();
 		membersPanel.renderRoster(name, pendingRoster);
 		setStatus("ready · press clanalyze to start");
 		clanalyzeButton.setVisible(true);
@@ -1022,6 +1086,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (name != null && !name.isEmpty())
 		{
 			setClanHeaderText(name);
+			clearSearchText();
 			rememberClan(name);
 		}
 		if (!result.hasAggregateData() && !result.getMembers().isEmpty())

@@ -37,8 +37,10 @@ public class ClanMember
 		String rankName, AccountType accountType, String build, long totalXp,
 		String lastUpdatedAt, LocalDate joinDate)
 	{
-		this.rsn = rsn;
-		this.displayName = displayName;
+		String normalizedRsn = RsnNormalizer.normalize(rsn);
+		String normalizedDisplayName = RsnNormalizer.normalize(displayName);
+		this.rsn = normalizedRsn;
+		this.displayName = normalizedDisplayName.isEmpty() ? normalizedRsn : normalizedDisplayName;
 		this.role = role;
 		this.rankName = rankName;
 		this.accountType = accountType;

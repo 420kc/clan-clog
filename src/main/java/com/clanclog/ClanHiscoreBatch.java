@@ -186,7 +186,7 @@ public class ClanHiscoreBatch
 						}
 						else
 						{
-							log.debug("Lookup returned null for {} (rate-limited?)", member.getRsn());
+							log.debug("Lookup returned null for {}", member.getRsn());
 							out.complete(cached);
 						}
 					});
