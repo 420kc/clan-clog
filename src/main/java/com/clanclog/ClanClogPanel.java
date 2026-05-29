@@ -992,27 +992,27 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				// Coverage buckets, mutually exclusive so they sum to the roster
 				// size. Honest input for the sync + the killclog.com/c surface:
 				// don't imply complete data when only a subset resolved.
-				int templeOk = 0;       // clog data obtained (Temple/RuneProfile)
-				int templeMissing = 0;  // on hiscores but no clog
+				int clogOk = 0;       // clog data obtained from any provider
+				int hiscoreOnly = 0;  // on hiscores but no clog
 				int notFound = 0;       // neither hiscore nor clog
 				for (ClanMember m : roster)
 				{
 					if (m.getClog() != null)
 					{
-						templeOk++;
+						clogOk++;
 					}
 					else if (m.getHiscore() != null)
 					{
-						templeMissing++;
+						hiscoreOnly++;
 					}
 					else
 					{
 						notFound++;
 					}
 				}
-				int clogCount = templeOk;
+				int clogCount = clogOk;
 				partialResult.setMemberCoverage(new ClanClogResult.MemberCoverage(
-					roster.size(), templeOk, templeMissing, 0, notFound, 0));
+					roster.size(), clogOk, hiscoreOnly, 0, notFound, 0));
 				setCoverageCounts(hiscoreHits, clogCount);
 				setStatus("done");
 
@@ -1101,13 +1101,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			cached.setClog(union);
 		}
 
-		int templeMissing = 0;
+		int hiscoreOnly = 0;
 		int notFound = 0;
 		for (ClanMember member : roster)
 		{
 			if (member.getClog() == null && member.getHiscore() != null)
 			{
-				templeMissing++;
+				hiscoreOnly++;
 			}
 			else if (member.getClog() == null)
 			{
@@ -1115,7 +1115,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			}
 		}
 		cached.setMemberCoverage(new ClanClogResult.MemberCoverage(
-			roster.size(), clogHits, templeMissing, 0, notFound, 0));
+			roster.size(), clogHits, hiscoreOnly, 0, notFound, 0));
 
 		cells.renderClanResult(cached);
 		membersPanel.renderRoster(clanName, roster);
@@ -1349,8 +1349,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clearCoverageCounts();
 			return;
 		}
-		int hiscoreHits = cov.getTempleOk() + cov.getTempleMissing() + cov.getOptedOut();
-		setCoverageCounts(hiscoreHits, cov.getTempleOk());
+		int hiscoreHits = cov.getClogOk() + cov.getHiscoreOnly() + cov.getOptedOut();
+		setCoverageCounts(hiscoreHits, cov.getClogOk());
 	}
 
 	private void clearCoverageCounts()

@@ -818,11 +818,11 @@ public class Cells
 		ClanClogResult.MemberCoverage coverage = result.getMemberCoverage();
 		if (coverage != null && coverage.getTotal() > 0)
 		{
-			tip.addLine("Synced members: ",
-				coverage.getTempleOk() + "/" + coverage.getTotal(),
-				coverageColor(coverage.getTempleOk(), coverage.getTotal()));
-			addPositiveLine(tip, "Missing: ", coverage.getTempleMissing());
-			addPositiveLine(tip, "Not found: ", coverage.getNotFound());
+			tip.addLine("Clog members: ",
+				coverage.getClogOk() + "/" + coverage.getTotal(),
+				coverageColor(coverage.getClogOk(), coverage.getTotal()));
+			addPositiveLine(tip, "Hiscore only: ", coverage.getHiscoreOnly());
+			addPositiveLine(tip, "No data: ", coverage.getNotFound());
 			addPositiveLine(tip, "Opted out: ", coverage.getOptedOut());
 			addPositiveLine(tip, "Errors: ", coverage.getError(), ClogHelper.COLOR_EMPTY);
 		}

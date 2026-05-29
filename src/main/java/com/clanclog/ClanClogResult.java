@@ -288,8 +288,9 @@ public class ClanClogResult
 	/**
 	 * Member-coverage tally. Every member ends up in exactly one bucket so
 	 * {@code total == temple_ok + temple_missing + opted_out + not_found + error}.
-	 * Powers the honest "N of M members synced with Temple" UI surface per
-	 * the public-safety canon.
+	 * The wire field names are legacy Temple-era names; in-plugin semantics are
+	 * source neutral: "ok" means any clog provider, and "missing" means hiscore
+	 * data exists but no collection-log provider covered that member.
 	 */
 	public static class MemberCoverage
 	{
@@ -328,7 +329,17 @@ public class ClanClogResult
 			return templeOk;
 		}
 
+		public int getClogOk()
+		{
+			return templeOk;
+		}
+
 		public int getTempleMissing()
+		{
+			return templeMissing;
+		}
+
+		public int getHiscoreOnly()
 		{
 			return templeMissing;
 		}
