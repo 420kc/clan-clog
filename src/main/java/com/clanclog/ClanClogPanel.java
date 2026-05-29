@@ -62,6 +62,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final WomClient womClient;
 	private final ClanHiscoreBatch batch;
 	private final ClanClogBatch clogBatch;
+	private final LocalHiscoreCache hiscoreCache;
+	private final ClogFetchService clogFetchService;
 	private final InGameClanReader clanReader;
 	private final KillclogApiClient apiClient;
 	private final ClanLookupSession clanLookupSession;
@@ -146,6 +148,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, ConfigManager configManager,
 		WomClient womClient, ClanHiscoreBatch batch, ClanClogBatch clogBatch,
+		LocalHiscoreCache hiscoreCache, ClogFetchService clogFetchService,
 		InGameClanReader clanReader, KillclogApiClient apiClient,
 		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel)
 	{
@@ -155,6 +158,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		this.womClient = womClient;
 		this.batch = batch;
 		this.clogBatch = clogBatch;
+		this.hiscoreCache = hiscoreCache;
+		this.clogFetchService = clogFetchService;
 		this.clanReader = clanReader;
 		this.apiClient = apiClient;
 		this.clanLookupSession = clanLookupSession;
@@ -896,6 +901,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				// Show sync button only for the user's verified in-game clan.
 				if (syncEligible)
 				{
+					showClanalyzeButton("refresh", "refresh clan profile");
 					updateSyncButtonVisibility();
 				}
 			}));
@@ -928,12 +934,94 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingRoster = new ArrayList<>(roster);
 		setClanHeaderText(name);
 		clearSearchText();
-		membersPanel.renderRoster(name, pendingRoster);
-		setStatus("ready · press clanalyze to start");
-		clanalyzeButton.setVisible(true);
-		clanalyzeButton.setEnabled(true);
+		if (!renderCachedClanProfile(name, pendingRoster, true))
+		{
+			membersPanel.renderRoster(name, pendingRoster);
+			setStatus("ready · press clanalyze to start");
+			showClanalyzeButton("clanalyze", "build clan profile");
+		}
 		revalidate();
 		repaint();
+	}
+
+	private boolean renderCachedClanProfile(String clanName, List<ClanMember> roster,
+		boolean syncEligible)
+	{
+		int hiscoreHits = 0;
+		int clogHits = 0;
+		for (ClanMember member : roster)
+		{
+			HiscoreResult hiscore = hiscoreCache.get(member.getRsn());
+			if (hiscore != null)
+			{
+				member.setHiscore(hiscore);
+				hiscoreHits++;
+			}
+
+			ClogResult clog = clogFetchService.getCached(member.getRsn());
+			if (clog != null)
+			{
+				member.setClog(clog);
+				clogHits++;
+			}
+		}
+
+		if (hiscoreHits == 0 && clogHits == 0)
+		{
+			return false;
+		}
+
+		String slug = slugify(clanName);
+		ClanClogResult cached = RosterClogBuilder.fromHiscores(clanName, slug, roster, null);
+		ClanClogResult.ClogUnion union = RosterClogBuilder.buildClogUnion(roster);
+		if (union != null)
+		{
+			cached.setClog(union);
+		}
+
+		int templeMissing = 0;
+		int notFound = 0;
+		for (ClanMember member : roster)
+		{
+			if (member.getClog() == null && member.getHiscore() != null)
+			{
+				templeMissing++;
+			}
+			else if (member.getClog() == null)
+			{
+				notFound++;
+			}
+		}
+		cached.setMemberCoverage(new ClanClogResult.MemberCoverage(
+			roster.size(), clogHits, templeMissing, 0, notFound, 0));
+
+		cells.renderClanResult(cached);
+		membersPanel.renderRoster(clanName, roster);
+		rememberClan(clanName);
+		if (syncEligible)
+		{
+			lastRenderedResult = cached;
+			lastLoadedRoster = roster;
+			lastLoadedClanName = clanName;
+			lastLoadedSlug = slug;
+			showClanalyzeButton("refresh", "refresh clan profile");
+			updateSyncButtonVisibility();
+		}
+		else
+		{
+			clearSyncState();
+		}
+		setStatus("cached · " + roster.size() + " members ("
+			+ hiscoreHits + " hiscores, " + clogHits + " clogs)");
+		return true;
+	}
+
+	private void showClanalyzeButton(String text, String tooltip)
+	{
+		clanalyzeButton.setText(text);
+		clanalyzeButton.setToolTipText(tooltip);
+		clanalyzeButton.setEnabled(true);
+		clanalyzeButton.setVisible(true);
 	}
 
 	/**
