@@ -1,6 +1,8 @@
 package com.clanclog;
 
 import com.google.gson.annotations.SerializedName;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -62,6 +64,9 @@ public class ClanClogResult
 	@SerializedName("member_count")
 	private int memberCount;
 
+	@SerializedName("members")
+	private List<ProfileMember> members;
+
 	@SerializedName("roster_hash")
 	private String rosterHash;
 
@@ -117,6 +122,24 @@ public class ClanClogResult
 	public int getMemberCount()
 	{
 		return memberCount;
+	}
+
+	public List<ClanMember> getMembers()
+	{
+		if (members == null || members.isEmpty())
+		{
+			return Collections.emptyList();
+		}
+		List<ClanMember> out = new ArrayList<>(members.size());
+		for (ProfileMember member : members)
+		{
+			ClanMember clanMember = member.toClanMember();
+			if (clanMember != null)
+			{
+				out.add(clanMember);
+			}
+		}
+		return out;
 	}
 
 	public String getRosterHash()
@@ -178,6 +201,50 @@ public class ClanClogResult
 	}
 
 	// ── Package-private mutators for roster-derived overlays ──────────────
+
+	private static class ProfileMember
+	{
+		@SerializedName("rsn")          private String rsn;
+		@SerializedName("rank")         private String rank;
+		@SerializedName("custom_title") private String customTitle;
+		@SerializedName("join_date")    private String joinDate;
+
+		private ClanMember toClanMember()
+		{
+			if (rsn == null || rsn.isBlank())
+			{
+				return null;
+			}
+			String role = customTitle != null && !customTitle.isBlank()
+				? customTitle : rank;
+			return new ClanMember(
+				rsn,
+				rsn,
+				role,
+				rank,
+				AccountType.REGULAR,
+				null,
+				0L,
+				null,
+				parseJoinDate(joinDate));
+		}
+
+		private static LocalDate parseJoinDate(String raw)
+		{
+			if (raw == null || raw.isBlank())
+			{
+				return null;
+			}
+			try
+			{
+				return LocalDate.parse(raw);
+			}
+			catch (DateTimeParseException ignored)
+			{
+				return null;
+			}
+		}
+	}
 
 	/** Replace boss aggregates with live hiscore-derived data. */
 	void setBosses(Map<String, BossAggregate> bosses)
