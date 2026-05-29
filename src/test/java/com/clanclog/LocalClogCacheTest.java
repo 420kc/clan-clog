@@ -10,6 +10,7 @@ import java.util.Map;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class LocalClogCacheTest
@@ -33,6 +34,7 @@ public class LocalClogCacheTest
 		List<ClogResult.ClogItem> obtained = result.getObtainedItems().get("phantom_muspah");
 		Map<Integer, Integer> counts = countsById(obtained);
 
+		assertNotNull(result.getLastChanged());
 		assertEquals(2, obtained.size());
 		assertEquals(Integer.valueOf(3), counts.get(1));
 		assertEquals(Integer.valueOf(1), counts.get(2));
