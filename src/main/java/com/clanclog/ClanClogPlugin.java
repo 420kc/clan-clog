@@ -6,7 +6,9 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
@@ -270,6 +272,31 @@ public class ClanClogPlugin extends Plugin
 		if (allItemIds.isEmpty())
 		{
 			return;
+		}
+
+		// Some untradeables are hidden in the widget; the header still knows they are obtained.
+		if (obtainedCount > obtained.size() && obtainedCount <= allItemIds.size())
+		{
+			Set<Integer> obtainedIds = new HashSet<>();
+			for (ClogResult.ClogItem item : obtained)
+			{
+				obtainedIds.add(item.getId());
+			}
+
+			int missing = obtainedCount - obtained.size();
+			for (int itemId : allItemIds)
+			{
+				if (!obtainedIds.contains(itemId))
+				{
+					obtained.add(new ClogResult.ClogItem(itemId, 1, null));
+					obtainedIds.add(itemId);
+					missing--;
+					if (missing <= 0)
+					{
+						break;
+					}
+				}
+			}
 		}
 
 		String signature = local.getName() + "|" + categoryKey + "|" + allItemIds.hashCode()
