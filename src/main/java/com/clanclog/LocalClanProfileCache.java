@@ -6,7 +6,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -122,6 +124,7 @@ public class LocalClanProfileCache
 
 	private void saveToDisk(String slug, StoredProfile profile)
 	{
+		File tmp = null;
 		try
 		{
 			if (!CACHE_DIR.exists())
@@ -129,15 +132,40 @@ public class LocalClanProfileCache
 				CACHE_DIR.mkdirs();
 			}
 			File file = new File(CACHE_DIR, slug + ".json");
-			try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8))
+			tmp = File.createTempFile(slug + "-", ".tmp", CACHE_DIR);
+			try (BufferedWriter writer = Files.newBufferedWriter(tmp.toPath(), StandardCharsets.UTF_8))
 			{
 				gson.toJson(profile, writer);
 			}
+			replaceCacheFile(tmp, file);
+			tmp = null;
 			log.debug("Saved clan profile cache: {}", file.getName());
 		}
 		catch (IOException | AssertionError e)
 		{
+			deleteQuietly(tmp);
 			log.debug("Failed to save clan profile cache for '{}': {}", slug, e.getMessage());
+		}
+	}
+
+	private static void replaceCacheFile(File source, File target) throws IOException
+	{
+		try
+		{
+			Files.move(source.toPath(), target.toPath(),
+				StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+		}
+		catch (AtomicMoveNotSupportedException ignored)
+		{
+			Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+
+	private static void deleteQuietly(@Nullable File file)
+	{
+		if (file != null && file.exists() && !file.delete())
+		{
+			log.debug("Failed to delete clan profile cache temp file: {}", file.getName());
 		}
 	}
 
