@@ -377,37 +377,62 @@ public class ClanMembersView extends JPanel
 
 	private static Component buildSearchRow(WomGroup g, java.util.function.IntConsumer onPick)
 	{
-		JPanel row = new JPanel(new BorderLayout(8, 0));
-		row.setOpaque(true);
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(new EmptyBorder(4, 6, 4, 6));
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
-
-		JLabel name = new JLabel(g.name != null ? g.name : "(unnamed)");
-		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(KC_TEXT);
-
-		JLabel meta = new JLabel(g.memberCount + " · #" + g.id);
-		meta.setFont(FontManager.getRunescapeSmallFont());
-		meta.setForeground(TEXT_DIM);
-		meta.setHorizontalAlignment(JLabel.RIGHT);
-
-		row.add(name, BorderLayout.WEST);
-		row.add(meta, BorderLayout.EAST);
-		String tooltip = "<html><b>" + escapeHtml(name.getText()) + "</b><br>"
+		String name = g.name != null ? g.name : "(unnamed)";
+		String tooltip = "<html><b>" + escapeHtml(name) + "</b><br>"
 			+ "Source: Wise Old Man public roster<br>"
 			+ "Members: " + String.format("%,d", g.memberCount) + "<br>"
 			+ "Group id: " + g.id + "</html>";
+		return buildSearchResultRow(
+			name,
+			"public roster · Wise Old Man",
+			String.format("%,d members", g.memberCount),
+			"#" + g.id,
+			TEXT_DIM,
+			tooltip,
+			() -> onPick.accept(g.id));
+	}
+
+	private static Component buildSearchResultRow(String title, String detail,
+		String rightTop, String rightBottom, Color rightBottomColor,
+		String tooltip, Runnable onClick)
+	{
+		JPanel row = new JPanel(new BorderLayout(8, 0));
+		row.setOpaque(true);
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setBorder(new EmptyBorder(3, 6, 3, 6));
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+
+		JLabel name = searchLabel(title, KC_TEXT, JLabel.LEFT);
+		JLabel meta = searchLabel(detail, TEXT_DIM, JLabel.LEFT);
+		JLabel count = searchLabel(rightTop, KC_TEXT, JLabel.RIGHT);
+		JLabel status = searchLabel(rightBottom, rightBottomColor, JLabel.RIGHT);
+
+		JPanel identity = new JPanel(new GridLayout(2, 1, 0, 0));
+		identity.setOpaque(false);
+		identity.add(name);
+		identity.add(meta);
+
+		JPanel receipt = new JPanel(new GridLayout(2, 1, 0, 0));
+		receipt.setOpaque(false);
+		receipt.add(count);
+		receipt.add(status);
+
+		row.add(identity, BorderLayout.CENTER);
+		row.add(receipt, BorderLayout.EAST);
 		row.setToolTipText(tooltip);
 		name.setToolTipText(tooltip);
 		meta.setToolTipText(tooltip);
+		count.setToolTipText(tooltip);
+		status.setToolTipText(tooltip);
+		identity.setToolTipText(tooltip);
+		receipt.setToolTipText(tooltip);
 
 		row.addMouseListener(new MouseAdapter()
 		{
 			@Override
 			public void mouseClicked(MouseEvent e)
 			{
-				onPick.accept(g.id);
+				onClick.run();
 			}
 
 			@Override
@@ -428,54 +453,55 @@ public class ClanMembersView extends JPanel
 	private static Component buildProfileSearchRow(KillclogApiClient.ClanSearchMatch match,
 		Consumer<String> onPick)
 	{
-		JPanel row = new JPanel(new BorderLayout(8, 0));
-		row.setOpaque(true);
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(new EmptyBorder(4, 6, 4, 6));
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
-
-		JLabel name = new JLabel(match.getDisplayName() != null
-			? match.getDisplayName() : match.getSlug());
-		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(KC_TEXT);
-
-		JLabel meta = new JLabel(match.getMemberCount() + " · "
-			+ prettyRole(match.getSourceTier()));
-		meta.setFont(FontManager.getRunescapeSmallFont());
-		meta.setForeground(TEXT_DIM);
-		meta.setHorizontalAlignment(JLabel.RIGHT);
-
-		row.add(name, BorderLayout.WEST);
-		row.add(meta, BorderLayout.EAST);
-		String tooltip = profileSearchTooltip(match, name.getText());
-		row.setToolTipText(tooltip);
-		name.setToolTipText(tooltip);
-		meta.setToolTipText(tooltip);
-
-		row.addMouseListener(new MouseAdapter()
-		{
-			@Override
-			public void mouseClicked(MouseEvent e)
+		String name = match.getDisplayName() != null
+			? match.getDisplayName() : match.getSlug();
+		String source = prettyRole(match.getSourceTier());
+		String build = prettyRole(match.getBuildStatus());
+		String tooltip = profileSearchTooltip(match, name);
+		return buildSearchResultRow(
+			name,
+			"profile · " + fallbackText(source, "killclog.com"),
+			String.format("%,d members", match.getMemberCount()),
+			fallbackText(build, match.getSlug()),
+			statusColor(match.getBuildStatus()),
+			tooltip,
+			() ->
 			{
 				if (match.getSlug() != null && !match.getSlug().isBlank())
 				{
 					onPick.accept(match.getSlug());
 				}
-			}
+			});
+	}
 
-			@Override
-			public void mouseEntered(MouseEvent e)
-			{
-				row.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
-			}
+	private static JLabel searchLabel(String text, Color color, int alignment)
+	{
+		JLabel label = new JLabel(text);
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setForeground(color);
+		label.setHorizontalAlignment(alignment);
+		label.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		return label;
+	}
 
-			@Override
-			public void mouseExited(MouseEvent e)
-			{
-				row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			}
-		});
-		return row;
+	private static Color statusColor(String status)
+	{
+		if ("ready".equals(status) || "game_verified".equals(status))
+		{
+			return ClogHelper.COLOR_COMPLETED;
+		}
+		if ("building".equals(status) || "public_discovered".equals(status))
+		{
+			return ClogHelper.COLOR_IN_PROGRESS;
+		}
+		return TEXT_DIM;
+	}
+
+	private static String fallbackText(String value, String fallback)
+	{
+		return value != null && !value.isBlank() ? value : fallback;
 	}
 
 	private static String profileSearchTooltip(KillclogApiClient.ClanSearchMatch match,

@@ -83,7 +83,9 @@ public class ClanMembersViewTest
 
 		List<String> labels = labelTexts(viewRef.get());
 		assertTrue(labels.contains("Clannabis"));
-		assertTrue(labels.contains("37 · game verified"));
+		assertTrue(labels.contains("profile · game verified"));
+		assertTrue(labels.contains("37 members"));
+		assertTrue(labels.contains("ready"));
 		assertTrue(tooltips(viewRef.get()).stream().anyMatch(t -> t.contains("Build: ready")
 			&& t.contains("Last built: 2026-05-29T12:00:00Z")
 			&& t.contains("Slug: clannabis")));
@@ -111,7 +113,9 @@ public class ClanMembersViewTest
 		});
 
 		assertTrue(labelTexts(viewRef.get()).contains("Clannabis CC"));
-		assertTrue(labelTexts(viewRef.get()).contains("101 · #101"));
+		assertTrue(labelTexts(viewRef.get()).contains("public roster · Wise Old Man"));
+		assertTrue(labelTexts(viewRef.get()).contains("101 members"));
+		assertTrue(labelTexts(viewRef.get()).contains("#101"));
 		assertTrue(tooltips(viewRef.get()).stream().anyMatch(t ->
 			t.contains("Source: Wise Old Man public roster")
 				&& t.contains("Members: 101")
