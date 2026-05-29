@@ -903,6 +903,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clanHeader.setText(name);
 			rememberClan(name);
 		}
+		if (!result.hasAggregateData() && !result.getMembers().isEmpty())
+		{
+			loadFromRoster(name != null && !name.isEmpty() ? name : slug,
+				result.getMembers(), false);
+			return;
+		}
 		// Surface coverage honestly: show how many members actually have clog
 		// data and when the clan was last synced, not just a member count.
 		ClanClogResult.MemberCoverage cov = result.getMemberCoverage();
@@ -912,7 +918,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		String synced = result.getLastSyncedAt();
 		String when = synced != null && synced.contains("T")
 			? synced.substring(0, synced.indexOf('T')) : synced;
-		setStatus("synced clog · " + coverage + (when != null ? " · " + when : ""));
+		String prefix = result.isRosterOnlyProfile() ? "clan profile" : "synced clog";
+		setStatus(prefix + " · " + coverage + (when != null ? " · " + when : ""));
 		cells.renderClanResult(result);
 	}
 
