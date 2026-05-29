@@ -79,6 +79,31 @@ public class LocalClogCacheTest
 		assertEquals(0, cache.categoryCount("missing kc"));
 	}
 
+	@Test
+	public void providerCachePreservesLocalCategoryGains() throws Exception
+	{
+		LocalClogCache cache = new LocalClogCache(new Gson(), tempDir());
+		cache.mergeCategory("420 kc", "phantom_muspah",
+			Arrays.asList(1, 2, 3),
+			Arrays.asList(
+				new ClogResult.ClogItem(1, 2, null),
+				new ClogResult.ClogItem(2, 1, null)));
+
+		Map<String, List<Integer>> categories = new HashMap<>();
+		categories.put("phantom_muspah", Arrays.asList(1, 2, 3));
+		Map<String, List<ClogResult.ClogItem>> obtained = new HashMap<>();
+		obtained.put("phantom_muspah",
+			Arrays.asList(new ClogResult.ClogItem(1, 1, null)));
+		cache.cacheResult(new ClogResult("420 kc", obtained, categories, new HashMap<>(), null, null));
+
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+		Map<Integer, Integer> counts = countsById(result.getObtainedItems().get("phantom_muspah"));
+
+		assertEquals(2, counts.size());
+		assertEquals(Integer.valueOf(2), counts.get(1));
+		assertEquals(Integer.valueOf(1), counts.get(2));
+	}
+
 	private static File tempDir() throws Exception
 	{
 		return Files.createTempDirectory("clan-clog-cache-test").toFile();

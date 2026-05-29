@@ -251,7 +251,30 @@ public class LocalClogCache
 			: result.getObtainedItems().entrySet())
 		{
 			String cat = entry.getKey();
-			data.obtained.put(cat, new ArrayList<>(entry.getValue()));
+			List<ClogResult.ClogItem> items = new ArrayList<>(entry.getValue());
+			if (existing != null && sameCatalog(
+				existing.categories.get(cat), data.categories.get(cat)))
+			{
+				items = mergeObtainedItems(existing.obtained.get(cat), items);
+			}
+			data.obtained.put(cat, items);
+		}
+		if (hasUsableData(existing))
+		{
+			for (Map.Entry<String, List<Integer>> entry : existing.categories.entrySet())
+			{
+				String cat = entry.getKey();
+				if (data.categories.containsKey(cat))
+				{
+					continue;
+				}
+				data.categories.put(cat, new ArrayList<>(entry.getValue()));
+				List<ClogResult.ClogItem> existingItems = existing.obtained.get(cat);
+				if (existingItems != null)
+				{
+					data.obtained.put(cat, new ArrayList<>(existingItems));
+				}
+			}
 		}
 
 		if (data.categories.isEmpty())
