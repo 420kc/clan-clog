@@ -226,6 +226,7 @@ public class Cells
 	@Nullable private JLabel membersCell;
 	@Nullable private JLabel totalKillsCell;
 	@Nullable private JLabel pvpSummaryCell;
+	@Nullable private ClanClogResult summaryResult;
 
 	@Inject
 	public Cells(SpriteManager spriteManager, ItemManager itemManager,
@@ -426,7 +427,14 @@ public class Cells
 	 */
 	public JPanel buildTotalCluesCell()
 	{
-		JLabel label = new JLabel();
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildClueSummaryTooltip();
+			}
+		};
 		styleLabel(label, "Total Clues");
 
 		// Clue scroll (all) sprite via HiscoreSkill
@@ -457,7 +465,14 @@ public class Cells
 	 */
 	public JPanel buildMembersCell()
 	{
-		JLabel label = new JLabel();
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildClanSummaryTooltip();
+			}
+		};
 		styleLabel(label, "Members");
 
 		// Clan icon from bundled resource (sprite 647 doesn't resolve via getSpriteAsync)
@@ -486,7 +501,14 @@ public class Cells
 	 */
 	public JPanel buildTotalKillsCell()
 	{
-		JLabel label = new JLabel();
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildTotalKillsTooltip();
+			}
+		};
 		styleLabel(label, "Total Kills");
 
 		// Slayer skill sprite
@@ -518,7 +540,14 @@ public class Cells
 	 */
 	public JPanel buildPvpSummaryCell()
 	{
-		JLabel label = new JLabel();
+		JLabel label = new JLabel()
+		{
+			@Override
+			public JToolTip createToolTip()
+			{
+				return buildPvpSummaryTooltip();
+			}
+		};
 		styleLabel(label, "PvP Summary");
 
 		// PvP skull sprite (sprite 439, same as Kill Clog)
@@ -552,6 +581,7 @@ public class Cells
 			clearCells();
 			return;
 		}
+		summaryResult = result;
 		renderBosses(result);
 		renderClueTiers(result);
 		renderRares(result);
@@ -563,6 +593,7 @@ public class Cells
 	/** Reset every cell to its placeholder state. Called when a lookup fails / returns nothing. */
 	public void clearCells()
 	{
+		summaryResult = null;
 		for (Map.Entry<String, JLabel> e : bossLabels.entrySet())
 		{
 			JLabel label = e.getValue();
@@ -680,20 +711,7 @@ public class Cells
 			totalCluesCell.setText(ClogHelper.pad(has ? ClogHelper.formatKc(display) : "--"));
 			totalCluesCell.setForeground(has ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
 
-			// Build tooltip: per-tier breakdown
-			StringBuilder tip = new StringBuilder("<html>Clue Summary");
-			for (String tier : CLUE_TIER_NAMES)
-			{
-				long count = activities.getOrDefault(tier, 0L);
-				tip.append("<br>").append(capitalizeTier(tier)).append(": ");
-				tip.append(count > 0 ? String.format("%,d", count) : "--");
-			}
-			// Mimic from boss aggregates
-			ClanClogResult.BossAggregate mimic = result.getBosses().get("Mimic");
-			long mimicKc = mimic != null ? mimic.getClanTotalKc() : 0;
-			tip.append("<br>Mimic: ").append(mimicKc > 0 ? String.format("%,d", mimicKc) : "--");
-			tip.append("</html>");
-			totalCluesCell.setToolTipText(tip.toString());
+			totalCluesCell.setToolTipText(" ");
 		}
 
 		// Members: member count
@@ -703,51 +721,19 @@ public class Cells
 			membersCell.setText(ClogHelper.pad(count > 0 ? String.format("%,d", count) : "--"));
 			membersCell.setForeground(count > 0 ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
 
-			// Build tooltip: boss + clog coverage from the result
-			long totalBossKc = 0;
-			int bossesWithKc = 0;
-			for (ClanClogResult.BossAggregate agg : result.getBosses().values())
-			{
-				if (agg.getClanTotalKc() > 0)
-				{
-					totalBossKc += agg.getClanTotalKc();
-					bossesWithKc++;
-				}
-			}
-			StringBuilder tip = new StringBuilder("<html>Clan Summary");
-			tip.append("<br>Members: ").append(count);
-			tip.append("<br>Total Boss KC: ").append(totalBossKc > 0
-				? String.format("%,d", totalBossKc) : "--");
-			tip.append("<br>Bosses killed: ").append(bossesWithKc)
-				.append("/").append(BOSS_DISPLAY_ORDER.length);
-			ClanClogResult.ClogUnion clog = result.getClog();
-			if (clog != null && clog.getTotalObtained() > 0)
-			{
-				tip.append("<br>Clog slots: ").append(String.format("%,d", clog.getTotalObtained()));
-			}
-			tip.append("</html>");
-			membersCell.setToolTipText(tip.toString());
+			membersCell.setToolTipText(" ");
 		}
 
 		// Total Kills: sum all boss KCs across the clan
 		if (totalKillsCell != null)
 		{
 			long totalKills = 0;
-			String topBoss = null;
-			long topKc = 0;
-			int bossesWithKc = 0;
 			for (Map.Entry<String, ClanClogResult.BossAggregate> e : result.getBosses().entrySet())
 			{
 				long kc = e.getValue().getClanTotalKc();
 				if (kc > 0)
 				{
 					totalKills += kc;
-					bossesWithKc++;
-					if (kc > topKc)
-					{
-						topKc = kc;
-						topBoss = e.getKey();
-					}
 				}
 			}
 			boolean has = totalKills > 0;
@@ -755,16 +741,7 @@ public class Cells
 				totalKills > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalKills) : "--"));
 			totalKillsCell.setForeground(has ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
 
-			StringBuilder tip = new StringBuilder("<html>Total Kills");
-			tip.append("<br>Clan KC: ").append(has ? String.format("%,d", totalKills) : "--");
-			tip.append("<br>Bosses: ").append(bossesWithKc).append("/").append(BOSS_DISPLAY_ORDER.length);
-			if (topBoss != null)
-			{
-				tip.append("<br>Most killed: ").append(topBoss)
-					.append(" (").append(String.format("%,d", topKc)).append(")");
-			}
-			tip.append("</html>");
-			totalKillsCell.setToolTipText(tip.toString());
+			totalKillsCell.setToolTipText(" ");
 		}
 
 		// PvP Summary: BH Hunter + BH Rogue (cell text, same as Kill Clog)
@@ -778,21 +755,142 @@ public class Cells
 			pvpSummaryCell.setText(ClogHelper.pad(has ? ClogHelper.formatKc(display) : "--"));
 			pvpSummaryCell.setForeground(has ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
 
-			// Per-activity breakdown tooltip
-			long lms = activities.getOrDefault("LMS - Rank", 0L);
-			long soulWars = activities.getOrDefault("Soul Wars Zeal", 0L);
-			long pvpArena = activities.getOrDefault("PvP Arena - Rank", 0L);
-			long colosseum = activities.getOrDefault("Colosseum Glory", 0L);
-			StringBuilder tip = new StringBuilder("<html>PvP Summary");
-			tip.append("<br>LMS: ").append(lms > 0 ? String.format("%,d", lms) : "--");
-			tip.append("<br>Soul Wars: ").append(soulWars > 0 ? String.format("%,d", soulWars) : "--");
-			tip.append("<br>PvP Arena: ").append(pvpArena > 0 ? String.format("%,d", pvpArena) : "--");
-			tip.append("<br>BH Hunter: ").append(bhHunter > 0 ? String.format("%,d", bhHunter) : "--");
-			tip.append("<br>BH Rogue: ").append(bhRogue > 0 ? String.format("%,d", bhRogue) : "--");
-			tip.append("<br>Colosseum: ").append(colosseum > 0 ? String.format("%,d", colosseum) : "--");
-			tip.append("</html>");
-			pvpSummaryCell.setToolTipText(tip.toString());
+			pvpSummaryCell.setToolTipText(" ");
 		}
+	}
+
+	private JToolTip buildClueSummaryTooltip()
+	{
+		ClanSummaryTooltip tip = new ClanSummaryTooltip("Clue Summary");
+		ClanClogResult result = summaryResult;
+		if (result == null)
+		{
+			return tip;
+		}
+
+		Map<String, Long> activities = result.getActivityTotals();
+		for (String tier : CLUE_TIER_NAMES)
+		{
+			long count = activities.getOrDefault(tier, 0L);
+			tip.addLine(capitalizeTier(tier) + ": ", formatTooltipCount(count),
+				tooltipValueColor(count));
+		}
+
+		ClanClogResult.BossAggregate mimic = result.getBosses().get("Mimic");
+		long mimicKc = mimic != null ? mimic.getClanTotalKc() : 0L;
+		tip.addLine("Mimic: ", formatTooltipCount(mimicKc), tooltipValueColor(mimicKc));
+		return tip;
+	}
+
+	private JToolTip buildClanSummaryTooltip()
+	{
+		ClanSummaryTooltip tip = new ClanSummaryTooltip("Clan Summary");
+		ClanClogResult result = summaryResult;
+		if (result == null)
+		{
+			return tip;
+		}
+
+		long totalBossKc = 0L;
+		int bossesWithKc = 0;
+		for (ClanClogResult.BossAggregate agg : result.getBosses().values())
+		{
+			if (agg.getClanTotalKc() > 0)
+			{
+				totalBossKc += agg.getClanTotalKc();
+				bossesWithKc++;
+			}
+		}
+
+		tip.addLine("Members: ", formatTooltipCount(result.getMemberCount()),
+			tooltipValueColor(result.getMemberCount()));
+		tip.addLine("Total Boss KC: ", formatTooltipCount(totalBossKc),
+			tooltipValueColor(totalBossKc));
+		tip.addLine("Bosses killed: ", bossesWithKc + "/" + BOSS_DISPLAY_ORDER.length,
+			tooltipValueColor(bossesWithKc));
+
+		ClanClogResult.ClogUnion clog = result.getClog();
+		if (clog != null)
+		{
+			tip.addLine("Clog slots: ", formatTooltipCount(clog.getTotalObtained()),
+				tooltipValueColor(clog.getTotalObtained()));
+		}
+		return tip;
+	}
+
+	private JToolTip buildTotalKillsTooltip()
+	{
+		ClanSummaryTooltip tip = new ClanSummaryTooltip("Total Kills");
+		ClanClogResult result = summaryResult;
+		if (result == null)
+		{
+			return tip;
+		}
+
+		long totalKills = 0L;
+		String topBoss = null;
+		long topKc = 0L;
+		int bossesWithKc = 0;
+		for (Map.Entry<String, ClanClogResult.BossAggregate> entry : result.getBosses().entrySet())
+		{
+			long kc = entry.getValue().getClanTotalKc();
+			if (kc <= 0)
+			{
+				continue;
+			}
+			totalKills += kc;
+			bossesWithKc++;
+			if (kc > topKc)
+			{
+				topKc = kc;
+				topBoss = entry.getKey();
+			}
+		}
+
+		tip.addLine("Clan KC: ", formatTooltipCount(totalKills), tooltipValueColor(totalKills));
+		tip.addLine("Bosses: ", bossesWithKc + "/" + BOSS_DISPLAY_ORDER.length,
+			tooltipValueColor(bossesWithKc));
+		if (topBoss != null)
+		{
+			tip.addLine("Most killed: ", topBoss + " (" + String.format("%,d", topKc) + ")");
+		}
+		return tip;
+	}
+
+	private JToolTip buildPvpSummaryTooltip()
+	{
+		ClanSummaryTooltip tip = new ClanSummaryTooltip("PvP Summary");
+		ClanClogResult result = summaryResult;
+		if (result == null)
+		{
+			return tip;
+		}
+
+		Map<String, Long> activities = result.getActivityTotals();
+		addActivityLine(tip, "LMS: ", activities, "LMS - Rank");
+		addActivityLine(tip, "Soul Wars: ", activities, "Soul Wars Zeal");
+		addActivityLine(tip, "PvP Arena: ", activities, "PvP Arena - Rank");
+		addActivityLine(tip, "BH Hunter: ", activities, "Bounty Hunter - Hunter");
+		addActivityLine(tip, "BH Rogue: ", activities, "Bounty Hunter - Rogue");
+		addActivityLine(tip, "Colosseum: ", activities, "Colosseum Glory");
+		return tip;
+	}
+
+	private static void addActivityLine(ClanSummaryTooltip tip, String label,
+		Map<String, Long> activities, String key)
+	{
+		long count = activities.getOrDefault(key, 0L);
+		tip.addLine(label, formatTooltipCount(count), tooltipValueColor(count));
+	}
+
+	private static String formatTooltipCount(long count)
+	{
+		return count > 0 ? String.format("%,d", count) : "--";
+	}
+
+	private static Color tooltipValueColor(long count)
+	{
+		return count > 0 ? Color.WHITE : NativeTooltip.NOTICE_COLOR;
 	}
 
 	private void writeClueRare(@Nullable JLabel label, String name, String clogCategory,
