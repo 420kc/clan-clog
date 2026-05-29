@@ -55,6 +55,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color HAMBURGER_COLOR = new Color(70, 70, 70);
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
+	private static final String CLAN_TAB_HINT = "click off/back to your clan tab";
 
 	private final ClanClogConfig config;
 	private final ConfigManager configManager;
@@ -259,7 +260,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		statusLabel.setForeground(TEXT_DIM);
 		statusLabel.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		setStatus("search or open your clan tab");
+		setStatus(noClanHint());
 		add(statusLabel, c);
 
 		// Content.
@@ -565,10 +566,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		List<ClanMember> roster = clanReader.currentRoster();
 		if (name == null || roster == null || roster.isEmpty())
 		{
-			setStatus("open your clan tab in-game first");
+			setStatus(noClanHint());
 			return;
 		}
 		onInGameRosterRefreshed(new ArrayList<>(roster));
+	}
+
+	private String noClanHint()
+	{
+		if (config.defaultClan().trim().isEmpty())
+		{
+			return "no default clan · " + CLAN_TAB_HINT;
+		}
+		return CLAN_TAB_HINT;
 	}
 
 	private void setSearchText(String text)

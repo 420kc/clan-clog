@@ -8,9 +8,12 @@ import java.io.InputStream;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.GameState;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -28,6 +31,9 @@ public class ClanClogPlugin extends Plugin
 {
 	@Inject
 	private ClientToolbar clientToolbar;
+
+	@Inject
+	private ClientThread clientThread;
 
 	@Inject
 	private ClanClogPanel panel;
@@ -79,6 +85,7 @@ public class ClanClogPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 		tooltipController.captureDefaults();
+		refreshInGameClanSoon();
 		log.debug("clan clog: startUp");
 	}
 
@@ -112,6 +119,35 @@ public class ClanClogPlugin extends Plugin
 		{
 			clanReader.refresh();
 		}
+	}
+
+	/**
+	 * Fill the Clan Clog profile from already-loaded runtime clan settings.
+	 * This covers the common case where the player is logged in and the clan
+	 * tab was opened before the plugin or dev client reloaded.
+	 */
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		if (event.getGameState() == GameState.LOGGED_IN)
+		{
+			refreshInGameClanSoon();
+		}
+	}
+
+	private void refreshInGameClanSoon()
+	{
+		clientThread.invokeLater(() ->
+		{
+			try
+			{
+				clanReader.refresh();
+			}
+			catch (RuntimeException ex)
+			{
+				log.debug("clan reader refresh skipped: {}", ex.getMessage());
+			}
+		});
 	}
 
 	/**
