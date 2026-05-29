@@ -13,9 +13,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -50,12 +52,13 @@ public class LocalClogCache
 	 * Volatile so shutdown() can swap the reference visibly to concurrent submitters.
 	 */
 	private static final long DEBOUNCE_MS = 500;
-	private volatile ExecutorService diskWriter = newDiskWriter();
+	private volatile ScheduledExecutorService diskWriter = newDiskWriter();
 	private final Map<String, Runnable> pendingByPlayer = new ConcurrentHashMap<>();
+	private final Map<String, ScheduledFuture<?>> pendingFlushByPlayer = new ConcurrentHashMap<>();
 
-	private static ExecutorService newDiskWriter()
+	private static ScheduledExecutorService newDiskWriter()
 	{
-		return Executors.newSingleThreadExecutor(r ->
+		return Executors.newSingleThreadScheduledExecutor(r ->
 		{
 			Thread t = new Thread(r, "clan-clog-disk");
 			t.setDaemon(true);
@@ -69,35 +72,34 @@ public class LocalClogCache
 	 */
 	private void submitDiskWrite(String playerName, Runnable task)
 	{
-		boolean wasFirst = pendingByPlayer.put(playerName, task) == null;
-		if (!wasFirst)
+		pendingByPlayer.put(playerName, task);
+		ScheduledFuture<?> previous = pendingFlushByPlayer.remove(playerName);
+		if (previous != null)
 		{
-			return;
+			previous.cancel(false);
 		}
+
 		try
 		{
-			diskWriter.execute(() ->
-			{
-				try
-				{
-					Thread.sleep(DEBOUNCE_MS);
-				}
-				catch (InterruptedException e)
-				{
-					Thread.currentThread().interrupt();
-				}
-				// Flush even if interrupted, so shutdown doesn't lose pending data
-				Runnable latest = pendingByPlayer.remove(playerName);
-				if (latest != null)
-				{
-					latest.run();
-				}
-			});
+			ScheduledFuture<?> next = diskWriter.schedule(() -> flushPendingWrite(playerName),
+				DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+			pendingFlushByPlayer.put(playerName, next);
 		}
 		catch (RejectedExecutionException ignored)
 		{
 			pendingByPlayer.remove(playerName);
+			pendingFlushByPlayer.remove(playerName);
 			log.debug("Disk write rejected (executor shutting down)");
+		}
+	}
+
+	private void flushPendingWrite(String playerName)
+	{
+		pendingFlushByPlayer.remove(playerName);
+		Runnable latest = pendingByPlayer.remove(playerName);
+		if (latest != null)
+		{
+			latest.run();
 		}
 	}
 
@@ -114,11 +116,17 @@ public class LocalClogCache
 	 */
 	public void shutdown()
 	{
-		ExecutorService old = diskWriter;
-		ExecutorService fresh = newDiskWriter();
+		ScheduledExecutorService old = diskWriter;
+		ScheduledExecutorService fresh = newDiskWriter();
 		diskWriter = fresh;
 
-		// Drain pending debounced writes to fresh; atomic remove-by-key prevents double-run with old executor's lambda.
+		for (ScheduledFuture<?> pending : new ArrayList<>(pendingFlushByPlayer.values()))
+		{
+			pending.cancel(false);
+		}
+		pendingFlushByPlayer.clear();
+
+		// Drain pending debounced writes to fresh; remove-by-key prevents double-run with an in-flight flush.
 		for (String key : new ArrayList<>(pendingByPlayer.keySet()))
 		{
 			Runnable t = pendingByPlayer.remove(key);
