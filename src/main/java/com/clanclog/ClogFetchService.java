@@ -22,14 +22,15 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 
 /**
- * Fetches collection log data for individual players from TempleOSRS (primary)
- * and RuneProfile (fallback). Ported from kcpdev's {@code ClogService} (Temple
- * lane) and {@code RuneProfileService} (clog lane) for the clan-aggregate use
- * case.
+ * Fetches collection log data for individual players from TempleOSRS and
+ * RuneProfile in parallel, then keeps the result with meaningfully fresher
+ * coverage. Ported from kcpdev's {@code ClogService} (Temple lane) and
+ * {@code RuneProfileService} (clog lane) for the clan-aggregate use case.
  *
  * <p>Per the runtime-first architecture: the plugin compiles its own clan clog
  * by fetching each member's clog from external providers and unioning them
- * client-side. No killclog.com backend dependency.
+ * client-side. The killclog.com API can serve stored clan profiles, but this
+ * service keeps the plugin capable of building a fresh aggregate locally.
  *
  * <p>Global caches (categories + item names) are loaded once per session and
  * shared across all lookups. Per-player results are disk-cached via
@@ -88,7 +89,9 @@ public class ClogFetchService
 	}
 
 	/**
-	 * Fetch clog data for a single player. Priority: Temple > RuneProfile.
+	 * Fetch clog data for a single player. Temple and RuneProfile run together;
+	 * {@link #pickFreshest(ClogResult, ClogResult)} chooses the shared display
+	 * result.
 	 * Disk cache via {@link LocalClogCache} provides stale-while-revalidate:
 	 * if both providers fail, the most recent cached result is returned.
 	 *
@@ -196,7 +199,7 @@ public class ClogFetchService
 				rp.getPlayerName(), rpCount, templeCount);
 			return rp;
 		}
-		// Temple wins when tied or ahead -- has lastChanged + accountType
+		// Temple wins when tied or close because it has lastChanged + accountType.
 		return temple;
 	}
 

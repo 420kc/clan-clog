@@ -7,7 +7,6 @@ import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import javax.swing.Box;
@@ -285,11 +284,5 @@ public class ClanMembersView extends JPanel
 			return "";
 		}
 		return raw.replace('_', ' ');
-	}
-
-	@SuppressWarnings("unused")
-	private static List<ClanMember> nullSafe(List<ClanMember> in)
-	{
-		return in != null ? in : new ArrayList<>();
 	}
 }

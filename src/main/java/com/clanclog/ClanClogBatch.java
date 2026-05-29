@@ -22,9 +22,9 @@ import lombok.extern.slf4j.Slf4j;
  * a populated clog or has resolved to null.
  *
  * <p>Mirrors {@link ClanHiscoreBatch} but tuned for external-API rate limits
- * (Temple + RuneProfile are stricter than Jagex hiscores). Default concurrency
- * of 3 keeps outbound HTTP at roughly 6 in-flight requests (Temple + RuneProfile
- * fallback per member).
+ * (Temple + RuneProfile are stricter than Jagex hiscores). The default cap keeps
+ * total outbound provider calls bounded even though each member lookup may try
+ * both collection-log providers.
  *
  * <p>Per-member failures are intentionally swallowed: a single timed-out lookup
  * must not abort the whole batch. The panel reads {@code getClog()} and treats
@@ -35,9 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 public class ClanClogBatch
 {
 	/**
-	 * Concurrency cap. 2 in-flight lookups (each may hit Temple then RuneProfile
-	 * as fallback) keeps total HTTP at ~4, well within Temple/RuneProfile
-	 * tolerance for sustained traffic.
+	 * Concurrency cap. 2 in-flight lookups keeps total provider traffic modest,
+	 * even with the parallel Temple + RuneProfile fetch inside each lookup.
 	 */
 	private static final int DEFAULT_CONCURRENCY = 2;
 

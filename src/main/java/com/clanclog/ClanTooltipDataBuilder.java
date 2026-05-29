@@ -15,13 +15,11 @@ import javax.inject.Singleton;
  * TooltipDataBuilder (which lives byte-ported in kcpdev and is not in
  * clan-clog because the plugin only renders clan-aggregate data).
  *
- * <p>Per project_clan_hiscores_plugin.md Tab 1 design sketch (sub-phase
- * 3b.3.3, locked 2026-05-20): consumes the backend
- * {@code GET /api/clan/<slug>/clog} response (parsed as ClanClogResult) and
- * produces TooltipData with the clan-aware fields populated (holderCounts +
- * firstSeenAt + firstSeenByRsn). ImgTooltip's renderer will branch on
- * {@link TooltipData#isClanFlavor()} in 3b.3.4 to overlay holder counts
- * instead of per-player obtained-counts.
+ * <p>Consumes the backend {@code GET /api/clan/<slug>/clog} response, or the
+ * locally built equivalent, and produces TooltipData with clan-aware fields
+ * populated (holderCounts + firstSeenAt + firstSeenByRsn). Holder counts are
+ * passed through the existing obtained-count overlay path so the sprite grid
+ * can stay close to Kill Clog's item tooltip renderer.
  *
  * <p>Catalog gap: the backend {@code clog.items_by_category} only lists
  * obtained items (the union across members), not the full OSRS clog
