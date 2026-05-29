@@ -33,9 +33,6 @@ public class ClanClogPlugin extends Plugin
 	private ClanClogPanel panel;
 
 	@Inject
-	private ClanMembersPanel membersPanel;
-
-	@Inject
 	private ClanHiscoreBatch batch;
 
 	@Inject
@@ -64,7 +61,6 @@ public class ClanClogPlugin extends Plugin
 	private ClogsworthDispatcher clogsworth;
 
 	private NavigationButton navButton;
-	private NavigationButton membersNavButton;
 
 	@Provides
 	ClanClogConfig provideConfig(ConfigManager configManager)
@@ -81,14 +77,7 @@ public class ClanClogPlugin extends Plugin
 			.priority(7)
 			.panel(panel)
 			.build();
-		membersNavButton = NavigationButton.builder()
-			.tooltip("Clan Members")
-			.icon(loadIcon())
-			.priority(8)
-			.panel(membersPanel)
-			.build();
 		clientToolbar.addNavigation(navButton);
-		clientToolbar.addNavigation(membersNavButton);
 		tooltipController.captureDefaults();
 		log.debug("clan clog: startUp");
 	}
@@ -100,11 +89,6 @@ public class ClanClogPlugin extends Plugin
 		{
 			clientToolbar.removeNavigation(navButton);
 			navButton = null;
-		}
-		if (membersNavButton != null)
-		{
-			clientToolbar.removeNavigation(membersNavButton);
-			membersNavButton = null;
 		}
 		tooltipController.restoreDefaults();
 		batch.shutdown();
