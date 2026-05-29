@@ -66,6 +66,7 @@ public interface ClanClogConfig extends Config
 		keyName = "enableSync",
 		name = "Enable Sync to killclog.com",
 		description = "Allow syncing clan roster and aggregated data to killclog.com. Sends RSNs, ranks, boss KCs, and collection log items.",
+		warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
 		position = 5
 	)
 	default boolean enableSync()
