@@ -6,6 +6,7 @@ import java.awt.Container;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JLabel;
@@ -18,6 +19,35 @@ import static org.junit.Assert.assertTrue;
 public class ClanMembersViewTest
 {
 	private static final Gson GSON = new Gson();
+
+	@Test
+	public void memberRowsRenderIdentityAndProgressDetails() throws Exception
+	{
+		ClanMember member = new ClanMember("420 kc", "420 kc", "Founder", "OWNER",
+			AccountType.REGULAR, "main", 0L, null, null);
+		member.setHiscore(new HiscoreResult(AccountType.IRONMAN,
+			Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+			Collections.emptyMap(), Collections.emptyMap(), 2277, 200_000_000L, 126, 1));
+		ClogResult clog = new ClogResult("420 kc",
+			Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+			"2026-05-29T10:00:00Z", AccountType.IRONMAN);
+		clog.setUniqueObtained(420);
+		member.setClog(clog);
+
+		AtomicReference<ClanMembersView> viewRef = new AtomicReference<>();
+		SwingUtilities.invokeAndWait(() ->
+		{
+			ClanMembersView view = new ClanMembersView();
+			view.renderRoster(Collections.singletonList(member));
+			viewRef.set(view);
+		});
+
+		List<String> labels = labelTexts(viewRef.get());
+		assertTrue(labels.contains("420 kc"));
+		assertTrue(labels.contains("Founder · Ironman · main"));
+		assertTrue(labels.contains("tl 2277  cb 126"));
+		assertTrue(labels.contains("clog 420"));
+	}
 
 	@Test
 	public void profileSearchRowsRenderStoredClanLabelsAndOpenSlug() throws Exception

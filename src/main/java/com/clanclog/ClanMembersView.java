@@ -7,7 +7,10 @@ import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -126,11 +129,11 @@ public class ClanMembersView extends JPanel
 
 	private static Component buildMemberRow(ClanMember m)
 	{
-		JPanel row = new JPanel(new GridLayout(1, 3, 8, 0));
+		JPanel row = new JPanel(new BorderLayout(8, 0));
 		row.setOpaque(true);
 		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setBorder(new EmptyBorder(2, 6, 2, 6));
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+		row.setBorder(new EmptyBorder(3, 6, 3, 6));
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
 
 		JLabel name = new JLabel(m.getDisplayName());
 		name.setFont(FontManager.getRunescapeSmallFont());
@@ -139,10 +142,10 @@ public class ClanMembersView extends JPanel
 			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-		JLabel role = new JLabel(prettyRole(m.getRole()));
-		role.setFont(FontManager.getRunescapeSmallFont());
-		role.setForeground(TEXT_DIM);
-		role.putClientProperty(
+		JLabel meta = new JLabel(memberMeta(m));
+		meta.setFont(FontManager.getRunescapeSmallFont());
+		meta.setForeground(TEXT_DIM);
+		meta.putClientProperty(
 			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
@@ -154,19 +157,36 @@ public class ClanMembersView extends JPanel
 		HiscoreResult hs = m.getHiscore();
 		if (hs != null)
 		{
-			total.setText("tl " + hs.getTotalLevel() + " · cb " + hs.getCombatLevel());
+			total.setText("tl " + hs.getTotalLevel() + "  cb " + hs.getCombatLevel());
 			total.setForeground(KC_TEXT);
 		}
 		else
 		{
-			total.setText("·");
+			total.setText("hiscores --");
 			total.setForeground(TEXT_DIM);
 		}
 		total.setHorizontalAlignment(JLabel.RIGHT);
 
-		row.add(name);
-		row.add(role);
-		row.add(total);
+		JLabel clog = new JLabel(clogText(m.getClog()));
+		clog.setFont(FontManager.getRunescapeSmallFont());
+		clog.setForeground(m.getClog() != null ? ClogHelper.COLOR_COMPLETED : TEXT_DIM);
+		clog.setHorizontalAlignment(JLabel.RIGHT);
+		clog.putClientProperty(
+			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+		JPanel identity = new JPanel(new GridLayout(2, 1, 0, 0));
+		identity.setOpaque(false);
+		identity.add(name);
+		identity.add(meta);
+
+		JPanel scores = new JPanel(new GridLayout(2, 1, 0, 0));
+		scores.setOpaque(false);
+		scores.add(total);
+		scores.add(clog);
+
+		row.add(identity, BorderLayout.CENTER);
+		row.add(scores, BorderLayout.EAST);
 
 		row.addMouseListener(new MouseAdapter()
 		{
@@ -183,6 +203,77 @@ public class ClanMembersView extends JPanel
 			}
 		});
 		return row;
+	}
+
+	private static String memberMeta(ClanMember member)
+	{
+		String role = prettyRole(member.getRole());
+		String account = accountLabel(member);
+		String build = member.getBuild();
+
+		StringBuilder out = new StringBuilder();
+		appendPart(out, role);
+		appendPart(out, account);
+		appendPart(out, build);
+		if (out.length() == 0)
+		{
+			return "member";
+		}
+		return out.toString();
+	}
+
+	private static String accountLabel(ClanMember member)
+	{
+		HiscoreResult hiscore = member.getHiscore();
+		AccountType type = hiscore != null && hiscore.getAccountType() != null
+			? hiscore.getAccountType() : member.getAccountType();
+		String label = ClogHelper.accountLabel(type);
+		return label != null ? label : "regular";
+	}
+
+	private static String clogText(ClogResult clog)
+	{
+		if (clog == null)
+		{
+			return "clog --";
+		}
+		int obtained = clogObtainedCount(clog);
+		String count = obtained >= 0 ? String.format("%,d", obtained) : "--";
+		return "clog " + count;
+	}
+
+	private static int clogObtainedCount(ClogResult clog)
+	{
+		if (clog.getUniqueObtained() >= 0)
+		{
+			return clog.getUniqueObtained();
+		}
+		if (clog.getObtainedItems() == null)
+		{
+			return -1;
+		}
+		Set<Integer> ids = new HashSet<>();
+		for (Map.Entry<String, List<ClogResult.ClogItem>> entry : clog.getObtainedItems().entrySet())
+		{
+			for (ClogResult.ClogItem item : entry.getValue())
+			{
+				ids.add(item.getId());
+			}
+		}
+		return ids.size();
+	}
+
+	private static void appendPart(StringBuilder out, String value)
+	{
+		if (value == null || value.isBlank())
+		{
+			return;
+		}
+		if (out.length() > 0)
+		{
+			out.append(" · ");
+		}
+		out.append(value);
 	}
 
 	private static Component buildSearchRow(WomGroup g, java.util.function.IntConsumer onPick)
