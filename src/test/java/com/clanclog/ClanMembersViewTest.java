@@ -88,6 +88,40 @@ public class ClanMembersViewTest
 		assertEquals("clannabis", pickedSlug.get());
 	}
 
+	@Test
+	public void emptyStatesRenderUsefulReceipts() throws Exception
+	{
+		AtomicReference<ClanMembersView> rosterRef = new AtomicReference<>();
+		AtomicReference<ClanMembersView> storedRef = new AtomicReference<>();
+		AtomicReference<ClanMembersView> publicRef = new AtomicReference<>();
+
+		SwingUtilities.invokeAndWait(() ->
+		{
+			ClanMembersView roster = new ClanMembersView();
+			roster.renderRoster(Collections.emptyList());
+			rosterRef.set(roster);
+
+			ClanMembersView stored = new ClanMembersView();
+			stored.renderProfileSearchResults(Collections.emptyList(), slug ->
+			{
+			});
+			storedRef.set(stored);
+
+			ClanMembersView publicView = new ClanMembersView();
+			publicView.renderSearchResults(new WomGroup[0], id ->
+			{
+			});
+			publicRef.set(publicView);
+		});
+
+		assertTrue(labelTexts(rosterRef.get()).contains("no members to show"));
+		assertTrue(labelTexts(rosterRef.get()).contains("open your clan tab or pick a public roster"));
+		assertTrue(labelTexts(storedRef.get()).contains("no stored profiles"));
+		assertTrue(labelTexts(storedRef.get()).contains("checking public rosters next"));
+		assertTrue(labelTexts(publicRef.get()).contains("no public clans found"));
+		assertTrue(labelTexts(publicRef.get()).contains("try a shorter name or group id"));
+	}
+
 	private static List<String> labelTexts(Container root)
 	{
 		List<String> labels = new ArrayList<>();

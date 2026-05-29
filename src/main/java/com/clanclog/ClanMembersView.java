@@ -63,7 +63,7 @@ public class ClanMembersView extends JPanel
 		list.removeAll();
 		if (roster == null || roster.isEmpty())
 		{
-			showPlaceholder("no members to show");
+			showPlaceholder("no members to show", "open your clan tab or pick a public roster");
 			return;
 		}
 		for (ClanMember m : roster)
@@ -80,7 +80,7 @@ public class ClanMembersView extends JPanel
 		list.removeAll();
 		if (results == null || results.length == 0)
 		{
-			showPlaceholder("no matches");
+			showPlaceholder("no public clans found", "try a shorter name or group id");
 			return;
 		}
 		for (WomGroup g : results)
@@ -98,7 +98,7 @@ public class ClanMembersView extends JPanel
 		list.removeAll();
 		if (results == null || results.isEmpty())
 		{
-			showPlaceholder("no matches");
+			showPlaceholder("no stored profiles", "checking public rosters next");
 			return;
 		}
 		for (KillclogApiClient.ClanSearchMatch match : results)
@@ -112,16 +112,40 @@ public class ClanMembersView extends JPanel
 
 	public void showPlaceholder(String text)
 	{
+		showPlaceholder(text, null);
+	}
+
+	public void showPlaceholder(String title, String detail)
+	{
 		list.removeAll();
-		JLabel hint = new JLabel(text);
+		JPanel empty = new JPanel();
+		empty.setLayout(new BoxLayout(empty, BoxLayout.Y_AXIS));
+		empty.setOpaque(false);
+		empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+		empty.setBorder(new EmptyBorder(8, 4, 4, 4));
+
+		JLabel hint = new JLabel(title);
 		hint.setFont(FontManager.getRunescapeSmallFont());
-		hint.setForeground(TEXT_DIM);
+		hint.setForeground(KC_TEXT);
 		hint.putClientProperty(
 			java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
 			java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-		hint.setBorder(new EmptyBorder(8, 4, 4, 4));
-		list.add(hint);
+		empty.add(hint);
+
+		if (detail != null && !detail.isBlank())
+		{
+			JLabel body = new JLabel(detail);
+			body.setFont(FontManager.getRunescapeSmallFont());
+			body.setForeground(TEXT_DIM);
+			body.putClientProperty(
+				java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+				java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+			body.setAlignmentX(Component.LEFT_ALIGNMENT);
+			empty.add(body);
+		}
+
+		list.add(empty);
 		list.add(Box.createVerticalGlue());
 		list.revalidate();
 		list.repaint();
