@@ -1,5 +1,6 @@
 package com.clanclog;
 
+import com.google.gson.Gson;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +13,8 @@ import static org.junit.Assert.assertTrue;
 
 public class ClanMembersPanelTest
 {
+	private static final Gson GSON = new Gson();
+
 	@Test
 	public void rosterHeaderShowsHiscoreAndClogCoverage() throws Exception
 	{
@@ -38,6 +41,49 @@ public class ClanMembersPanelTest
 		});
 
 		assertTrue(labelTexts(panelRef.get()).contains("2 members · 1 hiscore · 1 clog"));
+	}
+
+	@Test
+	public void searchHeadersShowMatchCounts() throws Exception
+	{
+		WomGroup publicMatch = new WomGroup();
+		publicMatch.id = 101;
+		publicMatch.name = "Clannabis CC";
+		publicMatch.memberCount = 101;
+
+		KillclogApiClient.ClanSearchResponse response = GSON.fromJson("{"
+			+ "\"matches\":[{"
+			+ "\"slug\":\"clannabis\","
+			+ "\"display_name\":\"Clannabis\","
+			+ "\"source_tier\":\"game_verified\","
+			+ "\"member_count\":101"
+			+ "}]"
+			+ "}", KillclogApiClient.ClanSearchResponse.class);
+
+		AtomicReference<ClanMembersPanel> publicPanelRef = new AtomicReference<>();
+		AtomicReference<ClanMembersPanel> profilePanelRef = new AtomicReference<>();
+		SwingUtilities.invokeAndWait(() ->
+		{
+			ClanMembersPanel publicPanel = new ClanMembersPanel();
+			publicPanel.renderSearchResults("Clannabis", new WomGroup[]{publicMatch}, id ->
+			{
+			});
+			publicPanelRef.set(publicPanel);
+
+			ClanMembersPanel profilePanel = new ClanMembersPanel();
+			profilePanel.renderProfileSearchResults("Clannabis", response.getMatches(), slug ->
+			{
+			});
+			profilePanelRef.set(profilePanel);
+		});
+
+		List<String> publicLabels = labelTexts(publicPanelRef.get());
+		assertTrue(publicLabels.contains("clan matches"));
+		assertTrue(publicLabels.contains("Clannabis · 1 public clan"));
+
+		List<String> profileLabels = labelTexts(profilePanelRef.get());
+		assertTrue(profileLabels.contains("killclog.com matches"));
+		assertTrue(profileLabels.contains("Clannabis · 1 profile"));
 	}
 
 	private static List<String> labelTexts(ClanMembersPanel panel)

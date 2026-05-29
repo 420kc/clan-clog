@@ -62,7 +62,8 @@ public class ClanMembersPanel extends PluginPanel
 	public void renderSearchResults(String query, WomGroup[] results, IntConsumer onPick)
 	{
 		titleLabel.setText("clan matches");
-		statusLabel.setText(query == null || query.isBlank() ? "search results" : query);
+		int count = results != null ? results.length : 0;
+		statusLabel.setText(searchStatus(query, count, "public clan", "public clans"));
 		membersView.renderSearchResults(results, onPick);
 	}
 
@@ -70,7 +71,8 @@ public class ClanMembersPanel extends PluginPanel
 		List<KillclogApiClient.ClanSearchMatch> results, Consumer<String> onPick)
 	{
 		titleLabel.setText("killclog.com matches");
-		statusLabel.setText(query == null || query.isBlank() ? "search results" : query);
+		int count = results != null ? results.size() : 0;
+		statusLabel.setText(searchStatus(query, count, "profile", "profiles"));
 		membersView.renderProfileSearchResults(results, onPick);
 	}
 
@@ -115,6 +117,16 @@ public class ClanMembersPanel extends PluginPanel
 				.append(noun(clogs, "clog", "clogs"));
 		}
 		return status.toString();
+	}
+
+	private static String searchStatus(String query, int count, String singular, String plural)
+	{
+		String countText = count + " " + noun(count, singular, plural);
+		if (query == null || query.isBlank())
+		{
+			return countText;
+		}
+		return query.trim() + " · " + countText;
 	}
 
 	private static String noun(int count, String singular, String plural)
