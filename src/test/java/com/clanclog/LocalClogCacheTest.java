@@ -2,6 +2,7 @@ package com.clanclog;
 
 import com.google.gson.Gson;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -102,6 +103,49 @@ public class LocalClogCacheTest
 		assertEquals(2, counts.size());
 		assertEquals(Integer.valueOf(2), counts.get(1));
 		assertEquals(Integer.valueOf(1), counts.get(2));
+	}
+
+	@Test
+	public void providerCacheLoadsDiskBeforeReplacingLocalGains() throws Exception
+	{
+		File dir = tempDir();
+		Files.writeString(new File(dir, "420_kc.json").toPath(), "{"
+			+ "\"playerName\":\"420 kc\","
+			+ "\"lastUpdated\":\"2026-05-30T00:00:00Z\","
+			+ "\"uniqueObtained\":2,"
+			+ "\"uniqueTotal\":1701,"
+			+ "\"categories\":{"
+			+ "\"phantom_muspah\":[1,2,3],"
+			+ "\"fortis_colosseum\":[4,5]"
+			+ "},"
+			+ "\"obtained\":{"
+			+ "\"phantom_muspah\":[{\"id\":1,\"count\":2},{\"id\":2,\"count\":1}],"
+			+ "\"fortis_colosseum\":[{\"id\":4,\"count\":1}]"
+			+ "}"
+			+ "}", StandardCharsets.UTF_8);
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+		Map<String, List<Integer>> categories = new HashMap<>();
+		categories.put("phantom_muspah", Arrays.asList(1, 2, 3));
+		Map<String, List<ClogResult.ClogItem>> obtained = new HashMap<>();
+		obtained.put("phantom_muspah",
+			Arrays.asList(new ClogResult.ClogItem(1, 1, null)));
+		ClogResult provider = new ClogResult(
+			"420 kc", obtained, categories, new HashMap<>(), null, null);
+		provider.setUniqueObtained(1);
+		provider.setUniqueTotal(1701);
+
+		cache.cacheResult(provider);
+
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+		Map<Integer, Integer> muspahCounts =
+			countsById(result.getObtainedItems().get("phantom_muspah"));
+
+		assertEquals(2, muspahCounts.size());
+		assertEquals(Integer.valueOf(2), muspahCounts.get(1));
+		assertEquals(Integer.valueOf(1), muspahCounts.get(2));
+		assertTrue(result.getCategoryItems().containsKey("fortis_colosseum"));
+		assertEquals(2, result.getUniqueObtained());
 	}
 
 	private static File tempDir() throws Exception

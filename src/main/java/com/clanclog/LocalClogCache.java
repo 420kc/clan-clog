@@ -210,6 +210,14 @@ public class LocalClogCache
 
 		// Preserve varp-sourced totals if they're higher than what Temple reports
 		PlayerClogData existing = players.get(key);
+		if (existing == null)
+		{
+			existing = loadFromDisk(name);
+			if (existing != null)
+			{
+				players.put(key, existing);
+			}
+		}
 
 		PlayerClogData data = new PlayerClogData();
 		data.playerName = name;
