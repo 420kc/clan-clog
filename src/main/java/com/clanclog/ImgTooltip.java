@@ -43,7 +43,7 @@ public class ImgTooltip extends TitleTooltip
 	private int effectiveCols;
 	private int hoveredItemIndex = -1;
 	private int paintedGridStartY = -1;
-	private String notice = "No clan data";
+	private String notice = "No Collection Log Data";
 	private BufferedImage noticeIcon;
 
 	private int totalItems;

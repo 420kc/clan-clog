@@ -1337,7 +1337,7 @@ public class Cells
 		if (data == null)
 		{
 			tip.setObtained(0, 0);
-			tip.setNotice("No clan data");
+			tip.setNotice("No Collection Log Data");
 			return keepTooltipOnHover(owner, tip);
 		}
 		tip.setObtained(data.obtainedCount, data.totalItems);
