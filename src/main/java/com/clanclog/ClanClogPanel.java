@@ -14,7 +14,9 @@ import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -59,6 +61,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String CLAN_TAB_HINT = "click off/back to your clan tab";
+	private static final String REFRESH_ACTION_PROPERTY = "clanclog.refreshAction";
 
 	private final ClanClogConfig config;
 	private final ConfigManager configManager;
@@ -495,6 +498,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static void applyActionButtonColor(JButton button, Color color)
 	{
 		button.setForeground(color);
+		if (Boolean.TRUE.equals(button.getClientProperty(REFRESH_ACTION_PROPERTY)))
+		{
+			button.setBorder(new EmptyBorder(0, 0, 0, 0));
+			button.setBorderPainted(false);
+			button.setIcon(new ImageIcon(ClogHelper.makeRefreshIcon(color)));
+			return;
+		}
+		button.setBorderPainted(true);
 		button.setBorder(new LineBorder(color, 1, false));
 	}
 
@@ -1030,7 +1041,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				// Show sync button only for the user's verified in-game clan.
 				if (syncEligible)
 				{
-					showClanalyzeButton("refresh", "refresh clan profile");
+					showClanalyzeButton("refresh", "freshen clan profile");
 					updateSyncButtonVisibility();
 				}
 			}));
@@ -1064,6 +1075,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingRosterSyncEligible = true;
 		setClanHeaderText(name);
 		clearSearchText();
+		if (preserveFreshSyncPayload(name, pendingRoster))
+		{
+			revalidate();
+			repaint();
+			return;
+		}
 		if (!renderCachedClanProfile(name, pendingRoster, true))
 		{
 			membersPanel.renderRoster(name, pendingRoster);
@@ -1073,6 +1090,33 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		renderBackendOwnClanProfile(name, new ArrayList<>(pendingRoster));
 		revalidate();
 		repaint();
+	}
+
+	private boolean preserveFreshSyncPayload(String clanName, List<ClanMember> roster)
+	{
+		String slug = slugify(clanName);
+		if (slug.isEmpty()
+			|| syncRequiresFreshClanalyze
+			|| lastRenderedResult == null
+			|| lastLoadedRoster == null
+			|| lastLoadedSlug == null
+			|| !slug.equals(lastLoadedSlug)
+			|| !lastRenderedResult.matchesSlug(slug)
+			|| !sameRosterMembers(lastLoadedRoster, roster))
+		{
+			return false;
+		}
+
+		lastLoadedRoster = new ArrayList<>(roster);
+		lastLoadedClanName = clanName;
+		pendingRosterSyncEligible = true;
+		cells.renderClanResult(lastRenderedResult);
+		membersPanel.renderRoster(clanName, roster);
+		setCoverageFromResult(lastRenderedResult);
+		showClanalyzeButton("refresh", "freshen clan profile");
+		updateSyncButtonVisibility();
+		setStatus(" ");
+		return true;
 	}
 
 	private void renderBackendOwnClanProfile(String clanName, List<ClanMember> roster)
@@ -1102,8 +1146,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				pendingRosterSyncEligible = true;
 				syncRequiresFreshClanalyze = true;
 				setCoverageFromResult(result);
-				showClanalyzeButton("refresh", "refresh clan profile");
-				showSyncButton("refresh clan profile before syncing");
+				showClanalyzeButton("refresh", "freshen clan profile");
+				showSyncButton("freshen clan profile before syncing");
 				setStatus(" ");
 			}));
 	}
@@ -1169,9 +1213,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rememberClan(clanName);
 		if (syncEligible)
 		{
-			showClanalyzeButton("refresh", "refresh clan profile");
+			showClanalyzeButton("refresh", "freshen clan profile");
 			syncRequiresFreshClanalyze = true;
-			showSyncButton("refresh clan profile before syncing");
+			showSyncButton("freshen clan profile before syncing");
 		}
 		else
 		{
@@ -1273,7 +1317,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rememberClan(name);
 		cells.renderClanResult(result);
 		membersPanel.renderRoster(name, roster);
-		showClanalyzeButton("refresh", "refresh clan profile");
+		showClanalyzeButton("refresh", "freshen clan profile");
 		updateSyncButtonVisibility();
 		setCoverageFromRoster(roster);
 		if (!coverageCounts.isVisible())
@@ -1281,12 +1325,74 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			setCoverageFromResult(result);
 		}
 		setStatus(" ");
+		freshenStoredClanProfile(slug);
 		return true;
+	}
+
+	private void freshenStoredClanProfile(String clanNameOrSlug)
+	{
+		String slug = slugify(clanNameOrSlug);
+		if (slug.isEmpty())
+		{
+			return;
+		}
+		final int version = loadVersion;
+		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (ex != null || result == null || !result.hasRepresentedData()
+					|| version != loadVersion || currentLoadSlug != null)
+				{
+					return;
+				}
+				if (pendingClanName == null
+					|| !normalize(pendingClanName).equals(normalize(clanNameOrSlug)))
+				{
+					return;
+				}
+
+				String displayName = result.getDisplayName();
+				if (displayName == null || displayName.isBlank())
+				{
+					displayName = pendingClanName;
+				}
+				List<ClanMember> roster = pendingRoster != null && !pendingRoster.isEmpty()
+					? pendingRoster : result.getMembers();
+
+				lastBackendResult = result;
+				lastRenderedResult = result;
+				lastLoadedRoster = roster;
+				lastLoadedClanName = displayName;
+				lastLoadedSlug = slug;
+				if (pendingRosterSyncEligible)
+				{
+					syncRequiresFreshClanalyze = true;
+				}
+
+				setClanHeaderText(displayName);
+				cells.renderClanResult(result);
+				if (roster != null && !roster.isEmpty())
+				{
+					membersPanel.renderRoster(displayName, roster);
+				}
+				setCoverageFromResult(result);
+				showClanalyzeButton("refresh", "freshen clan profile");
+				updateSyncButtonVisibility();
+				setStatus(" ");
+			}));
 	}
 
 	private void showClanalyzeButton(String text, String tooltip)
 	{
-		clanalyzeButton.setText(text);
+		boolean refresh = "refresh".equals(text);
+		clanalyzeButton.putClientProperty(REFRESH_ACTION_PROPERTY, refresh);
+		clanalyzeButton.setText(refresh ? "" : text);
+		clanalyzeButton.setIcon(refresh ? new ImageIcon(ClogHelper.makeRefreshIcon(KC4)) : null);
+		clanalyzeButton.setMargin(refresh ? new Insets(0, 0, 0, 0) : new Insets(0, 5, 0, 5));
+		clanalyzeButton.setPreferredSize(null);
+		Dimension preferred = clanalyzeButton.getPreferredSize();
+		clanalyzeButton.setPreferredSize(refresh ? new Dimension(20, 18)
+			: new Dimension(Math.max(preferred.width, 30), 18));
 		clanalyzeButton.setToolTipText(tooltip);
 		clanalyzeButton.setEnabled(true);
 		applyActionButtonColor(clanalyzeButton, KC4);
@@ -1377,6 +1483,27 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		return "finish clanalyze before syncing";
 	}
 
+	private static boolean sameRosterMembers(List<ClanMember> a, List<ClanMember> b)
+	{
+		if (a == null || b == null || a.size() != b.size())
+		{
+			return false;
+		}
+		Set<String> keys = new HashSet<>();
+		for (ClanMember member : a)
+		{
+			keys.add(normalize(member.getRsn()));
+		}
+		for (ClanMember member : b)
+		{
+			if (!keys.remove(normalize(member.getRsn())))
+			{
+				return false;
+			}
+		}
+		return keys.isEmpty();
+	}
+
 	/**
 	 * Sync the current clan to killclog.com. POSTs the roster to /sync
 	 * then the pre-computed ClanClogResult to /result. Manual only, never
@@ -1386,7 +1513,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		if (syncRequiresFreshClanalyze)
 		{
-			setStatus("refresh clan profile before sync");
+			setStatus("freshen clan profile before sync");
 			return;
 		}
 		if (!config.enableSync())

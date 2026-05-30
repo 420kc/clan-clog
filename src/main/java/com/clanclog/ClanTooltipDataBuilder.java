@@ -60,30 +60,34 @@ public class ClanTooltipDataBuilder
 			return null;
 		}
 
+		Map<String, ClanClogResult.ItemMeta> itemMetaRaw = result.getClog().getItemMeta();
 		List<Integer> categoryItems = result.getClog().getItemsByCategory().get(category);
 		List<Integer> allItemIds = new ArrayList<>(catalog);
 		Set<Integer> obtainedIds = categoryItems != null
 			? new HashSet<>(categoryItems) : new HashSet<>();
-		int obtainedCount = ClogHelper.countObtained(allItemIds, obtainedIds);
 
 		// Per-item meta enrichment from clog.item_meta (keyed by item id as string)
-		Map<String, ClanClogResult.ItemMeta> itemMetaRaw = result.getClog().getItemMeta();
 		Map<Integer, Integer> holderCounts = new HashMap<>();
 		Map<Integer, String> firstSeenAt = new HashMap<>();
 		Map<Integer, String> firstSeenByRsn = new HashMap<>();
+		Map<Integer, List<ClanClogResult.ItemContributor>> contributors = new HashMap<>();
 		// Map<Integer, Integer> obtainedCounts: in clan context this is the
 		// summed duplicate quantity across members, while holderCounts keeps
 		// the separate "how many clanmates have it" value.
 		Map<Integer, Integer> obtainedCounts = new HashMap<>();
 
-		for (int itemId : obtainedIds)
+		for (int itemId : allItemIds)
 		{
 			ClanClogResult.ItemMeta meta = itemMetaRaw.get(String.valueOf(itemId));
 			if (meta == null)
 			{
-				obtainedCounts.put(itemId, 1);
+				if (obtainedIds.contains(itemId))
+				{
+					obtainedCounts.put(itemId, 1);
+				}
 				continue;
 			}
+			obtainedIds.add(itemId);
 			holderCounts.put(itemId, meta.getHolderCount());
 			obtainedCounts.put(itemId, meta.getQuantityTotal());
 			if (meta.getFirstSeenAt() != null)
@@ -94,7 +98,12 @@ public class ClanTooltipDataBuilder
 			{
 				firstSeenByRsn.put(itemId, meta.getFirstSeenByRsn());
 			}
+			if (!meta.getContributors().isEmpty())
+			{
+				contributors.put(itemId, meta.getContributors());
+			}
 		}
+		int obtainedCount = ClogHelper.countObtained(allItemIds, obtainedIds);
 
 		return new TooltipData(
 			displayName,
@@ -106,7 +115,9 @@ public class ClanTooltipDataBuilder
 			obtainedCounts,
 			holderCounts,
 			firstSeenAt,
-			firstSeenByRsn);
+			firstSeenByRsn,
+			contributorCount(displayName, category, result, contributors),
+			contributors);
 	}
 
 	/**
@@ -158,6 +169,7 @@ public class ClanTooltipDataBuilder
 		Map<Integer, Integer> holderCounts = new LinkedHashMap<>();
 		Map<Integer, String> firstSeenAt = new LinkedHashMap<>();
 		Map<Integer, String> firstSeenByRsn = new LinkedHashMap<>();
+		Map<Integer, List<ClanClogResult.ItemContributor>> contributors = new LinkedHashMap<>();
 		Map<Integer, Integer> obtainedCounts = new LinkedHashMap<>();
 
 		for (int itemId : allItemIds)
@@ -175,6 +187,10 @@ public class ClanTooltipDataBuilder
 				if (meta.getFirstSeenByRsn() != null)
 				{
 					firstSeenByRsn.put(itemId, meta.getFirstSeenByRsn());
+				}
+				if (!meta.getContributors().isEmpty())
+				{
+					contributors.put(itemId, meta.getContributors());
 				}
 			}
 			else if (obtainedIds.contains(itemId))
@@ -194,6 +210,52 @@ public class ClanTooltipDataBuilder
 			obtainedCounts,
 			holderCounts,
 			firstSeenAt,
-			firstSeenByRsn);
+			firstSeenByRsn,
+			uniqueContributorCount(contributors),
+			contributors);
+	}
+
+	private static int contributorCount(String displayName, String category,
+		ClanClogResult result,
+		Map<Integer, List<ClanClogResult.ItemContributor>> itemContributors)
+	{
+		int bossContributors = bossContributorCount(displayName, category, result);
+		if (bossContributors > 0)
+		{
+			return bossContributors;
+		}
+		return uniqueContributorCount(itemContributors);
+	}
+
+	private static int bossContributorCount(String displayName, String category,
+		ClanClogResult result)
+	{
+		ClanClogResult.BossAggregate aggregate = result.getBosses().get(displayName);
+		if (aggregate == null)
+		{
+			aggregate = result.getBosses().get(category);
+		}
+		return aggregate != null ? aggregate.getMemberCoverage() : 0;
+	}
+
+	private static int uniqueContributorCount(
+		Map<Integer, List<ClanClogResult.ItemContributor>> itemContributors)
+	{
+		Set<String> names = new HashSet<>();
+		for (List<ClanClogResult.ItemContributor> rows : itemContributors.values())
+		{
+			if (rows == null)
+			{
+				continue;
+			}
+			for (ClanClogResult.ItemContributor row : rows)
+			{
+				if (row != null && row.getRsn() != null && !row.getRsn().isBlank())
+				{
+					names.add(row.getRsn().toLowerCase());
+				}
+			}
+		}
+		return names.size();
 	}
 }

@@ -16,6 +16,7 @@ import javax.swing.JPanel;
 import javax.swing.JToolTip;
 import javax.swing.Popup;
 import javax.swing.PopupFactory;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.ToolTipManager;
 import javax.swing.border.Border;
@@ -39,9 +40,11 @@ class TooltipController
 
 	// Click-to-reveal state
 	private Popup activeClickPopup;
+	private JToolTip activeClickTip;
 	private JLabel activeClickLabel;
 	private JComponent activeClickComponent;
 	private AWTEventListener clickDismissListener;
+	private AWTEventListener clickMotionListener;
 	private JLabel clickDismissedLabel;
 	private JComponent clickDismissedComponent;
 
@@ -203,6 +206,7 @@ class TooltipController
 		activeClickPopup = PopupFactory.getSharedInstance().getPopup(cell, tip, x, y);
 		activeClickLabel = label;
 		activeClickPopup.show();
+		installClickTooltipMotion(tip);
 
 		// Dismiss on next click anywhere
 		clickDismissListener = event ->
@@ -259,6 +263,7 @@ class TooltipController
 		activeClickPopup = PopupFactory.getSharedInstance().getPopup(cell, tip, x, y);
 		activeClickComponent = source;
 		activeClickPopup.show();
+		installClickTooltipMotion(tip);
 
 		clickDismissListener = event ->
 		{
@@ -274,6 +279,11 @@ class TooltipController
 
 	void hideClickTooltip()
 	{
+		if (clickMotionListener != null)
+		{
+			Toolkit.getDefaultToolkit().removeAWTEventListener(clickMotionListener);
+			clickMotionListener = null;
+		}
 		if (clickDismissListener != null)
 		{
 			Toolkit.getDefaultToolkit().removeAWTEventListener(clickDismissListener);
@@ -283,8 +293,54 @@ class TooltipController
 		{
 			activeClickPopup.hide();
 			activeClickPopup = null;
+			activeClickTip = null;
 			activeClickLabel = null;
 			activeClickComponent = null;
+		}
+	}
+
+	private void installClickTooltipMotion(JToolTip tip)
+	{
+		if (!(tip instanceof ImgTooltip))
+		{
+			return;
+		}
+		activeClickTip = tip;
+		syncClickTooltipPointer(tip);
+		clickMotionListener = event ->
+		{
+			if (activeClickTip == tip && (event.getID() == MouseEvent.MOUSE_MOVED
+				|| event.getID() == MouseEvent.MOUSE_DRAGGED))
+			{
+				syncClickTooltipPointer(tip, event);
+			}
+		};
+		Toolkit.getDefaultToolkit().addAWTEventListener(
+			clickMotionListener, AWTEvent.MOUSE_MOTION_EVENT_MASK);
+	}
+
+	private static void syncClickTooltipPointer(JToolTip tip)
+	{
+		syncClickTooltipPointer(tip, null);
+	}
+
+	private static void syncClickTooltipPointer(JToolTip tip, AWTEvent event)
+	{
+		if (tip instanceof ImgTooltip)
+		{
+			Point screenPoint = event instanceof MouseEvent
+				? ((MouseEvent) event).getLocationOnScreen() : null;
+			Runnable sync = screenPoint != null
+				? () -> ((ImgTooltip) tip).syncHoveredItemFromScreenPoint(screenPoint)
+				: ((ImgTooltip) tip)::syncHoveredItemFromScreenPointer;
+			if (SwingUtilities.isEventDispatchThread())
+			{
+				sync.run();
+			}
+			else
+			{
+				SwingUtilities.invokeLater(sync);
+			}
 		}
 	}
 

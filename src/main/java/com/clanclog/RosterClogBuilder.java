@@ -1,6 +1,7 @@
 package com.clanclog;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -70,7 +71,7 @@ final class RosterClogBuilder
 	 */
 	static ClanClogResult.ClogUnion buildClogUnion(List<ClanMember> roster)
 	{
-		// category -> item id -> set of RSNs who have it
+		// category -> item id -> set of RSNs who have it in that provider page
 		Map<String, Map<Integer, Set<String>>> categoryHolders = new LinkedHashMap<>();
 		// category -> all item IDs from the catalog
 		Map<String, Set<Integer>> categoryCatalogs = new LinkedHashMap<>();
@@ -78,6 +79,9 @@ final class RosterClogBuilder
 		Map<Integer, Set<String>> itemHolders = new LinkedHashMap<>();
 		// item id -> sum of per-member quantities across the clan
 		Map<Integer, Integer> itemQuantityTotals = new LinkedHashMap<>();
+		// item id -> per-member duplicate quantity breakdown
+		Map<Integer, Map<String, ClanClogResult.ItemContributor>> itemContributors =
+			new LinkedHashMap<>();
 
 		int membersWithClog = 0;
 		int totalMemberUniqueObtained = 0;
@@ -89,6 +93,8 @@ final class RosterClogBuilder
 			{
 				continue;
 			}
+			String memberKey = RsnNormalizer.cacheKey(member.getRsn());
+			String contributorName = member.getDisplayName();
 			membersWithClog++;
 			totalMemberUniqueObtained += memberUniqueObtained(clog);
 
@@ -110,10 +116,10 @@ final class RosterClogBuilder
 				{
 					holders
 						.computeIfAbsent(item.getId(), k -> new HashSet<>())
-						.add(member.getRsn().toLowerCase());
+						.add(memberKey);
 					itemHolders
 						.computeIfAbsent(item.getId(), k -> new HashSet<>())
-						.add(member.getRsn().toLowerCase());
+						.add(memberKey);
 					memberItemCounts.merge(item.getId(), Math.max(1, item.getCount()),
 						Math::max);
 				}
@@ -121,6 +127,12 @@ final class RosterClogBuilder
 			for (Map.Entry<Integer, Integer> entry : memberItemCounts.entrySet())
 			{
 				itemQuantityTotals.merge(entry.getKey(), entry.getValue(), Integer::sum);
+				ClanClogResult.ItemContributor contributor =
+					new ClanClogResult.ItemContributor(contributorName, entry.getValue());
+				itemContributors
+					.computeIfAbsent(entry.getKey(), k -> new LinkedHashMap<>())
+					.merge(memberKey, contributor,
+						(a, b) -> a.getQuantity() >= b.getQuantity() ? a : b);
 			}
 		}
 
@@ -129,15 +141,42 @@ final class RosterClogBuilder
 			return null;
 		}
 
-		// Build items_by_category: for each category, list all obtained item IDs
+		// Build items_by_category from catalogs. Shared drops (godsword shards,
+		// dragon pickaxe, etc.) must light up on every page whose catalog
+		// contains them, regardless of which provider page first reported them.
 		Map<String, List<Integer>> itemsByCategory = new LinkedHashMap<>();
-		Set<Integer> allObtained = new HashSet<>();
-
+		Set<Integer> categorizedItems = new HashSet<>();
+		for (Map.Entry<String, Set<Integer>> entry : categoryCatalogs.entrySet())
+		{
+			List<Integer> obtainedIds = new ArrayList<>();
+			for (int itemId : entry.getValue())
+			{
+				if (itemHolders.containsKey(itemId))
+				{
+					obtainedIds.add(itemId);
+					categorizedItems.add(itemId);
+				}
+			}
+			if (!obtainedIds.isEmpty())
+			{
+				itemsByCategory.put(entry.getKey(), obtainedIds);
+			}
+		}
 		for (Map.Entry<String, Map<Integer, Set<String>>> entry : categoryHolders.entrySet())
 		{
-			List<Integer> obtainedIds = new ArrayList<>(entry.getValue().keySet());
-			itemsByCategory.put(entry.getKey(), obtainedIds);
-			allObtained.addAll(obtainedIds);
+			List<Integer> uncatalogedIds = new ArrayList<>();
+			for (int itemId : entry.getValue().keySet())
+			{
+				if (!categorizedItems.contains(itemId))
+				{
+					uncatalogedIds.add(itemId);
+				}
+			}
+			if (!uncatalogedIds.isEmpty())
+			{
+				itemsByCategory.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+					.addAll(uncatalogedIds);
+			}
 		}
 
 		// Build item_meta: per-item holder count
@@ -146,7 +185,8 @@ final class RosterClogBuilder
 		{
 			String idStr = String.valueOf(e.getKey());
 			itemMeta.put(idStr, new ClanClogResult.ItemMeta(e.getValue().size(),
-				itemQuantityTotals.getOrDefault(e.getKey(), e.getValue().size())));
+				itemQuantityTotals.getOrDefault(e.getKey(), e.getValue().size()),
+				contributorsFor(itemContributors.get(e.getKey()))));
 		}
 
 		// Build catalog: category -> full item list (all items in the category)
@@ -156,7 +196,7 @@ final class RosterClogBuilder
 			catalogMap.put(entry.getKey(), new ArrayList<>(entry.getValue()));
 		}
 
-		return new ClanClogResult.ClogUnion(itemsByCategory, allObtained.size(),
+		return new ClanClogResult.ClogUnion(itemsByCategory, itemHolders.size(),
 			totalMemberUniqueObtained,
 			itemMeta, catalogMap);
 	}
@@ -177,6 +217,22 @@ final class RosterClogBuilder
 			}
 		}
 		return itemIds.size();
+	}
+
+	private static List<ClanClogResult.ItemContributor> contributorsFor(
+		@Nullable Map<String, ClanClogResult.ItemContributor> contributors)
+	{
+		if (contributors == null || contributors.isEmpty())
+		{
+			return new ArrayList<>();
+		}
+
+		List<ClanClogResult.ItemContributor> rows = new ArrayList<>();
+		rows.addAll(contributors.values());
+		rows.sort(Comparator
+			.comparingInt(ClanClogResult.ItemContributor::getQuantity).reversed()
+			.thenComparing(ClanClogResult.ItemContributor::getRsn));
+		return rows;
 	}
 
 	static String newestClogLastChanged(List<ClanMember> roster)

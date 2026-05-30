@@ -1320,13 +1320,11 @@ public class Cells
 
 	/**
 	 * Build a configured {@link ImgTooltip} from TooltipData. Holds the
-	 * single-flavor configuration (title + obtained + rank + items) so every
+	 * single-flavor configuration (title + obtained + contributors + items) so every
 	 * tooltip routing method funnels through one place.
 	 *
-	 * <p>Clan-flavor data sets {@code obtainedCounts == holderCounts}, so
-	 * ImgTooltip's per-item quantity overlay automatically renders the clan
-	 * holder count (how many members own each item) without any branch on
-	 * {@link TooltipData#isClanFlavor()} at this layer.
+	 * <p>Clan-flavor data uses {@code obtainedCounts} for duplicate item
+	 * quantity and optional contributor rows for the hover proof line.
 	 */
 	private JToolTip buildSpriteTooltip(JLabel owner, @Nullable TooltipData data,
 		int gridCols, String name, boolean compact)
@@ -1337,11 +1335,13 @@ public class Cells
 		if (data == null)
 		{
 			tip.setObtained(0, 0);
+			tip.setInfoLine("Contributors: ", "0", Color.WHITE);
 			tip.setNotice("No Collection Log Data");
 			return keepTooltipOnHover(owner, tip);
 		}
 		tip.setObtained(data.obtainedCount, data.totalItems);
-		tip.setRank(data.rank);
+		tip.setInfoLine("Contributors: ", String.valueOf(data.contributorCount), Color.WHITE);
+		tip.setContributors(data.contributors);
 		tip.setItems(data.totalItems, data.allItemIds, data.obtainedIds,
 			data.obtainedCounts, itemManager);
 		return keepTooltipOnHover(owner, tip);

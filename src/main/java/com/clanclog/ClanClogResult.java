@@ -527,6 +527,7 @@ public class ClanClogResult
 		@SerializedName("quantity_total")    private int quantityTotal;
 		@SerializedName("first_seen_at")     private String firstSeenAt;
 		@SerializedName("first_seen_by_rsn") private String firstSeenByRsn;
+		@SerializedName("contributors")      private List<ItemContributor> contributors;
 
 		/** Gson reflective constructor. */
 		@SuppressWarnings("unused")
@@ -537,14 +538,19 @@ public class ClanClogResult
 		/** Package-private constructor for client-side aggregation. */
 		ItemMeta(int holderCount)
 		{
-			this.holderCount = holderCount;
-			this.quantityTotal = holderCount;
+			this(holderCount, holderCount, Collections.emptyList());
 		}
 
 		ItemMeta(int holderCount, int quantityTotal)
 		{
+			this(holderCount, quantityTotal, Collections.emptyList());
+		}
+
+		ItemMeta(int holderCount, int quantityTotal, List<ItemContributor> contributors)
+		{
 			this.holderCount = holderCount;
 			this.quantityTotal = quantityTotal;
+			this.contributors = contributors;
 		}
 
 		public int getHolderCount()
@@ -565,6 +571,40 @@ public class ClanClogResult
 		public String getFirstSeenByRsn()
 		{
 			return firstSeenByRsn;
+		}
+
+		public List<ItemContributor> getContributors()
+		{
+			return contributors != null ? contributors : Collections.emptyList();
+		}
+	}
+
+	/** One member's contribution to an aggregate clan item quantity. */
+	public static class ItemContributor
+	{
+		@SerializedName("rsn")      private String rsn;
+		@SerializedName("quantity") private int quantity;
+
+		/** Gson reflective constructor. */
+		@SuppressWarnings("unused")
+		private ItemContributor()
+		{
+		}
+
+		ItemContributor(String rsn, int quantity)
+		{
+			this.rsn = rsn;
+			this.quantity = quantity;
+		}
+
+		public String getRsn()
+		{
+			return rsn;
+		}
+
+		public int getQuantity()
+		{
+			return quantity;
 		}
 	}
 

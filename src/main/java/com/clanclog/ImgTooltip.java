@@ -6,6 +6,11 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.HeadlessException;
+import java.awt.IllegalComponentStateException;
+import java.awt.MouseInfo;
+import java.awt.Point;
+import java.awt.PointerInfo;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
@@ -50,6 +55,7 @@ public class ImgTooltip extends TitleTooltip
 	private List<Integer> allItemIds;
 	private Set<Integer> obtainedIds;
 	private Map<Integer, Integer> obtainedCounts;
+	private Map<Integer, List<ClanClogResult.ItemContributor>> contributors;
 	private BufferedImage[] sprites;
 	private ItemManager itemManager;
 
@@ -70,12 +76,7 @@ public class ImgTooltip extends TitleTooltip
 			@Override
 			public void mouseMoved(MouseEvent e)
 			{
-				int idx = getItemIndexAt(e.getX(), e.getY());
-				if (idx != hoveredItemIndex)
-				{
-					hoveredItemIndex = idx;
-					repaint();
-				}
+				updateHoveredItem(e.getX(), e.getY());
 			}
 		});
 
@@ -144,6 +145,49 @@ public class ImgTooltip extends TitleTooltip
 	public void setNotice(String msg)
 	{
 		this.notice = msg;
+	}
+
+	public void setContributors(Map<Integer, List<ClanClogResult.ItemContributor>> contributors)
+	{
+		this.contributors = contributors;
+	}
+
+	void syncHoveredItemFromScreenPointer()
+	{
+		PointerInfo pointer;
+		try
+		{
+			pointer = MouseInfo.getPointerInfo();
+		}
+		catch (HeadlessException | SecurityException e)
+		{
+			return;
+		}
+		if (pointer == null)
+		{
+			return;
+		}
+
+		syncHoveredItemFromScreenPoint(pointer.getLocation());
+	}
+
+	void syncHoveredItemFromScreenPoint(Point screenPoint)
+	{
+		if (!isShowing() || screenPoint == null)
+		{
+			return;
+		}
+
+		Point point = new Point(screenPoint);
+		try
+		{
+			SwingUtilities.convertPointFromScreen(point, this);
+		}
+		catch (IllegalComponentStateException e)
+		{
+			return;
+		}
+		updateHoveredItem(point.x, point.y);
 	}
 
 	public void setNotice(String msg, BufferedImage icon)
@@ -330,11 +374,91 @@ public class ImgTooltip extends TitleTooltip
 
 		g2.setFont(FontManager.getRunescapeSmallFont());
 		FontMetrics fm = g2.getFontMetrics();
-		int textW = fm.stringWidth(name);
+		String label = name;
+		String contribution = contributionSummary(itemId);
+		if (obtained && contribution != null)
+		{
+			label = name + " - " + contribution;
+		}
+		label = fitText(label, fm, w - 2 * inset);
+		int textW = fm.stringWidth(label);
 		int tx = inset + (w - 2 * inset - textW) / 2;
 
 		g2.setColor(obtained ? Color.WHITE : NOTICE_COLOR);
-		g2.drawString(name, tx, barY + fm.getAscent());
+		g2.drawString(label, tx, barY + fm.getAscent());
+	}
+
+	private String contributionSummary(int itemId)
+	{
+		if (contributors == null)
+		{
+			return null;
+		}
+		List<ClanClogResult.ItemContributor> rows = contributors.get(itemId);
+		if (rows == null || rows.isEmpty())
+		{
+			return null;
+		}
+
+		StringBuilder text = new StringBuilder();
+		int shown = 0;
+		for (ClanClogResult.ItemContributor row : rows)
+		{
+			if (row == null || row.getRsn() == null || row.getRsn().isEmpty()
+				|| row.getQuantity() <= 0)
+			{
+				continue;
+			}
+			if (shown == 3)
+			{
+				break;
+			}
+			if (text.length() > 0)
+			{
+				text.append(", ");
+			}
+			text.append(row.getRsn()).append(" x").append(row.getQuantity());
+			shown++;
+		}
+		if (shown == 0)
+		{
+			return null;
+		}
+		int remaining = rows.size() - shown;
+		if (remaining > 0)
+		{
+			text.append(", +").append(remaining);
+		}
+		return text.toString();
+	}
+
+	private static String fitText(String text, FontMetrics fm, int maxWidth)
+	{
+		if (fm.stringWidth(text) <= maxWidth)
+		{
+			return text;
+		}
+		String suffix = "...";
+		int suffixWidth = fm.stringWidth(suffix);
+		for (int len = text.length() - 1; len > 0; len--)
+		{
+			String candidate = text.substring(0, len);
+			if (fm.stringWidth(candidate) + suffixWidth <= maxWidth)
+			{
+				return candidate + suffix;
+			}
+		}
+		return suffix;
+	}
+
+	private void updateHoveredItem(int x, int y)
+	{
+		int idx = getItemIndexAt(x, y);
+		if (idx != hoveredItemIndex)
+		{
+			hoveredItemIndex = idx;
+			repaint();
+		}
 	}
 
 	private int getItemIndexAt(int mx, int my)

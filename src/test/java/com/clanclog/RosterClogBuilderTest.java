@@ -55,6 +55,10 @@ public class RosterClogBuilderTest
 		assertEquals(5, union.getItemMeta().get("1").getQuantityTotal());
 		assertEquals(5, union.getItemMeta().get("2").getQuantityTotal());
 		assertEquals(1, union.getItemMeta().get("3").getQuantityTotal());
+		assertEquals("Bob", union.getItemMeta().get("2").getContributors().get(0).getRsn());
+		assertEquals(3, union.getItemMeta().get("2").getContributors().get(0).getQuantity());
+		assertEquals("Alice", union.getItemMeta().get("2").getContributors().get(1).getRsn());
+		assertEquals(2, union.getItemMeta().get("2").getContributors().get(1).getQuantity());
 	}
 
 	@Test
@@ -71,6 +75,24 @@ public class RosterClogBuilderTest
 		assertEquals(List.of(30000, 30001, 30002, 30003),
 			union.getCatalog("shellbane_gryphon"));
 		assertEquals(2, union.getTotalObtained());
+	}
+
+	@Test
+	public void buildClogUnionAppliesSharedObtainedItemsToEveryCatalogPage()
+	{
+		ClanMember shardHolder = memberWithClog("Shard Holder", 1,
+			Map.of("commander_zilyana", List.of(item(11818, 11))),
+			Map.of(
+				"commander_zilyana", List.of(11814, 11818, 11820),
+				"general_graardor", List.of(11812, 11818, 11820)));
+
+		ClanClogResult.ClogUnion union = RosterClogBuilder.buildClogUnion(
+			Collections.singletonList(shardHolder));
+
+		assertEquals(List.of(11818), union.getItemsByCategory().get("commander_zilyana"));
+		assertEquals(List.of(11818), union.getItemsByCategory().get("general_graardor"));
+		assertEquals(1, union.getTotalObtained());
+		assertEquals(11, union.getItemMeta().get("11818").getQuantityTotal());
 	}
 
 	private static ClanMember member(String rsn, String lastChanged)
