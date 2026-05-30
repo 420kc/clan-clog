@@ -50,6 +50,47 @@ public class ClanLookupSessionTest
 	}
 
 	@Test
+	public void startFallsBackWhenProfileRequestFails() throws Exception
+	{
+		ClanClogResult clog = result("{"
+			+ "\"slug\":\"clannabis\","
+			+ "\"display_name\":\"Clannabis\","
+			+ "\"member_coverage\":{\"total\":2,\"clog_ok\":1,\"hiscore_only\":0,\"not_found\":1},"
+			+ "\"clog\":{\"items_by_category\":{\"barrows\":[4708]},\"total_obtained\":1}"
+			+ "}");
+		FakeApiClient apiClient = new FakeApiClient(
+			new IllegalStateException("profile unavailable"), clog);
+		RecordingListener listener = new RecordingListener();
+
+		SwingUtilities.invokeAndWait(() ->
+			new ClanLookupSession(apiClient).start("clannabis", listener));
+
+		assertTrue(listener.await());
+		assertSame(clog, listener.result.get());
+		assertEquals(1, apiClient.clogCalls);
+	}
+
+	@Test
+	public void startFallsBackWhenProfileReturnsNull() throws Exception
+	{
+		ClanClogResult clog = result("{"
+			+ "\"slug\":\"clannabis\","
+			+ "\"display_name\":\"Clannabis\","
+			+ "\"member_coverage\":{\"total\":2,\"clog_ok\":1,\"hiscore_only\":0,\"not_found\":1},"
+			+ "\"clog\":{\"items_by_category\":{\"barrows\":[4708]},\"total_obtained\":1}"
+			+ "}");
+		FakeApiClient apiClient = new FakeApiClient((ClanClogResult) null, clog);
+		RecordingListener listener = new RecordingListener();
+
+		SwingUtilities.invokeAndWait(() ->
+			new ClanLookupSession(apiClient).start("clannabis", listener));
+
+		assertTrue(listener.await());
+		assertSame(clog, listener.result.get());
+		assertEquals(1, apiClient.clogCalls);
+	}
+
+	@Test
 	public void startKeepsRepresentedProfileWithoutFallback() throws Exception
 	{
 		ClanClogResult profile = result("{"
@@ -86,18 +127,35 @@ public class ClanLookupSessionTest
 	{
 		private final ClanClogResult profile;
 		private final ClanClogResult clog;
+		private final Throwable profileError;
 		private int clogCalls;
 
 		FakeApiClient(ClanClogResult profile, ClanClogResult clog)
 		{
+			this(profile, null, clog);
+		}
+
+		FakeApiClient(Throwable profileError, ClanClogResult clog)
+		{
+			this(null, profileError, clog);
+		}
+
+		private FakeApiClient(ClanClogResult profile, Throwable profileError,
+			ClanClogResult clog)
+		{
 			super(new OkHttpClient(), GSON);
 			this.profile = profile;
+			this.profileError = profileError;
 			this.clog = clog;
 		}
 
 		@Override
 		public CompletableFuture<ClanClogResult> fetchClanProfile(String slug)
 		{
+			if (profileError != null)
+			{
+				return CompletableFuture.failedFuture(profileError);
+			}
 			return CompletableFuture.completedFuture(profile);
 		}
 

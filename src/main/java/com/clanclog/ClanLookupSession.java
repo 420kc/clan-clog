@@ -5,6 +5,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -105,26 +106,46 @@ public class ClanLookupSession
 
 	private CompletableFuture<ClanClogResult> fetchBestClanResult(String slug)
 	{
-		return apiClient.fetchClanProfile(slug).thenCompose(profile ->
+		return apiClient.fetchClanProfile(slug)
+			.handle(ProfileLookup::new)
+			.thenCompose(lookup ->
 		{
-			if (profile == null)
-			{
-				return CompletableFuture.completedFuture(null);
-			}
-			if (profile.hasRepresentedData())
+			ClanClogResult profile = lookup.profile;
+			if (profile != null && profile.hasRepresentedData())
 			{
 				return CompletableFuture.completedFuture(profile);
+			}
+			if (lookup.error != null)
+			{
+				log.debug("clan profile lookup failed for {}; trying clog fallback: {}",
+					slug, lookup.error.getMessage());
 			}
 			return apiClient.fetchClanClog(slug).handle((clog, error) ->
 			{
 				if (error != null)
 				{
 					log.debug("clan clog fallback failed for {}: {}", slug, error.getMessage());
+					if (lookup.error != null)
+					{
+						throw new CompletionException(lookup.error);
+					}
 					return profile;
 				}
 				return clog != null ? clog : profile;
 			});
 		});
+	}
+
+	private static class ProfileLookup
+	{
+		private final ClanClogResult profile;
+		private final Throwable error;
+
+		ProfileLookup(ClanClogResult profile, Throwable error)
+		{
+			this.profile = profile;
+			this.error = error;
+		}
 	}
 
 	/** The most-recently-requested slug. May be null if no lookup has fired yet. */
