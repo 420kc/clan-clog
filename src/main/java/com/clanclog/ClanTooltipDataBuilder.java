@@ -142,9 +142,17 @@ public class ClanTooltipDataBuilder
 			? clog.getItemMeta() : Collections.emptyMap();
 
 		Set<Integer> allItems = new LinkedHashSet<>();
-		for (int itemId : fallbackItemIds)
+		List<Integer> catalog = clog != null ? clog.getCatalog(category) : null;
+		if (catalog != null && !catalog.isEmpty())
 		{
-			allItems.add(itemId);
+			allItems.addAll(catalog);
+		}
+		else
+		{
+			for (int itemId : fallbackItemIds)
+			{
+				allItems.add(itemId);
+			}
 		}
 
 		return buildFromItemIds(name, new ArrayList<>(allItems),

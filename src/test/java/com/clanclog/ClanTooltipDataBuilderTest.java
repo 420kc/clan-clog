@@ -82,7 +82,7 @@ public class ClanTooltipDataBuilderTest
 	}
 
 	@Test
-	public void rareBucketUsesFixedCanonInsteadOfProviderCatalog()
+	public void rareBucketUsesBackendCatalogWhenAvailable()
 	{
 		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
 			1, Collections.emptyMap());
@@ -101,10 +101,10 @@ public class ClanTooltipDataBuilderTest
 			.buildRareBucketData("3rd Age", "third_age", new int[]{10334, 10350}, result);
 
 		assertNotNull(data);
-		assertEquals(2, data.obtainedCount);
-		assertEquals(2, data.totalItems);
-		assertEquals(List.of(10334, 10350), data.allItemIds);
-		assertFalse(data.obtainedIds.contains(10348));
+		assertEquals(3, data.obtainedCount);
+		assertEquals(3, data.totalItems);
+		assertEquals(List.of(10334, 10350, 10348), data.allItemIds);
+		assertTrue(data.obtainedIds.contains(10348));
 		assertEquals(5, data.obtainedCounts.get(10334).intValue());
 		assertEquals(3, data.obtainedCounts.get(10350).intValue());
 		assertEquals(2, data.holderCounts.get(10334).intValue());
@@ -139,7 +139,7 @@ public class ClanTooltipDataBuilderTest
 	}
 
 	@Test
-	public void rareBucketIgnoresItemsOutsideFixedCanon()
+	public void rareBucketIgnoresItemMetaOutsideBackendCatalog()
 	{
 		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
 			1, Collections.emptyMap());
@@ -150,7 +150,7 @@ public class ClanTooltipDataBuilderTest
 			Map.of(
 				"12422", new ClanClogResult.ItemMeta(1, 1),
 				"23185", new ClanClogResult.ItemMeta(1, 8)),
-			Map.of("third_age", List.of(12422, 23185))));
+			Map.of("third_age", List.of(12422))));
 
 		TooltipData data = new ClanTooltipDataBuilder()
 			.buildRareBucketData("3rd Age", "third_age",
