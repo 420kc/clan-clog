@@ -1144,10 +1144,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				lastLoadedClanName = clanName;
 				lastLoadedSlug = slug;
 				pendingRosterSyncEligible = true;
-				syncRequiresFreshClanalyze = true;
+				syncRequiresFreshClanalyze = false;
 				setCoverageFromResult(result);
 				showClanalyzeButton("refresh", "freshen clan profile");
-				showSyncButton("freshen clan profile before syncing");
+				updateSyncButtonVisibility();
 				setStatus(" ");
 			}));
 	}
@@ -1366,7 +1366,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				lastLoadedSlug = slug;
 				if (pendingRosterSyncEligible)
 				{
-					syncRequiresFreshClanalyze = true;
+					syncRequiresFreshClanalyze = false;
 				}
 
 				setClanHeaderText(displayName);
