@@ -186,6 +186,18 @@ public class LocalClogCacheTest
 		assertEquals(2, result.getUniqueObtained());
 	}
 
+	@Test
+	public void isUpdatedWithinReadsDiskTimestamp() throws Exception
+	{
+		File dir = tempDir();
+		writeCachedPlayer(dir);
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+
+		assertTrue(cache.isUpdatedWithin("420 kc", Long.MAX_VALUE));
+		assertEquals(false, cache.isUpdatedWithin("420 kc", 1));
+	}
+
 	private static File tempDir() throws Exception
 	{
 		return Files.createTempDirectory("clan-clog-cache-test").toFile();

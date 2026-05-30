@@ -112,8 +112,8 @@ public class ClanClogBatchTest
 		}
 
 		@Override
-		public boolean hasRichCachedData(String playerName, int minCategories,
-			int minObtained)
+		public boolean hasFreshRichCachedData(String playerName, int minCategories,
+			int minObtained, long maxAgeMs)
 		{
 			return richCachedData;
 		}

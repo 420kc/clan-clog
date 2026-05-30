@@ -434,6 +434,36 @@ public class LocalClogCache
 		return 0;
 	}
 
+	public boolean isUpdatedWithin(String playerName, long maxAgeMs)
+	{
+		if (playerName == null || maxAgeMs < 0)
+		{
+			return false;
+		}
+
+		String normalized = RsnNormalizer.normalize(playerName);
+		if (normalized.isEmpty())
+		{
+			return false;
+		}
+
+		PlayerClogData data = getOrLoad(RsnNormalizer.cacheKey(normalized), normalized);
+		if (data == null || data.lastUpdated == null)
+		{
+			return false;
+		}
+
+		try
+		{
+			long updatedAt = Instant.parse(data.lastUpdated).toEpochMilli();
+			return System.currentTimeMillis() - updatedAt <= maxAgeMs;
+		}
+		catch (RuntimeException e)
+		{
+			return false;
+		}
+	}
+
 	private PlayerClogData getOrLoad(String key, String playerName)
 	{
 		PlayerClogData cached = players.get(key);

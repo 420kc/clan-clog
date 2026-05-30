@@ -316,6 +316,14 @@ public class ClogFetchService
 			&& obtainedCount(cached) >= minObtained;
 	}
 
+	public boolean hasFreshRichCachedData(String playerName, int minCategories,
+		int minObtained, long maxAgeMs)
+	{
+		String normalized = RsnNormalizer.normalize(playerName);
+		return hasRichCachedData(normalized, minCategories, minObtained)
+			&& localClogCache.isUpdatedWithin(normalized, maxAgeMs);
+	}
+
 	public int categoryCount(String playerName)
 	{
 		String normalized = RsnNormalizer.normalize(playerName);
