@@ -1123,13 +1123,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rememberClan(clanName);
 		if (syncEligible)
 		{
-			lastRenderedResult = cached;
-			lastLoadedRoster = roster;
-			lastLoadedClanName = clanName;
-			lastLoadedSlug = slug;
-			clanProfileCache.put(clanName, slug, roster, cached);
 			showClanalyzeButton("refresh", "refresh clan profile");
-			updateSyncButtonVisibility();
+			hideSyncButton();
 		}
 		else
 		{
@@ -1138,6 +1133,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		setCoverageCounts(hiscoreHits, clogHits);
 		setStatus("cached");
 		return true;
+	}
+
+	private void hideSyncButton()
+	{
+		syncButton.setEnabled(true);
+		syncButton.setVisible(false);
+		revalidate();
+		repaint();
 	}
 
 	void onLocalClogCaptured(String playerName)
