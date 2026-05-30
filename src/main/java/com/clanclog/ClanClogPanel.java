@@ -788,6 +788,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		startCurrentLoad(slug, version);
 
 		clanalyzeButton.setVisible(false);
+		clearLoadedSyncPayload();
 		syncRequiresFreshClanalyze = false;
 		hideSyncButton();
 		if (!syncEligible)
@@ -989,7 +990,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					lastLoadedClanName = clanName;
 					lastLoadedSlug = slug;
 					syncRequiresFreshClanalyze = false;
-					clanProfileCache.put(clanName, slug, roster, partialResult);
 				}
 				else
 				{
@@ -1020,6 +1020,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				int clogCount = clogOk;
 				partialResult.setMemberCoverage(new ClanClogResult.MemberCoverage(
 					roster.size(), clogOk, hiscoreOnly, 0, notFound, 0));
+				if (syncEligible)
+				{
+					clanProfileCache.put(clanName, slug, roster, partialResult);
+				}
 				setCoverageCounts(hiscoreHits, clogCount);
 				setStatus(" ");
 
@@ -1312,16 +1316,21 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void clearSyncState()
 	{
-		lastRenderedResult = null;
-		lastLoadedRoster = null;
-		lastLoadedClanName = null;
-		lastLoadedSlug = null;
+		clearLoadedSyncPayload();
 		pendingRosterSyncEligible = false;
 		syncRequiresFreshClanalyze = false;
 		syncButton.setEnabled(true);
 		syncButton.setVisible(false);
 		revalidate();
 		repaint();
+	}
+
+	private void clearLoadedSyncPayload()
+	{
+		lastRenderedResult = null;
+		lastLoadedRoster = null;
+		lastLoadedClanName = null;
+		lastLoadedSlug = null;
 	}
 
 	/**
