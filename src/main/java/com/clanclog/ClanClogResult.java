@@ -198,12 +198,13 @@ public class ClanClogResult
 
 	public boolean hasRepresentedData()
 	{
-		if (memberCoverage != null && memberCoverage.getHiscoreRepresented() > 0)
+		if (memberCoverage != null
+			&& (memberCoverage.getClogOk() > 0 || memberCoverage.getHiscoreOnly() > 0))
 		{
 			return true;
 		}
 		if (clog != null && (clog.getTotalObtained() > 0
-			|| !clog.getItemsByCategory().isEmpty()))
+			|| hasAnyObtainedItem(clog.getItemsByCategory())))
 		{
 			return true;
 		}
@@ -217,6 +218,22 @@ public class ClanClogResult
 		for (Long value : getActivityTotals().values())
 		{
 			if (value != null && value > 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean hasAnyObtainedItem(Map<String, List<Integer>> itemsByCategory)
+	{
+		if (itemsByCategory == null || itemsByCategory.isEmpty())
+		{
+			return false;
+		}
+		for (List<Integer> items : itemsByCategory.values())
+		{
+			if (items != null && !items.isEmpty())
 			{
 				return true;
 			}

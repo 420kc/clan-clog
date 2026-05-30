@@ -136,6 +136,32 @@ public class ClanClogResultTest
 	}
 
 	@Test
+	public void representedDataIgnoresOptOutOnlyCoverage()
+	{
+		ClanClogResult result = ClanClogResult.forRoster(
+			"opted-clan", "Opted Clan", 2, Map.of());
+		result.setMemberCoverage(new ClanClogResult.MemberCoverage(
+			2, 0, 0, 2, 0, 0));
+
+		assertFalse(result.hasRepresentedData());
+	}
+
+	@Test
+	public void representedDataIgnoresCatalogOnlyClog()
+	{
+		ClanClogResult result = ClanClogResult.forRoster(
+			"catalog-clan", "Catalog Clan", 1, Map.of());
+		result.setClog(new ClanClogResult.ClogUnion(
+			Map.of("shellbane_gryphon", List.of()),
+			0,
+			0,
+			Map.of(),
+			Map.of("shellbane_gryphon", List.of(30000, 30001))));
+
+		assertFalse(result.hasRepresentedData());
+	}
+
+	@Test
 	public void clogUnionSerializesCatalogByCategory()
 	{
 		ClanClogResult.ClogUnion union = new ClanClogResult.ClogUnion(
