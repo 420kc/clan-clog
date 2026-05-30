@@ -51,6 +51,53 @@ public class ClogFetchServiceTest
 		assertEquals(1701, merged.getUniqueTotal());
 		assertTrue(merged.getObtainedItems().containsKey("hard_treasure_trails"));
 		assertTrue(merged.getObtainedItems().containsKey("fortis_colosseum"));
+		assertEquals(Arrays.asList(1, 2, 3),
+			merged.getCategoryItems().get("hard_treasure_trails"));
+	}
+
+	@Test
+	public void mergeResultsUnionsProviderAndLocalRareItems()
+	{
+		Map<String, List<Integer>> providerCategories = new HashMap<>();
+		providerCategories.put("third_age", Arrays.asList(10334, 10336, 10338));
+		Map<String, List<ClogResult.ClogItem>> providerObtained = new HashMap<>();
+		providerObtained.put("third_age",
+			Arrays.asList(new ClogResult.ClogItem(10334, 2, null)));
+		ClogResult provider = new ClogResult(
+			"CBC",
+			providerObtained,
+			providerCategories,
+			new HashMap<>(),
+			"2026-05-28 10:24:58",
+			null);
+		provider.setUniqueObtained(1457);
+		provider.setUniqueTotal(1701);
+
+		Map<String, List<Integer>> localCategories = new HashMap<>();
+		localCategories.put("third_age", Arrays.asList(10334, 10336, 10338, 10340));
+		Map<String, List<ClogResult.ClogItem>> localObtained = new HashMap<>();
+		localObtained.put("third_age",
+			Arrays.asList(new ClogResult.ClogItem(10340, 1, null)));
+		ClogResult local = new ClogResult(
+			"CBC",
+			localObtained,
+			localCategories,
+			new HashMap<>(),
+			"2026-05-29T18:24:04Z",
+			null);
+		local.setUniqueObtained(1);
+		local.setUniqueTotal(1701);
+
+		ClogResult merged = ClogFetchService.mergeResults(provider, local, new HashMap<>());
+
+		assertEquals(1457, merged.getUniqueObtained());
+		assertEquals(1701, merged.getUniqueTotal());
+		assertEquals(2, merged.getObtainedItems().get("third_age").size());
+		assertTrue(merged.getObtainedItems().get("third_age").stream()
+			.anyMatch(item -> item.getId() == 10334 && item.getCount() == 2));
+		assertTrue(merged.getObtainedItems().get("third_age").stream()
+			.anyMatch(item -> item.getId() == 10340 && item.getCount() == 1));
+		assertEquals(4, merged.getCategoryItems().get("third_age").size());
 	}
 
 	@Test
