@@ -761,20 +761,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 
-		// Primary: in-game clan roster (no external dependency, works offline).
-		// Populates the UI and shows the clanalyze button; does NOT auto-fire
-		// the hiscore/clog batch. The user must press "clanalyze".
-		String inGameName = clanReader.currentClanName();
-		List<ClanMember> roster = clanReader.currentRoster();
-		if (inGameName != null && !roster.isEmpty()
-			&& normalize(inGameName).equals(normalize(raw)))
-		{
-			onInGameRosterRefreshed(new ArrayList<>(roster));
-			return;
-		}
-
-		// A clan you're not in: read Kill Clog backend first (pre-computed
-		// combined clog from a prior sync), then fall back to a WOM roster view.
+		// Typed search reads Kill Clog's backend aggregate first, including for
+		// your own clan. The in-game roster path remains available from the clan
+		// tab refresh and the explicit refresh/freshen affordance.
 		clearCoverageCounts();
 		startBackendView(raw);
 	}
@@ -1490,7 +1479,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			&& lastLoadedClanName != null
 			&& lastLoadedSlug != null
 			&& !syncRequiresFreshClanalyze;
-		if (freshOwnClan)
+		if (ready && freshOwnClan)
 		{
 			showSyncButton(syncGateTooltip(ready));
 			return;
@@ -1701,7 +1690,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clearCoverageCounts();
 		lastBackendResult = null;
 		clearSyncState();
+		clanalyzeButton.setVisible(false);
 		cells.clearCells();
+		membersPanel.showPlaceholder("fetching killclog.com profile");
 	}
 
 	@Override
@@ -1732,9 +1723,29 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			setStatus("no represented clog data for " + slug);
 			return;
 		}
+		String displayName = name != null && !name.isEmpty() ? name : slug;
+		List<ClanMember> roster = new ArrayList<>(result.getMembers());
+		pendingClanName = displayName;
+		pendingRoster = roster;
+		pendingRosterSyncEligible = false;
+		lastRenderedResult = result;
+		lastLoadedRoster = roster;
+		lastLoadedClanName = displayName;
+		lastLoadedSlug = slug;
+
 		setCoverageFromResult(result);
 		setStatus(" ");
 		cells.renderClanResult(result);
+		if (!roster.isEmpty())
+		{
+			membersPanel.renderRoster(displayName, roster);
+			clanProfileCache.put(displayName, slug, roster, result);
+		}
+		else
+		{
+			membersPanel.showPlaceholder("member roster unavailable");
+		}
+		updateSyncButtonVisibility();
 	}
 
 	@Override
