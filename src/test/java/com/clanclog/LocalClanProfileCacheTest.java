@@ -103,6 +103,24 @@ public class LocalClanProfileCacheTest
 		assertEquals(null, cache.get("wrong clan"));
 	}
 
+	@Test
+	public void getPreservesMemberCoverage() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		writeProfileWithCoverage(dir, "covered-clan", "Covered Clan");
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+		LocalClanProfileCache.StoredProfile stored = cache.get("covered clan");
+
+		assertNotNull(stored);
+		ClanClogResult.MemberCoverage coverage = stored.getResult().getMemberCoverage();
+		assertNotNull(coverage);
+		assertEquals(3, coverage.getTotal());
+		assertEquals(2, coverage.getClogOk());
+		assertEquals(1, coverage.getHiscoreOnly());
+		assertEquals(3, coverage.getHiscoreRepresented());
+	}
+
 	private static File writeProfile(File dir, String slug, String clanName) throws Exception
 	{
 		return writeProfile(dir, slug, clanName, slug);
@@ -122,6 +140,32 @@ public class LocalClanProfileCacheTest
 			+ "\"display_name\":\"" + clanName + "\","
 			+ "\"member_count\":0,"
 			+ "\"bosses\":{\"Zulrah\":{\"clan_total_kc\":1}}"
+			+ "}"
+			+ "}";
+		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
+		return file;
+	}
+
+	private static File writeProfileWithCoverage(File dir, String slug, String clanName) throws Exception
+	{
+		File file = new File(dir, slug + ".json");
+		String json = "{"
+			+ "\"clanName\":\"" + clanName + "\","
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"savedAt\":\"2026-05-30T00:00:00Z\","
+			+ "\"roster\":[],"
+			+ "\"result\":{"
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"display_name\":\"" + clanName + "\","
+			+ "\"member_count\":3,"
+			+ "\"bosses\":{\"Zulrah\":{\"clan_total_kc\":1}},"
+			+ "\"member_coverage\":{"
+			+ "\"total\":3,"
+			+ "\"clog_ok\":2,"
+			+ "\"hiscore_only\":1,"
+			+ "\"temple_ok\":2,"
+			+ "\"temple_missing\":1"
+			+ "}"
 			+ "}"
 			+ "}";
 		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
