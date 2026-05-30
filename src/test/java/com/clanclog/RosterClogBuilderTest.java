@@ -40,9 +40,9 @@ public class RosterClogBuilderTest
 	public void buildClogUnionKeepsGridUnionAndMemberUniqueTotalSeparate()
 	{
 		ClanMember alice = memberWithClog("Alice", 1419,
-			Map.of("zulrah", List.of(item(1), item(2))));
+			Map.of("zulrah", List.of(item(1, 5), item(2, 2))));
 		ClanMember bob = memberWithClog("Bob", 7,
-			Map.of("zulrah", List.of(item(2), item(3))));
+			Map.of("zulrah", List.of(item(2, 3), item(3))));
 
 		ClanClogResult.ClogUnion union = RosterClogBuilder.buildClogUnion(
 			Arrays.asList(alice, bob));
@@ -52,6 +52,9 @@ public class RosterClogBuilderTest
 		assertEquals(1, union.getItemMeta().get("1").getHolderCount());
 		assertEquals(2, union.getItemMeta().get("2").getHolderCount());
 		assertEquals(1, union.getItemMeta().get("3").getHolderCount());
+		assertEquals(5, union.getItemMeta().get("1").getQuantityTotal());
+		assertEquals(5, union.getItemMeta().get("2").getQuantityTotal());
+		assertEquals(1, union.getItemMeta().get("3").getQuantityTotal());
 	}
 
 	private static ClanMember member(String rsn, String lastChanged)
@@ -90,5 +93,10 @@ public class RosterClogBuilderTest
 	private static ClogResult.ClogItem item(int id)
 	{
 		return new ClogResult.ClogItem(id, 1, null);
+	}
+
+	private static ClogResult.ClogItem item(int id, int count)
+	{
+		return new ClogResult.ClogItem(id, count, null);
 	}
 }

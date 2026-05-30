@@ -1018,7 +1018,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				partialResult.setMemberCoverage(new ClanClogResult.MemberCoverage(
 					roster.size(), clogOk, hiscoreOnly, 0, notFound, 0));
 				setCoverageCounts(hiscoreHits, clogCount);
-				setStatus("done");
+				setStatus(" ");
 
 				// Allow re-clanalyze on same clan after completion
 				clearCurrentLoadIfOwner(slug, version);
@@ -1174,7 +1174,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clearSyncState();
 		}
 		setCoverageCounts(hiscoreHits, clogHits);
-		setStatus("cached");
+		setStatus(" ");
 		return true;
 	}
 
@@ -1549,11 +1549,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 		setCoverageFromResult(result);
-		String synced = result.getLastSyncedAt();
-		String when = synced != null && synced.contains("T")
-			? synced.substring(0, synced.indexOf('T')) : synced;
-		String prefix = result.isRosterOnlyProfile() ? "clan profile" : "synced clog";
-		setStatus(prefix + (when != null ? " · " + when : ""));
+		setStatus(" ");
 		cells.renderClanResult(result);
 	}
 

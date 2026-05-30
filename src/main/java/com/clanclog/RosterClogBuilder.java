@@ -58,8 +58,9 @@ final class RosterClogBuilder
 	/**
 	 * Build a {@link ClanClogResult.ClogUnion} from per-member clog data.
 	 * Unions all members' obtained items per category, counts how many members
-	 * hold each item (holder_count), and sums total unique obtained items
-	 * across the clan.
+	 * hold each item (holder_count), sums item quantities across represented
+	 * members (quantity_total), and sums total unique obtained items across the
+	 * clan.
 	 *
 	 * <p>Category keys are Temple-style (snake_case). The tooltip builder uses
 	 * {@link ClogHelper#bossToCategory} to map boss names to category keys.
@@ -75,6 +76,8 @@ final class RosterClogBuilder
 		Map<String, Set<Integer>> categoryCatalogs = new LinkedHashMap<>();
 		// item id -> all RSNs who have it in any category
 		Map<Integer, Set<String>> itemHolders = new LinkedHashMap<>();
+		// item id -> sum of per-member quantities across the clan
+		Map<Integer, Integer> itemQuantityTotals = new LinkedHashMap<>();
 
 		int membersWithClog = 0;
 		int totalMemberUniqueObtained = 0;
@@ -98,6 +101,7 @@ final class RosterClogBuilder
 			}
 
 			// Index obtained items per category with holder tracking
+			Map<Integer, Integer> memberItemCounts = new HashMap<>();
 			for (Map.Entry<String, List<ClogResult.ClogItem>> entry : clog.getObtainedItems().entrySet())
 			{
 				Map<Integer, Set<String>> holders = categoryHolders
@@ -110,7 +114,13 @@ final class RosterClogBuilder
 					itemHolders
 						.computeIfAbsent(item.getId(), k -> new HashSet<>())
 						.add(member.getRsn().toLowerCase());
+					memberItemCounts.merge(item.getId(), Math.max(1, item.getCount()),
+						Math::max);
 				}
+			}
+			for (Map.Entry<Integer, Integer> entry : memberItemCounts.entrySet())
+			{
+				itemQuantityTotals.merge(entry.getKey(), entry.getValue(), Integer::sum);
 			}
 		}
 
@@ -135,7 +145,8 @@ final class RosterClogBuilder
 		for (Map.Entry<Integer, Set<String>> e : itemHolders.entrySet())
 		{
 			String idStr = String.valueOf(e.getKey());
-			itemMeta.put(idStr, new ClanClogResult.ItemMeta(e.getValue().size()));
+			itemMeta.put(idStr, new ClanClogResult.ItemMeta(e.getValue().size(),
+				itemQuantityTotals.getOrDefault(e.getKey(), e.getValue().size())));
 		}
 
 		// Build catalog: category -> full item list (all items in the category)
