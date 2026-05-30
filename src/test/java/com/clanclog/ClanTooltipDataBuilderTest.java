@@ -85,8 +85,8 @@ public class ClanTooltipDataBuilderTest
 			2,
 			2,
 			Map.of(
-				"10334", new ClanClogResult.ItemMeta(2),
-				"10350", new ClanClogResult.ItemMeta(1)),
+				"10334", new ClanClogResult.ItemMeta(2, 5),
+				"10350", new ClanClogResult.ItemMeta(1, 3)),
 			Map.of("third_age", List.of(10334, 10350, 10348))));
 
 		TooltipData data = new ClanTooltipDataBuilder()
@@ -96,8 +96,10 @@ public class ClanTooltipDataBuilderTest
 		assertEquals(2, data.obtainedCount);
 		assertEquals(4, data.totalItems);
 		assertEquals(List.of(999, 10334, 10350, 10348), data.allItemIds);
-		assertEquals(2, data.obtainedCounts.get(10334).intValue());
-		assertEquals(1, data.obtainedCounts.get(10350).intValue());
+		assertEquals(5, data.obtainedCounts.get(10334).intValue());
+		assertEquals(3, data.obtainedCounts.get(10350).intValue());
+		assertEquals(2, data.holderCounts.get(10334).intValue());
+		assertEquals(1, data.holderCounts.get(10350).intValue());
 	}
 
 	@Test

@@ -467,6 +467,7 @@ public class ClanClogResult
 	public static class ItemMeta
 	{
 		@SerializedName("holder_count")      private int holderCount;
+		@SerializedName("quantity_total")    private int quantityTotal;
 		@SerializedName("first_seen_at")     private String firstSeenAt;
 		@SerializedName("first_seen_by_rsn") private String firstSeenByRsn;
 
@@ -480,11 +481,23 @@ public class ClanClogResult
 		ItemMeta(int holderCount)
 		{
 			this.holderCount = holderCount;
+			this.quantityTotal = holderCount;
+		}
+
+		ItemMeta(int holderCount, int quantityTotal)
+		{
+			this.holderCount = holderCount;
+			this.quantityTotal = quantityTotal;
 		}
 
 		public int getHolderCount()
 		{
 			return holderCount;
+		}
+
+		public int getQuantityTotal()
+		{
+			return quantityTotal > 0 ? quantityTotal : holderCount;
 		}
 
 		public String getFirstSeenAt()
@@ -506,6 +519,7 @@ public class ClanClogResult
 		@SerializedName("first_seen_at")      private String firstSeenAt;
 		@SerializedName("first_seen_by_rsn")  private String firstSeenByRsn;
 		@SerializedName("holder_count")       private int holderCount;
+		@SerializedName("quantity_total")     private int quantityTotal;
 
 		public int getItemId()
 		{
@@ -530,6 +544,11 @@ public class ClanClogResult
 		public int getHolderCount()
 		{
 			return holderCount;
+		}
+
+		public int getQuantityTotal()
+		{
+			return quantityTotal > 0 ? quantityTotal : holderCount;
 		}
 	}
 

@@ -71,9 +71,9 @@ public class ClanTooltipDataBuilder
 		Map<Integer, Integer> holderCounts = new HashMap<>();
 		Map<Integer, String> firstSeenAt = new HashMap<>();
 		Map<Integer, String> firstSeenByRsn = new HashMap<>();
-		// Map<Integer, Integer> obtainedCounts: in clan context we surface
-		// holder_count as the per-item count overlay (clean semantic match
-		// with ImgTooltip's existing per-item count rendering).
+		// Map<Integer, Integer> obtainedCounts: in clan context this is the
+		// summed duplicate quantity across members, while holderCounts keeps
+		// the separate "how many clanmates have it" value.
 		Map<Integer, Integer> obtainedCounts = new HashMap<>();
 
 		for (int itemId : obtainedIds)
@@ -85,7 +85,7 @@ public class ClanTooltipDataBuilder
 				continue;
 			}
 			holderCounts.put(itemId, meta.getHolderCount());
-			obtainedCounts.put(itemId, meta.getHolderCount());
+			obtainedCounts.put(itemId, meta.getQuantityTotal());
 			if (meta.getFirstSeenAt() != null)
 			{
 				firstSeenAt.put(itemId, meta.getFirstSeenAt());
@@ -167,7 +167,7 @@ public class ClanTooltipDataBuilder
 			{
 				obtainedIds.add(itemId);
 				holderCounts.put(itemId, meta.getHolderCount());
-				obtainedCounts.put(itemId, meta.getHolderCount());
+				obtainedCounts.put(itemId, meta.getQuantityTotal());
 				if (meta.getFirstSeenAt() != null)
 				{
 					firstSeenAt.put(itemId, meta.getFirstSeenAt());
