@@ -7,9 +7,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -161,13 +164,124 @@ public class ClogFetchService
 	{
 		if (localClogCache.hasDataFor(playerName))
 		{
-			ClogResult merged = localClogCache.toClogResult(playerName, itemNames);
-			if (merged != null)
+			ClogResult local = localClogCache.toClogResult(playerName, itemNames);
+			if (local != null)
 			{
-				return merged;
+				return mergeResults(fallback, local, itemNames);
 			}
 		}
 		return fallback;
+	}
+
+	static ClogResult mergeResults(ClogResult provider, ClogResult local,
+		Map<Integer, String> itemNames)
+	{
+		if (provider == null)
+		{
+			return local;
+		}
+		if (local == null)
+		{
+			return provider;
+		}
+
+		Map<String, List<ClogResult.ClogItem>> obtained = new HashMap<>();
+		for (Map.Entry<String, List<ClogResult.ClogItem>> entry
+			: provider.getObtainedItems().entrySet())
+		{
+			obtained.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+		}
+		for (Map.Entry<String, List<ClogResult.ClogItem>> entry
+			: local.getObtainedItems().entrySet())
+		{
+			obtained.put(entry.getKey(),
+				mergeItems(obtained.get(entry.getKey()), entry.getValue()));
+		}
+
+		Map<String, List<Integer>> categories = new HashMap<>();
+		for (Map.Entry<String, List<Integer>> entry : provider.getCategoryItems().entrySet())
+		{
+			categories.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+		}
+		for (Map.Entry<String, List<Integer>> entry : local.getCategoryItems().entrySet())
+		{
+			categories.put(entry.getKey(),
+				mergeIds(categories.get(entry.getKey()), entry.getValue()));
+		}
+
+		ClogResult merged = new ClogResult(
+			provider.getPlayerName(),
+			obtained,
+			categories,
+			itemNames != null ? itemNames : new HashMap<>(),
+			newerString(provider.getLastChanged(), local.getLastChanged()),
+			provider.getTempleAccountType() != null
+				? provider.getTempleAccountType() : local.getTempleAccountType());
+
+		int uniqueObtained = Math.max(
+			Math.max(provider.getUniqueObtained(), local.getUniqueObtained()),
+			countUniqueObtained(obtained));
+		if (uniqueObtained >= 0)
+		{
+			merged.setUniqueObtained(uniqueObtained);
+		}
+
+		int uniqueTotal = Math.max(provider.getUniqueTotal(), local.getUniqueTotal());
+		if (uniqueTotal >= 0)
+		{
+			merged.setUniqueTotal(uniqueTotal);
+		}
+		return merged;
+	}
+
+	private static List<ClogResult.ClogItem> mergeItems(List<ClogResult.ClogItem> first,
+		List<ClogResult.ClogItem> second)
+	{
+		Map<Integer, ClogResult.ClogItem> merged = new HashMap<>();
+		List<ClogResult.ClogItem> firstItems = first != null
+			? first : Collections.emptyList();
+		List<ClogResult.ClogItem> secondItems = second != null
+			? second : Collections.emptyList();
+		for (ClogResult.ClogItem item : firstItems)
+		{
+			merged.put(item.getId(), item);
+		}
+		for (ClogResult.ClogItem item : secondItems)
+		{
+			ClogResult.ClogItem existing = merged.get(item.getId());
+			if (existing == null || item.getCount() > existing.getCount())
+			{
+				merged.put(item.getId(), item);
+			}
+		}
+		return new ArrayList<>(merged.values());
+	}
+
+	private static List<Integer> mergeIds(List<Integer> first, List<Integer> second)
+	{
+		Set<Integer> ids = new HashSet<>();
+		if (first != null)
+		{
+			ids.addAll(first);
+		}
+		if (second != null)
+		{
+			ids.addAll(second);
+		}
+		return new ArrayList<>(ids);
+	}
+
+	private static String newerString(String first, String second)
+	{
+		if (first == null)
+		{
+			return second;
+		}
+		if (second == null)
+		{
+			return first;
+		}
+		return second.compareTo(first) > 0 ? second : first;
 	}
 
 	/**
@@ -189,11 +303,13 @@ public class ClogFetchService
 		return localClogCache.toClogResult(normalized, names != null ? names : new HashMap<>());
 	}
 
-	public boolean hasRichCachedData(String playerName, int minCategories)
+	public boolean hasRichCachedData(String playerName, int minCategories, int minObtained)
 	{
 		String normalized = RsnNormalizer.normalize(playerName);
-		return !normalized.isEmpty()
-			&& localClogCache.categoryCount(normalized) >= minCategories;
+		ClogResult cached = getCached(normalized);
+		return cached != null
+			&& localClogCache.categoryCount(normalized) >= minCategories
+			&& obtainedCount(cached) >= minObtained;
 	}
 
 	public int categoryCount(String playerName)
@@ -250,12 +366,21 @@ public class ClogFetchService
 		{
 			return result.getUniqueObtained();
 		}
-		int count = 0;
-		for (List<ClogResult.ClogItem> items : result.getObtainedItems().values())
+		return countUniqueObtained(result.getObtainedItems());
+	}
+
+	private static int countUniqueObtained(
+		Map<String, List<ClogResult.ClogItem>> obtainedItems)
+	{
+		Set<Integer> ids = new HashSet<>();
+		for (List<ClogResult.ClogItem> items : obtainedItems.values())
 		{
-			count += items.size();
+			for (ClogResult.ClogItem item : items)
+			{
+				ids.add(item.getId());
+			}
 		}
-		return count;
+		return ids.size();
 	}
 
 	// ── Temple fetch ─────────────────────────────────────────────────────────

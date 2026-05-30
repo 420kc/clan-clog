@@ -51,6 +51,7 @@ public class ClanClogBatch
 	 */
 	private static final long STAGGER_DELAY_MS = 400;
 	private static final int CACHED_SHORTCUT_MIN_CATEGORIES = 10;
+	private static final int CACHED_SHORTCUT_MIN_OBTAINED = 100;
 
 	private final ClogFetchService clogFetchService;
 	private volatile ScheduledExecutorService scheduler = newScheduler();
@@ -130,11 +131,11 @@ public class ClanClogBatch
 		CompletableFuture<ClogResult> out = new CompletableFuture<>();
 
 		// Return cached clog data immediately only when it has a meaningful
-		// category footprint. One visible local category is useful fallback
-		// data, but should not block a fuller Temple/RuneProfile result.
+		// category and obtained-item footprint. One visible local category is
+		// useful fallback data, but must not block a fuller provider result.
 		ClogResult cached = clogFetchService.getCached(member.getRsn());
 		if (cached != null && clogFetchService.hasRichCachedData(
-			member.getRsn(), CACHED_SHORTCUT_MIN_CATEGORIES))
+			member.getRsn(), CACHED_SHORTCUT_MIN_CATEGORIES, CACHED_SHORTCUT_MIN_OBTAINED))
 		{
 			out.complete(cached);
 			return out;
