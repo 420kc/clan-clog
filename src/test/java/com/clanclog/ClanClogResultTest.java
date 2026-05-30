@@ -113,7 +113,7 @@ public class ClanClogResultTest
 			Map.of("shellbane_gryphon", List.of(30000, 30001)),
 			2,
 			2,
-			Map.of(),
+			Map.of("30000", new ClanClogResult.ItemMeta(2, 5)),
 			Map.of("shellbane_gryphon",
 				List.of(30000, 30001, 30002, 30003)));
 
@@ -122,7 +122,13 @@ public class ClanClogResultTest
 			GSON.fromJson(json, ClanClogResult.ClogUnion.class);
 
 		assertTrue(json.contains("\"catalog_by_category\""));
+		assertTrue(json.contains("\"total_member_unique_obtained\":2"));
+		assertTrue(json.contains("\"quantity_total\":5"));
 		assertEquals(List.of(30000, 30001, 30002, 30003),
 			parsed.getCatalog("shellbane_gryphon"));
+		assertEquals(2, parsed.getTotalObtained());
+		assertEquals(2, parsed.getTotalMemberUniqueObtained());
+		assertEquals(5, parsed.getItemMeta().get("30000").getQuantityTotal());
+		assertEquals(2, parsed.getItemMeta().get("30000").getHolderCount());
 	}
 }
