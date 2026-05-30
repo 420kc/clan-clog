@@ -339,7 +339,7 @@ public class LocalClogCache
 			return;
 		}
 		String key = RsnNormalizer.cacheKey(normalized);
-		PlayerClogData data = players.get(key);
+		PlayerClogData data = getOrLoad(key, normalized);
 		if (data == null)
 		{
 			return;
@@ -467,7 +467,7 @@ public class LocalClogCache
 		{
 			return null;
 		}
-		PlayerClogData data = players.get(RsnNormalizer.cacheKey(normalized));
+		PlayerClogData data = getOrLoad(RsnNormalizer.cacheKey(normalized), normalized);
 		if (data == null)
 		{
 			return null;

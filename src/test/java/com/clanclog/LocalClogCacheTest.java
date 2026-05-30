@@ -156,6 +156,36 @@ public class LocalClogCacheTest
 		assertTrue(result.getCategoryItems().containsKey("fortis_colosseum"));
 	}
 
+	@Test
+	public void updateTotalsLoadsDiskBeforeSavingTotals() throws Exception
+	{
+		File dir = tempDir();
+		writeCachedPlayer(dir);
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+		cache.updateTotals("420 kc", 1457, 1701);
+
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+
+		assertEquals(1457, result.getUniqueObtained());
+		assertEquals(1701, result.getUniqueTotal());
+		assertTrue(result.getCategoryItems().containsKey("fortis_colosseum"));
+	}
+
+	@Test
+	public void toClogResultLoadsDiskCache() throws Exception
+	{
+		File dir = tempDir();
+		writeCachedPlayer(dir);
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+
+		assertNotNull(result);
+		assertTrue(result.getCategoryItems().containsKey("fortis_colosseum"));
+		assertEquals(2, result.getUniqueObtained());
+	}
+
 	private static File tempDir() throws Exception
 	{
 		return Files.createTempDirectory("clan-clog-cache-test").toFile();
