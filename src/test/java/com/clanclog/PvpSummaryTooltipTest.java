@@ -17,6 +17,7 @@ public class PvpSummaryTooltipTest
 				"last_man_standing", List.of(1, 3),
 				"soul_wars", List.of(4, 5)),
 			4,
+			0,
 			Map.of(),
 			Map.of(
 				"last_man_standing", List.of(1, 2, 3),

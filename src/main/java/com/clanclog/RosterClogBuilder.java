@@ -72,8 +72,11 @@ final class RosterClogBuilder
 		Map<String, Map<Integer, Set<String>>> categoryHolders = new LinkedHashMap<>();
 		// category -> all item IDs from the catalog
 		Map<String, Set<Integer>> categoryCatalogs = new LinkedHashMap<>();
+		// item id -> all RSNs who have it in any category
+		Map<Integer, Set<String>> itemHolders = new LinkedHashMap<>();
 
 		int membersWithClog = 0;
+		int totalMemberUniqueObtained = 0;
 
 		for (ClanMember member : roster)
 		{
@@ -83,6 +86,7 @@ final class RosterClogBuilder
 				continue;
 			}
 			membersWithClog++;
+			totalMemberUniqueObtained += memberUniqueObtained(clog);
 
 			// Index all item IDs per category (catalog: all items in the category)
 			for (Map.Entry<String, List<Integer>> entry : clog.getCategoryItems().entrySet())
@@ -100,6 +104,9 @@ final class RosterClogBuilder
 				for (ClogResult.ClogItem item : entry.getValue())
 				{
 					holders
+						.computeIfAbsent(item.getId(), k -> new HashSet<>())
+						.add(member.getRsn().toLowerCase());
+					itemHolders
 						.computeIfAbsent(item.getId(), k -> new HashSet<>())
 						.add(member.getRsn().toLowerCase());
 				}
@@ -124,16 +131,10 @@ final class RosterClogBuilder
 
 		// Build item_meta: per-item holder count
 		Map<String, ClanClogResult.ItemMeta> itemMeta = new HashMap<>();
-		for (Map<Integer, Set<String>> holders : categoryHolders.values())
+		for (Map.Entry<Integer, Set<String>> e : itemHolders.entrySet())
 		{
-			for (Map.Entry<Integer, Set<String>> e : holders.entrySet())
-			{
-				String idStr = String.valueOf(e.getKey());
-				if (!itemMeta.containsKey(idStr))
-				{
-					itemMeta.put(idStr, new ClanClogResult.ItemMeta(e.getValue().size()));
-				}
-			}
+			String idStr = String.valueOf(e.getKey());
+			itemMeta.put(idStr, new ClanClogResult.ItemMeta(e.getValue().size()));
 		}
 
 		// Build catalog: category -> full item list (all items in the category)
@@ -144,7 +145,26 @@ final class RosterClogBuilder
 		}
 
 		return new ClanClogResult.ClogUnion(itemsByCategory, allObtained.size(),
+			totalMemberUniqueObtained,
 			itemMeta, catalogMap);
+	}
+
+	private static int memberUniqueObtained(ClogResult clog)
+	{
+		if (clog.getUniqueObtained() >= 0)
+		{
+			return clog.getUniqueObtained();
+		}
+
+		Set<Integer> itemIds = new HashSet<>();
+		for (List<ClogResult.ClogItem> items : clog.getObtainedItems().values())
+		{
+			for (ClogResult.ClogItem item : items)
+			{
+				itemIds.add(item.getId());
+			}
+		}
+		return itemIds.size();
 	}
 
 	static String newestClogLastChanged(List<ClanMember> roster)

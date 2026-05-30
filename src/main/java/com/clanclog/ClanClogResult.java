@@ -393,6 +393,8 @@ public class ClanClogResult
 	{
 		@SerializedName("items_by_category") private Map<String, List<Integer>> itemsByCategory;
 		@SerializedName("total_obtained")    private int totalObtained;
+		@SerializedName("total_member_unique_obtained")
+		private int totalMemberUniqueObtained;
 		@SerializedName("item_meta")         private Map<String, ItemMeta> itemMeta;
 		@SerializedName("recently_acquired") private List<RecentItem> recentlyAcquired;
 
@@ -412,11 +414,13 @@ public class ClanClogResult
 
 		/** Package-private constructor for client-side aggregation. */
 		ClogUnion(Map<String, List<Integer>> itemsByCategory, int totalObtained,
+			int totalMemberUniqueObtained,
 			Map<String, ItemMeta> itemMeta,
 			Map<String, List<Integer>> catalogByCategory)
 		{
 			this.itemsByCategory = itemsByCategory;
 			this.totalObtained = totalObtained;
+			this.totalMemberUniqueObtained = totalMemberUniqueObtained;
 			this.itemMeta = itemMeta;
 			this.recentlyAcquired = Collections.emptyList();
 			this.catalogByCategory = catalogByCategory;
@@ -430,6 +434,11 @@ public class ClanClogResult
 		public int getTotalObtained()
 		{
 			return totalObtained;
+		}
+
+		public int getTotalMemberUniqueObtained()
+		{
+			return totalMemberUniqueObtained;
 		}
 
 		public Map<String, ItemMeta> getItemMeta()

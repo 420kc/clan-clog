@@ -18,6 +18,7 @@ public class PvmSummaryTooltipTest
 				"theatre_of_blood", List.of(3),
 				"tombs_of_amascut", List.of(4, 5, 6)),
 			6,
+			0,
 			Map.of(),
 			Map.of(
 				"chambers_of_xeric", List.of(1, 2, 7),

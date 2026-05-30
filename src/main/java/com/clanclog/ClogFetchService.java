@@ -352,13 +352,16 @@ public class ClogFetchService
 			obtainedItems.put(category, itemList);
 		}
 
-		return new ClogResult(
+		ClogResult result = new ClogResult(
 			canonicalName,
 			obtainedItems,
 			categories != null ? categories : new HashMap<>(),
 			names != null ? names : new HashMap<>(),
 			lastChanged,
 			accountType);
+		result.setUniqueObtained(intField(data, "total_collections_finished"));
+		result.setUniqueTotal(intField(data, "total_collections_available"));
+		return result;
 	}
 
 	// ── RuneProfile fetch ────────────────────────────────────────────────────

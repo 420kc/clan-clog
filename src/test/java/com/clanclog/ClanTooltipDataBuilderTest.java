@@ -19,6 +19,7 @@ public class ClanTooltipDataBuilderTest
 		result.setClog(new ClanClogResult.ClogUnion(
 			Collections.emptyMap(),
 			0,
+			0,
 			Collections.emptyMap(),
 			Map.of("zulrah", List.of(12921, 13200))));
 
