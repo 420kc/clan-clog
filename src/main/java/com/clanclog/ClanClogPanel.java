@@ -743,6 +743,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		final int version = ++loadVersion;
 		clearCurrentLoad();
+		clearSyncState();
 		viewVersion = version;
 		viewQuery = query;
 		clanLookupSession.start(slugify(query), this);
@@ -847,6 +848,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		final int version = ++loadVersion;
 		clearCurrentLoad();
+		clearSyncState();
 		setStatus("searching for \"" + query + "\"...");
 		membersPanel.showPlaceholder("searching...");
 
@@ -893,6 +895,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		final int version = ++loadVersion;
 		clearCurrentLoad();
+		clearSyncState();
 		setStatus("fetching roster for group " + id + "...");
 		setClanHeaderText(" ");
 		membersPanel.showPlaceholder("loading...");
