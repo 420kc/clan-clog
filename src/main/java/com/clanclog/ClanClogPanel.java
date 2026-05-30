@@ -1538,9 +1538,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void onSyncClicked()
 	{
-		if (syncRequiresFreshClanalyze)
+		if (!hasFreshSyncPayload())
 		{
-			setStatus("freshen clan profile before sync");
+			updateSyncButtonVisibility();
+			setStatus(syncGateTooltip());
 			return;
 		}
 		if (!config.enableSync())
