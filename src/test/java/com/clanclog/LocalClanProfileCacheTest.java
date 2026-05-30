@@ -64,6 +64,23 @@ public class LocalClanProfileCacheTest
 		assertEquals("good-clan", latest.getSlug());
 	}
 
+	@Test
+	public void latestSkipsEmptyProfileShell() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		File older = writeProfile(dir, "good-clan", "Good Clan");
+		File newer = writeEmptyProfile(dir, "empty-clan", "Empty Clan");
+		Files.setLastModifiedTime(older.toPath(), FileTime.fromMillis(1_000L));
+		Files.setLastModifiedTime(newer.toPath(), FileTime.fromMillis(2_000L));
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+		LocalClanProfileCache.StoredProfile latest = cache.latest();
+
+		assertNotNull(latest);
+		assertEquals("Good Clan", latest.getClanName());
+		assertEquals("good-clan", latest.getSlug());
+	}
+
 	private static File writeProfile(File dir, String slug, String clanName) throws Exception
 	{
 		return writeProfile(dir, slug, clanName, slug);
@@ -80,6 +97,25 @@ public class LocalClanProfileCacheTest
 			+ "\"roster\":[],"
 			+ "\"result\":{"
 			+ "\"slug\":\"" + resultSlug + "\","
+			+ "\"display_name\":\"" + clanName + "\","
+			+ "\"member_count\":0,"
+			+ "\"bosses\":{\"Zulrah\":{\"clan_total_kc\":1}}"
+			+ "}"
+			+ "}";
+		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
+		return file;
+	}
+
+	private static File writeEmptyProfile(File dir, String slug, String clanName) throws Exception
+	{
+		File file = new File(dir, slug + ".json");
+		String json = "{"
+			+ "\"clanName\":\"" + clanName + "\","
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"savedAt\":\"2026-05-30T00:00:00Z\","
+			+ "\"roster\":[],"
+			+ "\"result\":{"
+			+ "\"slug\":\"" + slug + "\","
 			+ "\"display_name\":\"" + clanName + "\","
 			+ "\"member_count\":0,"
 			+ "\"bosses\":{}"

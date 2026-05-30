@@ -110,7 +110,7 @@ public class LocalClanProfileCache
 		{
 			String name = file.getName();
 			String slug = name.substring(0, name.length() - ".json".length());
-			StoredProfile profile = readProfile(file, slug);
+			StoredProfile profile = readProfile(file, slug, true);
 			if (profile != null)
 			{
 				return profile;
@@ -121,6 +121,12 @@ public class LocalClanProfileCache
 
 	@Nullable
 	private StoredProfile readProfile(File file, String slug)
+	{
+		return readProfile(file, slug, false);
+	}
+
+	@Nullable
+	private StoredProfile readProfile(File file, String slug, boolean requireRenderable)
 	{
 		if (!file.exists())
 		{
@@ -141,6 +147,11 @@ public class LocalClanProfileCache
 				|| !matchesSlug(slug, profile.result.getSlug()))
 			{
 				log.debug("Ignored clan profile cache with mismatched slug '{}'", slug);
+				return null;
+			}
+			if (requireRenderable && !hasRenderableProfile(profile))
+			{
+				log.debug("Ignored empty clan profile cache for '{}'", slug);
 				return null;
 			}
 			if (profile.clanName == null || profile.clanName.isBlank())
@@ -238,6 +249,34 @@ public class LocalClanProfileCache
 	private static boolean matchesSlug(String expectedSlug, String value)
 	{
 		return value == null || value.isBlank() || slugify(value).equals(expectedSlug);
+	}
+
+	private static boolean hasRenderableProfile(StoredProfile profile)
+	{
+		ClanClogResult result = profile.result;
+		if (result == null)
+		{
+			return false;
+		}
+		ClanClogResult.ClogUnion clog = result.getClog();
+		if (clog != null && (clog.getTotalObtained() > 0
+			|| !clog.getItemsByCategory().isEmpty()
+			|| !clog.getItemMeta().isEmpty()))
+		{
+			return true;
+		}
+		if (!result.getBosses().isEmpty() || !result.getActivityTotals().isEmpty())
+		{
+			return true;
+		}
+		for (ClanMember member : profile.getRoster())
+		{
+			if (member.getHiscore() != null || member.getClog() != null)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static List<MemberRecord> encodeRoster(List<ClanMember> roster)
