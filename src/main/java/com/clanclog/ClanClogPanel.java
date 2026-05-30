@@ -1082,7 +1082,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
 			SwingUtilities.invokeLater(() ->
 			{
-				if (ex != null || result == null || !result.hasAggregateData()
+				if (ex != null || result == null || !result.hasRepresentedData()
 					|| version != loadVersion || currentLoadSlug != null)
 				{
 					return;
@@ -1550,7 +1550,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return;
 		}
-		lastBackendResult = result;
+		lastBackendResult = result.hasRepresentedData() ? result : null;
 		String name = result.getDisplayName();
 		if (name != null && !name.isEmpty())
 		{
@@ -1558,10 +1558,17 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clearSearchText();
 			rememberClan(name);
 		}
-		if (!result.hasAggregateData() && !result.getMembers().isEmpty())
+		if (!result.hasRepresentedData() && !result.getMembers().isEmpty())
 		{
 			loadFromRoster(name != null && !name.isEmpty() ? name : slug,
 				result.getMembers(), false);
+			return;
+		}
+		if (!result.hasRepresentedData())
+		{
+			clearCoverageCounts();
+			cells.clearCells();
+			setStatus("no represented clog data for " + slug);
 			return;
 		}
 		setCoverageFromResult(result);

@@ -162,6 +162,26 @@ public class ClanClogResultTest
 	}
 
 	@Test
+	public void representedDataIgnoresZeroBossAggregates()
+	{
+		ClanClogResult result = ClanClogResult.forRoster(
+			"zero-boss-clan", "Zero Boss Clan", 1,
+			Map.of("Zulrah", new ClanClogResult.BossAggregate(0, List.of(), 0)));
+
+		assertFalse(result.hasRepresentedData());
+	}
+
+	@Test
+	public void representedDataAcceptsBossCoverage()
+	{
+		ClanClogResult result = ClanClogResult.forRoster(
+			"boss-clan", "Boss Clan", 1,
+			Map.of("Zulrah", new ClanClogResult.BossAggregate(0, List.of(), 1)));
+
+		assertTrue(result.hasRepresentedData());
+	}
+
+	@Test
 	public void clogUnionSerializesCatalogByCategory()
 	{
 		ClanClogResult.ClogUnion union = new ClanClogResult.ClogUnion(
