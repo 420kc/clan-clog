@@ -225,15 +225,42 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanHeader.addMouseListener(new MouseAdapter()
 		{
 			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				if (hasClanHeaderText())
+				{
+					clanHeader.setForeground(KC2);
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				clanHeader.setForeground(KC4);
+			}
+
+			@Override
 			public void mousePressed(MouseEvent e)
 			{
 				String url = config.clanUrl();
 				String text = clanHeader.getText();
-				if (SwingUtilities.isLeftMouseButton(e)
-					&& text != null && !text.isBlank()
-					&& url != null && !url.isBlank())
+				boolean hasText = text != null && !text.isBlank();
+				if (SwingUtilities.isLeftMouseButton(e) && hasText)
+				{
+					clanHeader.setForeground(KC1);
+				}
+				if (SwingUtilities.isLeftMouseButton(e) && hasText && url != null && !url.isBlank())
 				{
 					net.runelite.client.util.LinkBrowser.browse(url);
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				if (hasClanHeaderText())
+				{
+					clanHeader.setForeground(clanHeader.contains(e.getPoint()) ? KC2 : KC4);
 				}
 			}
 		});
@@ -313,6 +340,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		String value = text == null || text.isBlank() ? " " : text;
 		clanHeader.setText(value);
 		clanHeader.setToolTipText(" ".equals(value) ? null : value);
+		clanHeader.setForeground(KC4);
+	}
+
+	private boolean hasClanHeaderText()
+	{
+		String text = clanHeader.getText();
+		return text != null && !text.isBlank();
 	}
 
 	private JPanel buildStatusRow()
