@@ -1236,9 +1236,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rememberClan(clanName);
 		if (syncEligible)
 		{
-			showClanalyzeButton("refresh", "freshen clan profile");
+			showClanalyzeButton("refresh", "freshen clan profile before syncing");
 			syncRequiresFreshClanalyze = true;
-			showSyncButton("freshen clan profile before syncing");
+			updateSyncButtonVisibility();
 		}
 		else
 		{
@@ -1466,42 +1466,46 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void updateSyncButtonVisibility()
 	{
-		boolean ready = config.enableSync()
-			&& pendingRosterSyncEligible
-			&& lastRenderedResult != null
-			&& lastLoadedRoster != null
-			&& lastLoadedClanName != null
-			&& lastLoadedSlug != null
-			&& clanReader.localPlayerKeyRank() != null;
-		boolean freshOwnClan = pendingRosterSyncEligible
-			&& lastRenderedResult != null
-			&& lastLoadedRoster != null
-			&& lastLoadedClanName != null
-			&& lastLoadedSlug != null
-			&& !syncRequiresFreshClanalyze;
-		if (ready && freshOwnClan)
+		if (hasFreshSyncPayload() && hasSyncAuthority())
 		{
-			showSyncButton(syncGateTooltip(ready));
+			showSyncButton("sync to killclog.com");
 			return;
 		}
-		syncButton.setVisible(false);
-		revalidate();
-		repaint();
+		hideSyncButton();
 	}
 
-	private String syncGateTooltip(boolean ready)
+	private boolean hasFreshSyncPayload()
 	{
-		if (ready)
-		{
-			return "sync to killclog.com";
-		}
+		return pendingRosterSyncEligible
+			&& !syncRequiresFreshClanalyze
+			&& lastRenderedResult != null
+			&& lastLoadedRoster != null
+			&& lastLoadedClanName != null
+			&& lastLoadedSlug != null
+			&& lastRenderedResult.matchesSlug(lastLoadedSlug);
+	}
+
+	private boolean hasSyncAuthority()
+	{
+		return config.enableSync()
+			&& clanReader.localPlayerKeyRank() != null
+			&& clanReader.localPlayerName() != null;
+	}
+
+	private String syncGateTooltip()
+	{
 		if (!config.enableSync())
 		{
 			return "enable sync in plugin config";
 		}
-		if (clanReader.localPlayerKeyRank() == null)
+		if (clanReader.localPlayerKeyRank() == null
+			|| clanReader.localPlayerName() == null)
 		{
-			return "owner or deputy owner rank required";
+			return "open clan tab as owner/deputy to sync";
+		}
+		if (syncRequiresFreshClanalyze)
+		{
+			return "freshen clan profile before syncing";
 		}
 		return "finish clanalyze before syncing";
 	}
@@ -1551,13 +1555,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			|| lastLoadedRoster == null || lastRenderedResult == null
 			|| lastLoadedClanName == null || lastLoadedSlug == null)
 		{
-			setStatus("sync failed: missing data or rank");
+			updateSyncButtonVisibility();
+			setStatus(syncGateTooltip());
 			return;
 		}
-
-		syncButton.setEnabled(false);
-		applyActionButtonColor(syncButton, KC4);
-		setStatus("syncing to killclog.com...");
 
 		String slug = lastLoadedSlug;
 		String clanName = lastLoadedClanName;
@@ -1565,9 +1566,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		ClanClogResult result = lastRenderedResult;
 		if (!result.matchesSlug(slug))
 		{
+			updateSyncButtonVisibility();
 			setStatus("sync failed: stale clan profile");
 			return;
 		}
+
+		syncButton.setEnabled(false);
+		applyActionButtonColor(syncButton, KC4);
+		setStatus("syncing to killclog.com...");
 
 		// Step 1: sync roster. On failure, surface the backend's error code
 		// (rank_not_authorized, slug_mismatch, owner_not_in_roster, ...) and stop.
