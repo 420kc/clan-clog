@@ -1336,11 +1336,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			&& lastRenderedResult != null
 			&& lastLoadedRoster != null
 			&& lastLoadedClanName != null
+			&& lastLoadedSlug != null
 			&& clanReader.localPlayerKeyRank() != null;
 		boolean freshOwnClan = pendingRosterSyncEligible
 			&& lastRenderedResult != null
 			&& lastLoadedRoster != null
 			&& lastLoadedClanName != null
+			&& lastLoadedSlug != null
 			&& !syncRequiresFreshClanalyze;
 		if (freshOwnClan)
 		{
@@ -1391,7 +1393,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		String ownerRsn = clanReader.localPlayerName();
 		if (keyRank == null || ownerRsn == null
 			|| lastLoadedRoster == null || lastRenderedResult == null
-			|| lastLoadedClanName == null)
+			|| lastLoadedClanName == null || lastLoadedSlug == null)
 		{
 			setStatus("sync failed: missing data or rank");
 			return;
