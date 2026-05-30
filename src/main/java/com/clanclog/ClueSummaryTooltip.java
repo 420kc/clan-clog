@@ -5,6 +5,7 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.Map;
 import net.runelite.client.hiscore.HiscoreSkill;
 import net.runelite.client.ui.FontManager;
 
@@ -55,6 +56,21 @@ public class ClueSummaryTooltip extends TitleTooltip
 
 		int allRank = ranks[0];
 		setRank(allRank);
+	}
+
+	public void setClanData(Map<String, Long> activities, long mimicKc)
+	{
+		setTitle("Clue Summary");
+		notice = null;
+
+		for (int i = 0; i < CLUE_TIERS.length; i++)
+		{
+			scores[i] = clampedActivity(activities, CLUE_TIERS[i].getName());
+			ranks[i] = -1;
+		}
+
+		this.mimicKc = clampToInt(mimicKc);
+		this.mimicRank = -1;
 	}
 
 	public void setIcons(BufferedImage[] icons)
@@ -178,5 +194,19 @@ public class ClueSummaryTooltip extends TitleTooltip
 			int rankNumX = scoreRight + 1 + fm.stringWidth(" Rank: ");
 			g2.drawString(String.format("%,d", rank), rankNumX, textY);
 		}
+	}
+
+	private static int clampedActivity(Map<String, Long> activities, String key)
+	{
+		return activities != null ? clampToInt(activities.getOrDefault(key, 0L)) : 0;
+	}
+
+	private static int clampToInt(long value)
+	{
+		if (value <= 0)
+		{
+			return 0;
+		}
+		return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
 	}
 }

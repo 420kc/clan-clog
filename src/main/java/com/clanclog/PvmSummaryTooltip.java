@@ -6,6 +6,8 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.List;
+import java.util.Map;
 import javax.swing.SwingUtilities;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.FontManager;
@@ -72,6 +74,18 @@ public class PvmSummaryTooltip extends TitleTooltip
 		this.bossesWithClog = total;
 	}
 
+	public void setClanData(long totalKills, int bossesWithKc, int totalBosses,
+		String mostKilled, long mostKilledKc)
+	{
+		setTitle("PvM Summary");
+		this.combatLevel = -1;
+		this.totalKills = clampToInt(totalKills);
+		this.bossesWithKc = bossesWithKc;
+		this.totalBosses = totalBosses;
+		this.mostKilled = mostKilled;
+		this.mostKilledKc = clampToInt(mostKilledKc);
+	}
+
 	public void setMegarares(int tbowCount, int scytheCount,
 		int shadowCount, ItemManager itemManager)
 	{
@@ -129,6 +143,45 @@ public class PvmSummaryTooltip extends TitleTooltip
 		}
 	}
 
+	public void setClanRaids(Map<String, ClanClogResult.BossAggregate> bosses,
+		ClanClogResult.ClogUnion clog)
+	{
+		coxKc = bossKc(bosses, "Chambers of Xeric")
+			+ bossKc(bosses, "Chambers of Xeric: Challenge Mode");
+		tobKc = bossKc(bosses, "Theatre of Blood")
+			+ bossKc(bosses, "Theatre of Blood: Hard Mode");
+		toaKc = bossKc(bosses, "Tombs of Amascut")
+			+ bossKc(bosses, "Tombs of Amascut: Expert Mode");
+
+		int[] cox = unionCounts(clog, "chambers_of_xeric");
+		if (cox != null)
+		{
+			coxObtained = cox[0];
+			coxTotal = cox[1];
+		}
+		int[] tob = unionCounts(clog, "theatre_of_blood");
+		if (tob != null)
+		{
+			tobObtained = tob[0];
+			tobTotal = tob[1];
+		}
+		int[] toa = unionCounts(clog, "tombs_of_amascut");
+		if (toa != null)
+		{
+			toaObtained = toa[0];
+			toaTotal = toa[1];
+		}
+	}
+
+	public void setClanMegarares(ClanClogResult.ClogUnion clog, ItemManager itemManager)
+	{
+		setMegarares(
+			holderCount(clog, TBOW_ID),
+			holderCount(clog, SCYTHE_ID),
+			holderCount(clog, SHADOW_ID),
+			itemManager);
+	}
+
 	@Override
 	protected Dimension getContentSize(int availableWidth)
 	{
@@ -136,7 +189,7 @@ public class PvmSummaryTooltip extends TitleTooltip
 		FontMetrics bfm = getFontMetrics(FontManager.getRunescapeBoldFont());
 
 		// Stats section
-		int statsLines = 3; // Combat, Total Kills, Bosses
+		int statsLines = combatLevel >= 0 ? 3 : 2; // Combat, Total Kills, Bosses
 		if (bossesCompleted >= 0) statsLines++;
 		int statsHeight = LINE_HEIGHT * statsLines;
 
@@ -189,10 +242,12 @@ public class PvmSummaryTooltip extends TitleTooltip
 		FontMetrics fm = g2.getFontMetrics();
 		int y = startY;
 
-		// Combat
-		drawLabelValue(g2, fm, inset, y + fm.getAscent(), "Combat: ",
-			combatLevel > 0 ? String.valueOf(combatLevel) : "--");
-		y += LINE_HEIGHT;
+		if (combatLevel >= 0)
+		{
+			drawLabelValue(g2, fm, inset, y + fm.getAscent(), "Combat: ",
+				combatLevel > 0 ? String.valueOf(combatLevel) : "--");
+			y += LINE_HEIGHT;
+		}
 
 		// Total Kills
 		drawLabelValue(g2, fm, inset, y + fm.getAscent(), "Total Kills: ",
@@ -335,5 +390,47 @@ public class PvmSummaryTooltip extends TitleTooltip
 		g2.drawString(label, x, y);
 		g2.setColor(valueColor);
 		g2.drawString(value, x + fm.stringWidth(label), y);
+	}
+
+	private static int bossKc(Map<String, ClanClogResult.BossAggregate> bosses, String boss)
+	{
+		ClanClogResult.BossAggregate aggregate = bosses != null ? bosses.get(boss) : null;
+		return aggregate != null ? clampToInt(aggregate.getClanTotalKc()) : 0;
+	}
+
+	private static int[] unionCounts(ClanClogResult.ClogUnion clog, String category)
+	{
+		if (clog == null)
+		{
+			return null;
+		}
+		List<Integer> items = clog.getItemsByCategory().get(category);
+		List<Integer> catalog = clog.getCatalog(category);
+		if (items == null && (catalog == null || catalog.isEmpty()))
+		{
+			return null;
+		}
+		int obtained = items != null ? items.size() : 0;
+		int total = catalog != null && !catalog.isEmpty() ? catalog.size() : obtained;
+		return total > 0 ? new int[]{obtained, total} : null;
+	}
+
+	private static int holderCount(ClanClogResult.ClogUnion clog, int itemId)
+	{
+		if (clog == null)
+		{
+			return 0;
+		}
+		ClanClogResult.ItemMeta meta = clog.getItemMeta().get(String.valueOf(itemId));
+		return meta != null ? meta.getHolderCount() : 0;
+	}
+
+	private static int clampToInt(long value)
+	{
+		if (value <= 0)
+		{
+			return 0;
+		}
+		return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
 	}
 }

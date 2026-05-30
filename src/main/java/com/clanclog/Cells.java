@@ -53,8 +53,8 @@ import net.runelite.client.util.ImageUtil;
  *       helper, never as a label-map key).</li>
  *   <li>Single-flavor tooltips only. No ComparisonController -- clan has no
  *       1v1 mode. No FourTwentyMode -- kill-clog easter egg, not clan.</li>
- *   <li>No PvP summary cell, no per-player activity cells. ClanClogResult
- *       doesn't aggregate activities yet; deferred to a follow-up sub-phase.</li>
+ *   <li>Summary cells read clan aggregate activity totals and clog union
+ *       category counts; no per-player activity cells or 1v1 compare mode.</li>
  *   <li>No SinglePlayerTooltipBuilder injection -- clan UI is global, no
  *       sync-notice text reaches in from the panel.</li>
  *   <li>Renderers read backend aggregate (ClanClogResult.bosses[name].clanTotalKc
@@ -96,6 +96,21 @@ public class Cells
 	private static final String CLOG_GILDED = "gilded";
 	private static final int THIRD_AGE_ITEM_ID = 10348;
 	private static final int GILDED_ITEM_ID = 3481;
+	private static final int THIRD_AGE_RING_ITEM_ID = 23185;
+	private static final int[] THIRD_AGE_ITEMS = {
+		10350, 10348, 10346, 23242, 10352,
+		10334, 10330, 10332, 10336,
+		10342, 10338, 10340, 10344,
+		12426, 12422, 12437, 12424,
+		23336, 23339, 23345, 23342,
+		20014, 20011, THIRD_AGE_RING_ITEM_ID
+	};
+	private static final int[] GILDED_ITEMS = {
+		3486, 3481, 3483, 3485, 3488,
+		20146, 20149, 20152, 20155, 20158, 20161,
+		12389, 12391, 23258, 23261, 23264, 23267,
+		23276, 23279, 23282
+	};
 
 	private static final String RARE_HARD = "hard_rare";
 	private static final String RARE_ELITE = "elite_rare";
@@ -194,6 +209,22 @@ public class Cells
 
 	private static final int BOSS_GRID_COLS = 3;
 	private static final int CLUE_GRID_COLS = 3;
+	private static final HiscoreSkill[] CLUE_SUMMARY_TIERS = {
+		HiscoreSkill.CLUE_SCROLL_ALL,
+		HiscoreSkill.CLUE_SCROLL_BEGINNER,
+		HiscoreSkill.CLUE_SCROLL_EASY,
+		HiscoreSkill.CLUE_SCROLL_MEDIUM,
+		HiscoreSkill.CLUE_SCROLL_HARD,
+		HiscoreSkill.CLUE_SCROLL_ELITE,
+		HiscoreSkill.CLUE_SCROLL_MASTER,
+	};
+	private static final HiscoreSkill[] PVP_ACTIVITIES = {
+		HiscoreSkill.LAST_MAN_STANDING,
+		HiscoreSkill.SOUL_WARS_ZEAL,
+		HiscoreSkill.PVP_ARENA_RANK,
+		HiscoreSkill.BOUNTY_HUNTER_HUNTER,
+		HiscoreSkill.BOUNTY_HUNTER_ROGUE,
+	};
 
 	// ── Deps ──────────────────────────────────────────────────────────────────
 
@@ -210,6 +241,7 @@ public class Cells
 	// ── Icon caches ───────────────────────────────────────────────────────────
 
 	private final BufferedImage[] clueIcons = new BufferedImage[8];
+	private final BufferedImage[] pvpActivityIcons = new BufferedImage[5];
 
 	// ── Cell labels (String-keyed) ────────────────────────────────────────────
 
@@ -455,6 +487,7 @@ public class Cells
 			}
 		}
 
+		loadClueSummaryIcons();
 		totalCluesCell = label;
 		return wrapInCell(label);
 	}
@@ -562,6 +595,25 @@ public class Cells
 					label.setIcon(new ImageIcon(padded));
 				}
 			}));
+
+		for (int i = 0; i < PVP_ACTIVITIES.length; i++)
+		{
+			int spriteId = PVP_ACTIVITIES[i].getSpriteId();
+			if (spriteId == -1)
+			{
+				continue;
+			}
+			final int idx = i;
+			spriteManager.getSpriteAsync(spriteId, 0, sprite ->
+				SwingUtilities.invokeLater(() ->
+				{
+					if (sprite != null)
+					{
+						pvpActivityIcons[idx] = ImageUtil.resizeImage(
+							ImageUtil.resizeCanvas(sprite, 25, 25), 13, 13);
+					}
+				}));
+		}
 
 		pvpSummaryCell = label;
 		return wrapInCell(label);
@@ -697,8 +749,8 @@ public class Cells
 
 	private void renderRares(ClanClogResult result)
 	{
-		writeClueRare(thirdAgeCell, "3rd Age", CLOG_THIRD_AGE, result);
-		writeClueRare(gildedCell, "Gilded", CLOG_GILDED, result);
+		writeCustomRare(thirdAgeCell, "3rd Age", CLOG_THIRD_AGE, THIRD_AGE_ITEMS, result);
+		writeCustomRare(gildedCell, "Gilded", CLOG_GILDED, GILDED_ITEMS, result);
 		writeCustomRare(hardRare, "Hard Treasure (Rare)", RARE_HARD, HARD_RARE_ITEMS, result);
 		writeCustomRare(eliteRare, "Elite Treasure (Rare)", RARE_ELITE, ELITE_RARE_ITEMS, result);
 		writeCustomRare(masterRare, "Master Treasure (Rare)", RARE_MASTER, MASTER_RARE_ITEMS, result);
@@ -767,24 +819,17 @@ public class Cells
 
 	private JToolTip buildClueSummaryTooltip()
 	{
-		ClanSummaryTooltip tip = new ClanSummaryTooltip("Clue Summary");
+		ClueSummaryTooltip tip = new ClueSummaryTooltip();
+		tip.setIcons(clueIcons);
 		ClanClogResult result = summaryResult;
 		if (result == null)
 		{
 			return tip;
 		}
 
-		Map<String, Long> activities = result.getActivityTotals();
-		for (String tier : CLUE_TIER_NAMES)
-		{
-			long count = activities.getOrDefault(tier, 0L);
-			tip.addLine(capitalizeTier(tier) + ": ", formatTooltipCount(count),
-				tooltipValueColor(count));
-		}
-
 		ClanClogResult.BossAggregate mimic = result.getBosses().get("Mimic");
 		long mimicKc = mimic != null ? mimic.getClanTotalKc() : 0L;
-		tip.addLine("Mimic: ", formatTooltipCount(mimicKc), tooltipValueColor(mimicKc));
+		tip.setClanData(result.getActivityTotals(), mimicKc);
 		return tip;
 	}
 
@@ -843,7 +888,7 @@ public class Cells
 
 	private JToolTip buildTotalKillsTooltip()
 	{
-		ClanSummaryTooltip tip = new ClanSummaryTooltip("Total Kills");
+		PvmSummaryTooltip tip = new PvmSummaryTooltip();
 		ClanClogResult result = summaryResult;
 		if (result == null)
 		{
@@ -870,32 +915,29 @@ public class Cells
 			}
 		}
 
-		tip.addLine("Clan KC: ", formatTooltipCount(totalKills), tooltipValueColor(totalKills));
-		tip.addLine("Bosses: ", bossesWithKc + "/" + BOSS_DISPLAY_ORDER.length,
-			tooltipValueColor(bossesWithKc));
-		if (topBoss != null)
+		tip.setClanData(totalKills, bossesWithKc, BOSS_DISPLAY_ORDER.length, topBoss, topKc);
+		int[] bossCounts = aggregateBossTooltipCounts();
+		if (bossCounts != null)
 		{
-			tip.addLine("Most killed: ", topBoss + " (" + String.format("%,d", topKc) + ")");
+			tip.setCompletion(bossCounts[0], bossCounts[1]);
 		}
+		tip.setClanRaids(result.getBosses(), result.getClog());
+		tip.setClanMegarares(result.getClog(), itemManager);
 		return tip;
 	}
 
 	private JToolTip buildPvpSummaryTooltip()
 	{
-		ClanSummaryTooltip tip = new ClanSummaryTooltip("PvP Summary");
+		PvpSummaryTooltip tip = new PvpSummaryTooltip();
+		tip.setIcons(pvpActivityIcons);
 		ClanClogResult result = summaryResult;
 		if (result == null)
 		{
+			tip.setNotice("No clan data");
 			return tip;
 		}
 
-		Map<String, Long> activities = result.getActivityTotals();
-		addActivityLine(tip, "LMS: ", activities, "LMS - Rank");
-		addActivityLine(tip, "Soul Wars: ", activities, "Soul Wars Zeal");
-		addActivityLine(tip, "PvP Arena: ", activities, "PvP Arena - Rank");
-		addActivityLine(tip, "BH Hunter: ", activities, "Bounty Hunter - Hunter");
-		addActivityLine(tip, "BH Rogue: ", activities, "Bounty Hunter - Rogue");
-		addActivityLine(tip, "Colosseum: ", activities, "Colosseum Glory");
+		tip.setClanData(result.getActivityTotals(), result.getClog());
 		return tip;
 	}
 
@@ -1116,6 +1158,7 @@ public class Cells
 		applyRareHighlight(hardRare, RARE_HARD);
 		applyRareHighlight(eliteRare, RARE_ELITE);
 		applyRareHighlight(masterRare, RARE_MASTER);
+		applySummaryHighlights(result);
 	}
 
 	private void applyRareHighlight(@Nullable JLabel label, String rareKey)
@@ -1129,6 +1172,121 @@ public class Cells
 		{
 			label.setForeground(ClogHelper.clogColor(data.obtainedCount, data.totalItems));
 		}
+	}
+
+	private void applySummaryHighlights(ClanClogResult result)
+	{
+		if (membersCell != null && result.getMemberCount() > 0)
+		{
+			membersCell.setForeground(ClogHelper.COLOR_COMPLETED);
+		}
+
+		if (totalKillsCell != null)
+		{
+			int[] bossCounts = aggregateBossTooltipCounts();
+			totalKillsCell.setForeground(summaryColor(bossCounts, hasAnyBossKc(result)));
+		}
+
+		if (totalCluesCell != null)
+		{
+			int[] clueCounts = aggregateCategoryCounts(result, CLUE_CATEGORIES.values());
+			totalCluesCell.setForeground(summaryColor(clueCounts,
+				result.getActivityTotals().getOrDefault("Clue Scrolls (all)", 0L) > 0));
+		}
+
+		if (pvpSummaryCell != null)
+		{
+			int[] pvpCounts = aggregateCategoryCounts(result, List.of("last_man_standing", "soul_wars"));
+			pvpSummaryCell.setForeground(summaryColor(pvpCounts, hasAnyPvpActivity(result)));
+		}
+	}
+
+	private static boolean hasAnyBossKc(ClanClogResult result)
+	{
+		for (ClanClogResult.BossAggregate agg : result.getBosses().values())
+		{
+			if (agg.getClanTotalKc() > 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean hasAnyPvpActivity(ClanClogResult result)
+	{
+		Map<String, Long> activities = result.getActivityTotals();
+		return activities.getOrDefault("LMS - Rank", 0L) > 0
+			|| activities.getOrDefault("Soul Wars Zeal", 0L) > 0
+			|| activities.getOrDefault("PvP Arena - Rank", 0L) > 0
+			|| activities.getOrDefault("Bounty Hunter - Hunter", 0L) > 0
+			|| activities.getOrDefault("Bounty Hunter - Rogue", 0L) > 0;
+	}
+
+	private static Color summaryColor(@Nullable int[] counts, boolean hasValue)
+	{
+		if (counts != null && counts[1] > 0)
+		{
+			return ClogHelper.clogColor(counts[0], counts[1]);
+		}
+		return hasValue ? ClogHelper.COLOR_EMPTY : ColorScheme.LIGHT_GRAY_COLOR;
+	}
+
+	private static int[] aggregateTooltipCounts(Iterable<TooltipData> values)
+	{
+		int obtained = 0;
+		int total = 0;
+		for (TooltipData data : values)
+		{
+			if (data == null || data.totalItems <= 0)
+			{
+				continue;
+			}
+			obtained += Math.max(0, data.obtainedCount);
+			total += data.totalItems;
+		}
+		return total > 0 ? new int[]{obtained, total} : null;
+	}
+
+	@Nullable
+	private int[] aggregateBossTooltipCounts()
+	{
+		List<TooltipData> bossData = new ArrayList<>();
+		for (String boss : BOSS_DISPLAY_ORDER)
+		{
+			TooltipData data = tooltipDataMap.get(boss);
+			if (data != null)
+			{
+				bossData.add(data);
+			}
+		}
+		return aggregateTooltipCounts(bossData);
+	}
+
+	@Nullable
+	private static int[] aggregateCategoryCounts(ClanClogResult result, Iterable<String> categories)
+	{
+		ClanClogResult.ClogUnion clog = result.getClog();
+		if (clog == null)
+		{
+			return null;
+		}
+		int obtained = 0;
+		int total = 0;
+		for (String category : categories)
+		{
+			List<Integer> items = clog.getItemsByCategory().get(category);
+			List<Integer> catalog = clog.getCatalog(category);
+			if (items == null && (catalog == null || catalog.isEmpty()))
+			{
+				continue;
+			}
+			obtained += items != null ? items.size() : 0;
+			total += catalog != null && !catalog.isEmpty()
+				? catalog.size()
+				: (items != null ? items.size() : 0);
+		}
+		return total > 0 ? new int[]{obtained, total} : null;
 	}
 
 	/**
@@ -1279,6 +1437,37 @@ public class Cells
 						ImageUtil.resizeCanvas(sprite, 20, 20), 16, 16)));
 				}
 			}));
+	}
+
+	private void loadClueSummaryIcons()
+	{
+		for (int i = 0; i < CLUE_SUMMARY_TIERS.length; i++)
+		{
+			final int idx = i;
+			spriteManager.getSpriteAsync(CLUE_SUMMARY_TIERS[i].getSpriteId(), 0, sprite ->
+				SwingUtilities.invokeLater(() ->
+				{
+					if (sprite != null)
+					{
+						clueIcons[idx] = ImageUtil.resizeImage(
+							ImageUtil.resizeCanvas(sprite, 25, 25), 13, 13);
+					}
+				}));
+		}
+
+		int mimicSpriteId = bossSpriteId("Mimic");
+		if (mimicSpriteId != -1)
+		{
+			spriteManager.getSpriteAsync(mimicSpriteId, 0, sprite ->
+				SwingUtilities.invokeLater(() ->
+				{
+					if (sprite != null)
+					{
+						clueIcons[CLUE_SUMMARY_TIERS.length] = ImageUtil.resizeImage(
+							ImageUtil.resizeCanvas(sprite, 25, 25), 13, 13);
+					}
+				}));
+		}
 	}
 
 	/** "Clue Scrolls (hard)" -> "Hard". Public for the panel's tooltip-text builder. */

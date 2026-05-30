@@ -5,11 +5,13 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.List;
+import java.util.Map;
 import net.runelite.client.ui.FontManager;
 
 /**
  * PvP summary tooltip on the skull cell.
- * Five label:value lines , LMS and Soul Wars first (have clog data),
+ * Five label:value lines, LMS and Soul Wars first (have clog data),
  * then PvP Arena, BH Hunter, BH Rogue.
  */
 public class PvpSummaryTooltip extends TitleTooltip
@@ -17,11 +19,11 @@ public class PvpSummaryTooltip extends TitleTooltip
 	private static final int ICON_SIZE = 13;
 	private static final int ICON_GAP = 4;
 
-	private int lmsScore;
-	private int soulWarsScore;
-	private int pvpArenaScore;
-	private int bhHunterScore;
-	private int bhRogueScore;
+	private long lmsScore;
+	private long soulWarsScore;
+	private long pvpArenaScore;
+	private long bhHunterScore;
+	private long bhRogueScore;
 
 	private int lmsObtained = -1;
 	private int lmsTotal;
@@ -34,6 +36,7 @@ public class PvpSummaryTooltip extends TitleTooltip
 	public void setData(HiscoreResult hiscoreResult, ClogResult clogResult)
 	{
 		setTitle("PvP Summary");
+		clearClogCounts();
 
 		lmsScore = hiscoreResult.getActivityScore("LMS - Rank");
 		soulWarsScore = hiscoreResult.getActivityScore("Soul Wars Zeal");
@@ -55,6 +58,32 @@ public class PvpSummaryTooltip extends TitleTooltip
 				swObtained = sw[0];
 				swTotal = sw[1];
 			}
+		}
+	}
+
+	public void setClanData(Map<String, Long> activities, ClanClogResult.ClogUnion clog)
+	{
+		setTitle("PvP Summary");
+		clearClogCounts();
+
+		lmsScore = activity(activities, "LMS - Rank");
+		soulWarsScore = activity(activities, "Soul Wars Zeal");
+		pvpArenaScore = activity(activities, "PvP Arena - Rank");
+		bhHunterScore = activity(activities, "Bounty Hunter - Hunter");
+		bhRogueScore = activity(activities, "Bounty Hunter - Rogue");
+
+		int[] lms = unionCounts(clog, "last_man_standing");
+		if (lms != null)
+		{
+			lmsObtained = lms[0];
+			lmsTotal = lms[1];
+		}
+
+		int[] sw = unionCounts(clog, "soul_wars");
+		if (sw != null)
+		{
+			swObtained = sw[0];
+			swTotal = sw[1];
 		}
 	}
 
@@ -125,7 +154,7 @@ public class PvpSummaryTooltip extends TitleTooltip
 	}
 
 	private void paintLine(Graphics2D g2, FontMetrics fm, int inset, int y,
-							BufferedImage icon, String label, int score,
+							BufferedImage icon, String label, long score,
 							int obtained, int total)
 	{
 		int x = inset;
@@ -156,12 +185,42 @@ public class PvpSummaryTooltip extends TitleTooltip
 		g2.drawString(scoreText, x, textY);
 		x += fm.stringWidth(scoreText);
 
-		// Clog count (yellow when incomplete, green when complete)
 		if (obtained >= 0)
 		{
 			String clogText = " (" + obtained + "/" + total + ")";
-			g2.setColor(completionColor(obtained, total));
+			g2.setColor(ClogHelper.clogColor(obtained, total));
 			g2.drawString(clogText, x, textY);
 		}
+	}
+
+	private void clearClogCounts()
+	{
+		lmsObtained = -1;
+		lmsTotal = 0;
+		swObtained = -1;
+		swTotal = 0;
+		notice = null;
+	}
+
+	private static long activity(Map<String, Long> activities, String key)
+	{
+		return activities != null ? activities.getOrDefault(key, 0L) : 0L;
+	}
+
+	private static int[] unionCounts(ClanClogResult.ClogUnion clog, String category)
+	{
+		if (clog == null)
+		{
+			return null;
+		}
+		List<Integer> items = clog.getItemsByCategory().get(category);
+		List<Integer> catalog = clog.getCatalog(category);
+		if (items == null && (catalog == null || catalog.isEmpty()))
+		{
+			return null;
+		}
+		int obtained = items != null ? items.size() : 0;
+		int total = catalog != null && !catalog.isEmpty() ? catalog.size() : obtained;
+		return total > 0 ? new int[]{obtained, total} : null;
 	}
 }

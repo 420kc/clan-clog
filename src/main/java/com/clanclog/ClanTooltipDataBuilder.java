@@ -21,12 +21,9 @@ import javax.inject.Singleton;
  * passed through the existing obtained-count overlay path so the sprite grid
  * can stay close to Kill Clog's item tooltip renderer.
  *
- * <p>Catalog gap: the backend {@code clog.items_by_category} only lists
- * obtained items (the union across members), not the full OSRS clog
- * catalog per boss. So {@code allItemIds == obtainedIds == clan union}
- * for the category, and {@code obtainedCount == totalItems == union size}.
- * The "rarest missing" feature requires the catalog and is deferred to a
- * future sub-phase that adds catalog endpoints to the backend.
+ * <p>Client-built clan results include the full category catalog, so empty
+ * categories can still render a dim sprite grid. Backend-only results fall
+ * back to obtained-only until the API ships catalog payloads.
  */
 @Singleton
 public class ClanTooltipDataBuilder
@@ -55,7 +52,9 @@ public class ClanTooltipDataBuilder
 		}
 
 		List<Integer> categoryItems = result.getClog().getItemsByCategory().get(category);
-		if (categoryItems == null || categoryItems.isEmpty())
+		List<Integer> catalog = result.getClog().getCatalog(category);
+		if ((categoryItems == null || categoryItems.isEmpty())
+			&& (catalog == null || catalog.isEmpty()))
 		{
 			return null;
 		}
@@ -64,11 +63,11 @@ public class ClanTooltipDataBuilder
 		// data), use it as the full item list so completion shows X/Y
 		// correctly. Falls back to obtained-only when no catalog exists
 		// (e.g. backend-only data without catalog support).
-		List<Integer> catalog = result.getClog().getCatalog(category);
 		List<Integer> allItemIds = catalog != null && !catalog.isEmpty()
 			? new ArrayList<>(catalog)
 			: new ArrayList<>(categoryItems);
-		Set<Integer> obtainedIds = new HashSet<>(categoryItems);
+		Set<Integer> obtainedIds = categoryItems != null
+			? new HashSet<>(categoryItems) : new HashSet<>();
 
 		// Per-item meta enrichment from clog.item_meta (keyed by item id as string)
 		Map<String, ClanClogResult.ItemMeta> itemMetaRaw = result.getClog().getItemMeta();
@@ -80,7 +79,7 @@ public class ClanTooltipDataBuilder
 		// with ImgTooltip's existing per-item count rendering).
 		Map<Integer, Integer> obtainedCounts = new HashMap<>();
 
-		for (int itemId : categoryItems)
+		for (int itemId : obtainedIds)
 		{
 			ClanClogResult.ItemMeta meta = itemMetaRaw.get(String.valueOf(itemId));
 			if (meta == null)
@@ -103,7 +102,7 @@ public class ClanTooltipDataBuilder
 		return new TooltipData(
 			displayName,
 			0, // rank is not meaningful at clan scope; placeholder
-			categoryItems.size(),
+			obtainedIds.size(),
 			allItemIds.size(),
 			allItemIds,
 			obtainedIds,

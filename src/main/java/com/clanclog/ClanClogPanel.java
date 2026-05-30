@@ -79,28 +79,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final JLabel hiscoreCoverageLabel = new JLabel("--");
 	private final JLabel clogCoverageLabel = new JLabel("--");
 	private final IconTextField searchBar = new IconTextField();
-	private final JLabel clanHeader = new JLabel(" ")
-	{
-		@Override
-		protected void paintComponent(java.awt.Graphics g)
-		{
-			super.paintComponent(g);
-			if (Boolean.TRUE.equals(getClientProperty("underlined")))
-			{
-				String text = getText();
-				if (text != null && !text.isBlank())
-				{
-					java.awt.FontMetrics fm = g.getFontMetrics();
-					int textWidth = fm.stringWidth(text.trim());
-					int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2 + 1;
-					g.setColor(getForeground());
-					// centered alignment: text starts at midpoint minus half width
-					int textStart = (getWidth() - textWidth) / 2;
-					g.drawLine(textStart, y, textStart + textWidth, y);
-				}
-			}
-		}
-	};
+	private final JLabel clanHeader = new JLabel(" ");
 	private final JButton clanalyzeButton = new JButton("clanalyze");
 	private final JButton syncButton = new JButton("sync");
 	private final ActivitiesTray activitiesTray;
@@ -239,24 +218,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		setClanHeaderText(" ");
 		clanHeader.addMouseListener(new MouseAdapter()
 		{
-			@Override
-			public void mouseEntered(MouseEvent e)
-			{
-				if (clanHeader.getText() != null && !clanHeader.getText().isBlank()
-					&& !" ".equals(clanHeader.getText()))
-				{
-					clanHeader.putClientProperty("underlined", true);
-					clanHeader.repaint();
-				}
-			}
-
-			@Override
-			public void mouseExited(MouseEvent e)
-			{
-				clanHeader.putClientProperty("underlined", null);
-				clanHeader.repaint();
-			}
-
 			@Override
 			public void mousePressed(MouseEvent e)
 			{

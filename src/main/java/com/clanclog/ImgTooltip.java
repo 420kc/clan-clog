@@ -36,11 +36,13 @@ public class ImgTooltip extends TitleTooltip
 	private static final Color QTY_COLOR = new Color(255, 255, 0);
 	private static final Color QTY_SHADOW = new Color(0, 0, 0);
 	private static final Color ITEM_HOVER_BG = new Color(80, 70, 50);
+	private static final int INFO_BAR_GAP = 4;
 
 	private final int gridCols;
 	private final int spriteSize;
 	private int effectiveCols;
 	private int hoveredItemIndex = -1;
+	private int paintedGridStartY = -1;
 	private String notice = "No clan data";
 	private BufferedImage noticeIcon;
 
@@ -49,6 +51,7 @@ public class ImgTooltip extends TitleTooltip
 	private Set<Integer> obtainedIds;
 	private Map<Integer, Integer> obtainedCounts;
 	private BufferedImage[] sprites;
+	private ItemManager itemManager;
 
 	/** Configurable min column count. */
 	public ImgTooltip(int gridCols)
@@ -107,6 +110,9 @@ public class ImgTooltip extends TitleTooltip
 		this.allItemIds = allItemIds;
 		this.obtainedIds = obtainedIds;
 		this.obtainedCounts = obtainedCounts;
+		this.itemManager = itemManager;
+		this.hoveredItemIndex = -1;
+		this.paintedGridStartY = -1;
 
 		if (allItemIds == null || itemManager == null)
 		{
@@ -182,6 +188,12 @@ public class ImgTooltip extends TitleTooltip
 			gridWidth = Math.max(gridWidth, noticeWidth);
 		}
 
+		if (hasItems)
+		{
+			FontMetrics sfm = getFontMetrics(FontManager.getRunescapeSmallFont());
+			gridHeight += INFO_BAR_GAP + sfm.getHeight();
+		}
+
 		return new Dimension(gridWidth, gridHeight);
 	}
 
@@ -195,6 +207,7 @@ public class ImgTooltip extends TitleTooltip
 
 		int inset = getInset();
 		boolean hasItems = allItemIds != null && !allItemIds.isEmpty();
+		paintedGridStartY = startY;
 
 		// No clog data , center notice in the grid area
 		if (!hasItems)
@@ -280,7 +293,48 @@ public class ImgTooltip extends TitleTooltip
 					g2.drawString(qtyText, x, y + qfm.getAscent());
 				}
 			}
+
+			paintInfoBar(g2, inset, startY, w);
 		}
+	}
+
+	private void paintInfoBar(Graphics2D g2, int inset, int gridStartY, int w)
+	{
+		if (hoveredItemIndex < 0 || allItemIds == null
+			|| hoveredItemIndex >= allItemIds.size() || itemManager == null)
+		{
+			return;
+		}
+
+		int cellSize = spriteSize + PADDING;
+		int gridRows = (allItemIds.size() + effectiveCols - 1) / effectiveCols;
+		int gridHeight = gridRows * cellSize - PADDING;
+		int barY = gridStartY + gridHeight + INFO_BAR_GAP;
+
+		int itemId = allItemIds.get(hoveredItemIndex);
+		String name;
+		try
+		{
+			name = itemManager.getItemComposition(itemId).getName();
+		}
+		catch (Exception e)
+		{
+			return;
+		}
+		if (name == null || name.isEmpty() || "null".equalsIgnoreCase(name))
+		{
+			return;
+		}
+
+		boolean obtained = obtainedIds != null && obtainedIds.contains(itemId);
+
+		g2.setFont(FontManager.getRunescapeSmallFont());
+		FontMetrics fm = g2.getFontMetrics();
+		int textW = fm.stringWidth(name);
+		int tx = inset + (w - 2 * inset - textW) / 2;
+
+		g2.setColor(obtained ? Color.WHITE : NOTICE_COLOR);
+		g2.drawString(name, tx, barY + fm.getAscent());
 	}
 
 	private int getItemIndexAt(int mx, int my)
@@ -292,7 +346,9 @@ public class ImgTooltip extends TitleTooltip
 
 		int inset = getInset();
 		int w = getWidth();
-		int gridStartY = inset + getHeaderZoneHeight();
+		int gridStartY = paintedGridStartY >= 0
+			? paintedGridStartY
+			: inset + getHeaderZoneHeight();
 		int cellSize = spriteSize + PADDING;
 		int gridWidth = effectiveCols * cellSize - PADDING;
 		int gridOffsetX = inset + (w - 2 * inset - gridWidth) / 2;
@@ -307,6 +363,10 @@ public class ImgTooltip extends TitleTooltip
 		int col = relX / cellSize;
 		int row = relY / cellSize;
 		if (col >= effectiveCols)
+		{
+			return -1;
+		}
+		if (relX % cellSize > spriteSize || relY % cellSize > spriteSize)
 		{
 			return -1;
 		}
