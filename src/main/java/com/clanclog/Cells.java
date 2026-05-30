@@ -96,20 +96,10 @@ public class Cells
 	private static final String CLOG_GILDED = "gilded";
 	private static final int THIRD_AGE_ITEM_ID = 10348;
 	private static final int GILDED_ITEM_ID = 3481;
-	private static final int[] THIRD_AGE_ITEMS = {
-		10350, 10348, 10346, 23242, 10352,
-		10334, 10330, 10332, 10336,
-		10342, 10338, 10340, 10344,
-		12426, 12422, 12437, 12424,
-		23336, 23339, 23345, 23342,
-		20014, 20011
-	};
-	private static final int[] GILDED_ITEMS = {
-		3486, 3481, 3483, 3485, 3488,
-		20146, 20149, 20152, 20155, 20158, 20161,
-		12389, 12391, 23258, 23261, 23264, 23267,
-		23276, 23279, 23282
-	};
+	private static final int[] THIRD_AGE_ITEMS =
+		CanonicalClogCatalog.fallbackArray(CLOG_THIRD_AGE);
+	private static final int[] GILDED_ITEMS =
+		CanonicalClogCatalog.fallbackArray(CLOG_GILDED);
 
 	private static final String RARE_HARD = "hard_rare";
 	private static final String RARE_ELITE = "elite_rare";
@@ -120,47 +110,12 @@ public class Cells
 	private static final int ELITE_CASKET_ITEM_ID = 20543;
 	private static final int MASTER_CASKET_ITEM_ID = 19836;
 
-	private static final int[] HARD_RARE_ITEMS = {
-		// 3rd age melee + range + mage + amulet (13)
-		10350, 10348, 10346, 23242, 10352,
-		10334, 10330, 10332, 10336,
-		10342, 10338, 10340, 10344,
-		// Gilded melee (11)
-		3486, 3481, 3483, 3485, 3488,
-		20146, 20149, 20152, 20155, 20158, 20161
-	};
-
-	private static final int[] ELITE_RARE_ITEMS = {
-		// 3rd age melee + range + mage + amulet + weapons + cloak (17)
-		10350, 10348, 10346, 23242, 10352,
-		10334, 10330, 10332, 10336,
-		10342, 10338, 10340, 10344,
-		12426, 12422, 12437, 12424,
-		// All gilded (20)
-		3486, 3481, 3483, 3485, 3488,
-		20146, 20149, 20152, 20155, 20158, 20161,
-		12389, 12391, 23258, 23261, 23264, 23267,
-		23276, 23279, 23282,
-		// Lava dragon mask, Ring of nature
-		12371, 20005
-	};
-
-	private static final int[] MASTER_RARE_ITEMS = {
-		// All 3rd age (23)
-		10350, 10348, 10346, 23242, 10352,
-		10334, 10330, 10332, 10336,
-		10342, 10338, 10340, 10344,
-		12426, 12422, 12437, 12424,
-		23336, 23339, 23345, 23342,
-		20014, 20011,
-		// All gilded (20)
-		3486, 3481, 3483, 3485, 3488,
-		20146, 20149, 20152, 20155, 20158, 20161,
-		12389, 12391, 23258, 23261, 23264, 23267,
-		23276, 23279, 23282,
-		// Bucket helm (g), Ring of coins
-		20059, 20017
-	};
+	private static final int[] HARD_RARE_ITEMS =
+		CanonicalClogCatalog.fallbackArray(RARE_HARD);
+	private static final int[] ELITE_RARE_ITEMS =
+		CanonicalClogCatalog.fallbackArray(RARE_ELITE);
+	private static final int[] MASTER_RARE_ITEMS =
+		CanonicalClogCatalog.fallbackArray(RARE_MASTER);
 
 	/**
 	 * Hiscore-CSV boss name -> HiscoreSkill.getName() bridge. Only entries

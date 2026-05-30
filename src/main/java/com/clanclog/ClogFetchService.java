@@ -75,10 +75,12 @@ public class ClogFetchService
 
 	// Global caches (loaded once, reused across all lookups)
 	private volatile Map<String, List<Integer>> cachedCategories;
+	private volatile Map<String, List<Integer>> cachedCanonicalCatalogs;
 	private volatile Map<Integer, String> cachedItemNames;
 
 	// In-flight futures for global caches (prevents duplicate HTTP requests)
 	private volatile CompletableFuture<Map<String, List<Integer>>> categoriesFlight;
+	private volatile CompletableFuture<Map<String, List<Integer>>> canonicalCatalogsFlight;
 	private volatile CompletableFuture<Map<Integer, String>> namesFlight;
 
 	// Per-player failure cooldowns
@@ -114,8 +116,14 @@ public class ClogFetchService
 		String key = RsnNormalizer.cacheKey(normalized);
 
 		// Kick off global data in parallel (no-ops if already cached).
+		CompletableFuture<Map<String, List<Integer>>> canonFuture = withFallback(
+			fetchCanonicalCatalogs(), CanonicalClogCatalog.fallbackCatalogs(),
+			GLOBAL_FETCH_TIMEOUT_SECONDS,
+			"Kill Clog canonical catalog fetch");
 		CompletableFuture<Map<String, List<Integer>>> catFuture = withFallback(
-			fetchCategories(), new HashMap<>(), GLOBAL_FETCH_TIMEOUT_SECONDS,
+			fetchCategories().thenCombine(canonFuture,
+				CanonicalClogCatalog::mergeFixedCatalogs),
+			CanonicalClogCatalog.fallbackCatalogs(), GLOBAL_FETCH_TIMEOUT_SECONDS,
 			"Temple category fetch");
 		CompletableFuture<Map<Integer, String>> namesFuture = withFallback(
 			fetchItemNames(), new HashMap<>(), GLOBAL_FETCH_TIMEOUT_SECONDS,
@@ -723,6 +731,59 @@ public class ClogFetchService
 			});
 
 			return categoriesFlight;
+		}
+	}
+
+	private CompletableFuture<Map<String, List<Integer>>> fetchCanonicalCatalogs()
+	{
+		if (cachedCanonicalCatalogs != null)
+		{
+			return CompletableFuture.completedFuture(cachedCanonicalCatalogs);
+		}
+
+		synchronized (this)
+		{
+			if (cachedCanonicalCatalogs != null)
+			{
+				return CompletableFuture.completedFuture(cachedCanonicalCatalogs);
+			}
+			if (canonicalCatalogsFlight != null)
+			{
+				return canonicalCatalogsFlight;
+			}
+
+			canonicalCatalogsFlight = httpGet(CanonicalClogCatalog.URL).thenApply(resp ->
+			{
+				try
+				{
+					if (resp.code != 200 || resp.body == null)
+					{
+						return null;
+					}
+					Map<String, List<Integer>> catalogs =
+						CanonicalClogCatalog.parseCatalogs(gson, resp.body);
+					if (catalogs.isEmpty())
+					{
+						return null;
+					}
+					cachedCanonicalCatalogs = catalogs;
+					log.debug("Kill Clog canonical catalogs loaded: {} categories",
+						catalogs.size());
+					return catalogs;
+				}
+				catch (Exception e)
+				{
+					log.debug("Failed to parse Kill Clog canonical catalogs: {}",
+						e.getMessage());
+					return null;
+				}
+				finally
+				{
+					canonicalCatalogsFlight = null;
+				}
+			});
+
+			return canonicalCatalogsFlight;
 		}
 	}
 
