@@ -100,7 +100,7 @@ public class ClanLookupSessionTest
 			+ "\"member_coverage\":{\"total\":2,\"clog_ok\":1,\"hiscore_only\":0,\"not_found\":1},"
 			+ "\"bosses\":{},"
 			+ "\"activity_totals\":{},"
-			+ "\"clog\":null"
+			+ "\"clog\":{\"items_by_category\":{\"barrows\":[4708]},\"total_obtained\":1}"
 			+ "}");
 		ClanClogResult clog = result("{"
 			+ "\"slug\":\"clannabis\","

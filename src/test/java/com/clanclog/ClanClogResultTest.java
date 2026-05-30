@@ -119,7 +119,7 @@ public class ClanClogResultTest
 	}
 
 	@Test
-	public void representedDataRequiresCoverageOrPositiveTotals()
+	public void representedDataIgnoresCoverageOnlyPayload()
 	{
 		ClanClogResult empty = ClanClogResult.forRoster(
 			"empty-clan", "Empty Clan", 2, Map.of());
@@ -132,7 +132,7 @@ public class ClanClogResultTest
 			2, 0, 1, 0, 1, 0));
 
 		assertFalse(empty.hasRepresentedData());
-		assertTrue(covered.hasRepresentedData());
+		assertFalse(covered.hasRepresentedData());
 	}
 
 	@Test

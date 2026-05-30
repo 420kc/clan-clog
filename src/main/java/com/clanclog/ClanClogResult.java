@@ -198,11 +198,6 @@ public class ClanClogResult
 
 	public boolean hasRepresentedData()
 	{
-		if (memberCoverage != null
-			&& (memberCoverage.getClogOk() > 0 || memberCoverage.getHiscoreOnly() > 0))
-		{
-			return true;
-		}
 		if (clog != null && (clog.getTotalObtained() > 0
 			|| hasAnyObtainedItem(clog.getItemsByCategory())))
 		{
