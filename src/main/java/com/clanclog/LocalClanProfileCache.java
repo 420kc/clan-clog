@@ -39,12 +39,19 @@ public class LocalClanProfileCache
 	private static final File CACHE_DIR = new File(RuneLite.RUNELITE_DIR, "clan-clog/clans");
 
 	private final Gson gson;
+	private final File cacheDir;
 	private volatile ExecutorService diskWriter = newDiskWriter();
 
 	@Inject
 	public LocalClanProfileCache(Gson gson)
 	{
+		this(gson, CACHE_DIR);
+	}
+
+	LocalClanProfileCache(Gson gson, File cacheDir)
+	{
 		this.gson = gson;
+		this.cacheDir = cacheDir;
 	}
 
 	public void put(String clanName, String slug, List<ClanMember> roster,
@@ -82,7 +89,39 @@ public class LocalClanProfileCache
 		{
 			return null;
 		}
-		File file = new File(CACHE_DIR, slug + ".json");
+		return readProfile(new File(cacheDir, slug + ".json"), slug);
+	}
+
+	@Nullable
+	public StoredProfile latest()
+	{
+		if (!cacheDir.isDirectory())
+		{
+			return null;
+		}
+		File[] files = cacheDir.listFiles((dir, name) -> name.endsWith(".json"));
+		if (files == null || files.length == 0)
+		{
+			return null;
+		}
+		java.util.Arrays.sort(files, (left, right) ->
+			Long.compare(right.lastModified(), left.lastModified()));
+		for (File file : files)
+		{
+			String name = file.getName();
+			String slug = name.substring(0, name.length() - ".json".length());
+			StoredProfile profile = readProfile(file, slug);
+			if (profile != null)
+			{
+				return profile;
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private StoredProfile readProfile(File file, String slug)
+	{
 		if (!file.exists())
 		{
 			return null;
@@ -127,12 +166,12 @@ public class LocalClanProfileCache
 		File tmp = null;
 		try
 		{
-			if (!CACHE_DIR.exists())
+			if (!cacheDir.exists())
 			{
-				CACHE_DIR.mkdirs();
+				cacheDir.mkdirs();
 			}
-			File file = new File(CACHE_DIR, slug + ".json");
-			tmp = File.createTempFile(slug + "-", ".tmp", CACHE_DIR);
+			File file = new File(cacheDir, slug + ".json");
+			tmp = File.createTempFile(slug + "-", ".tmp", cacheDir);
 			try (BufferedWriter writer = Files.newBufferedWriter(tmp.toPath(), StandardCharsets.UTF_8))
 			{
 				gson.toJson(profile, writer);

@@ -260,9 +260,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			SwingUtilities.invokeLater(() -> onInGameRosterRefreshed(roster)));
 
 		// Auto-load on open. An explicit Default Clan wins; otherwise, when
-		// "Remember Last Clan" is enabled, restore the last analyzed clan. Opening
-		// the clan tab in-game later swaps in the live roster, so this never traps
-		// the user on a stale clan.
+		// "Remember Last Clan" is enabled, restore the last analyzed clan. If the
+		// config key is missing but a disk profile exists, render the most recent
+		// saved profile so cached colors are visible before RuneLite exposes the
+		// clan sidepanel settings. Opening the clan tab in-game later swaps in the
+		// live roster, so this never traps the user on a stale clan.
 		// Deferred to the EDT: the panel is constructed off-thread during plugin
 		// injection, and IconTextField.setText asserts the EDT (fatal under -ea,
 		// which the dev launcher enables, so the plugin silently fails to load).
@@ -287,6 +289,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				setSearchText(target);
 				onSubmit();
 			});
+		}
+		else if (config.rememberLastClan())
+		{
+			SwingUtilities.invokeLater(this::renderLatestStoredClanProfile);
 		}
 	}
 
@@ -1201,7 +1207,21 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return false;
 		}
+		return renderStoredClanProfile(stored);
+	}
 
+	private boolean renderLatestStoredClanProfile()
+	{
+		LocalClanProfileCache.StoredProfile stored = clanProfileCache.latest();
+		if (stored == null)
+		{
+			return false;
+		}
+		return renderStoredClanProfile(stored);
+	}
+
+	private boolean renderStoredClanProfile(LocalClanProfileCache.StoredProfile stored)
+	{
 		String name = stored.getClanName();
 		String slug = stored.getSlug();
 		List<ClanMember> roster = new ArrayList<>(stored.getRoster());
@@ -1218,6 +1238,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		setClanHeaderText(name);
 		clearSearchText();
+		rememberClan(name);
 		cells.renderClanResult(result);
 		membersPanel.renderRoster(name, roster);
 		showClanalyzeButton("refresh", "refresh clan profile");
