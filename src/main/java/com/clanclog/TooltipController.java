@@ -10,6 +10,7 @@ import java.awt.event.AWTEventListener;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToolTip;
@@ -39,8 +40,10 @@ class TooltipController
 	// Click-to-reveal state
 	private Popup activeClickPopup;
 	private JLabel activeClickLabel;
+	private JComponent activeClickComponent;
 	private AWTEventListener clickDismissListener;
 	private JLabel clickDismissedLabel;
+	private JComponent clickDismissedComponent;
 
 	// Hover state
 	private JPanel hoveredCell;
@@ -214,6 +217,61 @@ class TooltipController
 			clickDismissListener, AWTEvent.MOUSE_EVENT_MASK);
 	}
 
+	/** Show click tooltip for a non-JLabel component (e.g. JPanel with createToolTip override). */
+	void showClickTooltip(JComponent source, JPanel cell)
+	{
+		// AWTEventListener dismissed this component on the same click , treat as toggle-off
+		if (source == clickDismissedComponent)
+		{
+			clickDismissedComponent = null;
+			return;
+		}
+		clickDismissedComponent = null;
+
+		hideClickTooltip();
+
+		JToolTip tip = source.createToolTip();
+		tip.setTipText(source.getToolTipText());
+
+		if (tip instanceof NativeTooltip)
+		{
+			((NativeTooltip) tip).setCloseAction(this::hideClickTooltip);
+		}
+
+		Dimension tipSize = tip.getPreferredSize();
+
+		Point sourceLoc = source.getLocationOnScreen();
+		Point cellLoc = cell.getLocationOnScreen();
+		Rectangle screen = cell.getGraphicsConfiguration().getBounds();
+
+		int x = sourceLoc.x;
+		int y = cellLoc.y + cell.getHeight();
+
+		if (x + tipSize.width > screen.x + screen.width)
+		{
+			x = screen.x + screen.width - tipSize.width;
+		}
+		if (y + tipSize.height > screen.y + screen.height)
+		{
+			y = cellLoc.y - tipSize.height;
+		}
+
+		activeClickPopup = PopupFactory.getSharedInstance().getPopup(cell, tip, x, y);
+		activeClickComponent = source;
+		activeClickPopup.show();
+
+		clickDismissListener = event ->
+		{
+			if (event.getID() == MouseEvent.MOUSE_PRESSED)
+			{
+				clickDismissedComponent = activeClickComponent;
+				hideClickTooltip();
+			}
+		};
+		Toolkit.getDefaultToolkit().addAWTEventListener(
+			clickDismissListener, AWTEvent.MOUSE_EVENT_MASK);
+	}
+
 	void hideClickTooltip()
 	{
 		if (clickDismissListener != null)
@@ -226,6 +284,7 @@ class TooltipController
 			activeClickPopup.hide();
 			activeClickPopup = null;
 			activeClickLabel = null;
+			activeClickComponent = null;
 		}
 	}
 
