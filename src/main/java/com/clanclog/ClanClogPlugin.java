@@ -25,6 +25,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -55,6 +56,9 @@ public class ClanClogPlugin extends Plugin
 
 	@Inject
 	private Client client;
+
+	@Inject
+	private SpriteManager spriteManager;
 
 	@Inject
 	private ClanClogPanel panel;
@@ -102,6 +106,7 @@ public class ClanClogPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		NativeTooltip.loadSprites(spriteManager);
 		navButton = NavigationButton.builder()
 			.tooltip("Clan Clog")
 			.icon(loadIcon())
