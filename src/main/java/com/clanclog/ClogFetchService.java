@@ -60,6 +60,10 @@ public class ClogFetchService
 	private static final Map<String, String> PAGE_KEY_OVERRIDES = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 	static
 	{
+		PAGE_KEY_OVERRIDES.put("3rd Age", "third_age");
+		PAGE_KEY_OVERRIDES.put("Hard Treasure Trails (Rare)", "hard_rare");
+		PAGE_KEY_OVERRIDES.put("Elite Treasure Trails (Rare)", "elite_rare");
+		PAGE_KEY_OVERRIDES.put("Master Treasure Trails (Rare)", "master_rare");
 		PAGE_KEY_OVERRIDES.put("Kree'arra", "kree_arra");
 		PAGE_KEY_OVERRIDES.put("The Hueycoatl", "hueycoatl");
 		PAGE_KEY_OVERRIDES.put("The Royal Titans", "royal_titans");

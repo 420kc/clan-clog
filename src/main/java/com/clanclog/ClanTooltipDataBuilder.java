@@ -1,8 +1,10 @@
 package com.clanclog;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -113,5 +115,83 @@ public class ClanTooltipDataBuilder
 	public TooltipData buildFor(String name, ClanClogResult result)
 	{
 		return buildForCategory(name, name, result);
+	}
+
+	/**
+	 * Build category-first data for synthetic rare buckets. Temple and
+	 * RuneProfile can provide real catalogs for 3rd Age/Gilded and RuneProfile
+	 * rare clue pages; when they do, use those catalogs. Otherwise fall back to
+	 * the fixed Kill Clog item set and clan-wide item metadata.
+	 */
+	public TooltipData buildRareBucketData(String name, String category,
+		int[] fallbackItemIds, ClanClogResult result)
+	{
+		ClanClogResult.ClogUnion clog = result != null ? result.getClog() : null;
+		Map<String, ClanClogResult.ItemMeta> itemMeta = clog != null
+			? clog.getItemMeta() : Collections.emptyMap();
+
+		if (clog != null)
+		{
+			List<Integer> catalog = clog.getCatalog(category);
+			if (catalog != null && !catalog.isEmpty())
+			{
+				return buildFromItemIds(name, new ArrayList<>(catalog),
+					clog.getItemsByCategory().get(category), itemMeta);
+			}
+		}
+
+		List<Integer> fixedItems = new ArrayList<>(fallbackItemIds.length);
+		for (int itemId : fallbackItemIds)
+		{
+			fixedItems.add(itemId);
+		}
+		return buildFromItemIds(name, fixedItems, null, itemMeta);
+	}
+
+	private TooltipData buildFromItemIds(String name, List<Integer> allItemIds,
+		List<Integer> categoryItems, Map<String, ClanClogResult.ItemMeta> itemMetaRaw)
+	{
+		Set<Integer> obtainedIds = categoryItems != null
+			? new HashSet<>(categoryItems) : new HashSet<>();
+		Map<Integer, Integer> holderCounts = new LinkedHashMap<>();
+		Map<Integer, String> firstSeenAt = new LinkedHashMap<>();
+		Map<Integer, String> firstSeenByRsn = new LinkedHashMap<>();
+		Map<Integer, Integer> obtainedCounts = new LinkedHashMap<>();
+
+		for (int itemId : allItemIds)
+		{
+			ClanClogResult.ItemMeta meta = itemMetaRaw.get(String.valueOf(itemId));
+			if (meta != null)
+			{
+				obtainedIds.add(itemId);
+				holderCounts.put(itemId, meta.getHolderCount());
+				obtainedCounts.put(itemId, meta.getHolderCount());
+				if (meta.getFirstSeenAt() != null)
+				{
+					firstSeenAt.put(itemId, meta.getFirstSeenAt());
+				}
+				if (meta.getFirstSeenByRsn() != null)
+				{
+					firstSeenByRsn.put(itemId, meta.getFirstSeenByRsn());
+				}
+			}
+			else if (obtainedIds.contains(itemId))
+			{
+				obtainedCounts.put(itemId, 1);
+			}
+		}
+
+		int obtainedCount = ClogHelper.countObtained(allItemIds, obtainedIds);
+		return new TooltipData(
+			name,
+			0,
+			obtainedCount,
+			allItemIds.size(),
+			allItemIds,
+			obtainedIds,
+			obtainedCounts,
+			holderCounts,
+			firstSeenAt,
+			firstSeenByRsn);
 	}
 }

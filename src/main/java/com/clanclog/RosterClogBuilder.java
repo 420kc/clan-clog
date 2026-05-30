@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,7 +93,7 @@ final class RosterClogBuilder
 			for (Map.Entry<String, List<Integer>> entry : clog.getCategoryItems().entrySet())
 			{
 				categoryCatalogs
-					.computeIfAbsent(entry.getKey(), k -> new HashSet<>())
+					.computeIfAbsent(entry.getKey(), k -> new LinkedHashSet<>())
 					.addAll(entry.getValue());
 			}
 

@@ -52,4 +52,16 @@ public class ClogFetchServiceTest
 		assertTrue(merged.getObtainedItems().containsKey("hard_treasure_trails"));
 		assertTrue(merged.getObtainedItems().containsKey("fortis_colosseum"));
 	}
+
+	@Test
+	public void normalizePageKeyMapsRuneProfileRarePagesToClanKeys()
+	{
+		assertEquals("third_age", ClogFetchService.normalizePageKey("3rd Age"));
+		assertEquals("hard_rare",
+			ClogFetchService.normalizePageKey("Hard Treasure Trails (Rare)"));
+		assertEquals("elite_rare",
+			ClogFetchService.normalizePageKey("Elite Treasure Trails (Rare)"));
+		assertEquals("master_rare",
+			ClogFetchService.normalizePageKey("Master Treasure Trails (Rare)"));
+	}
 }

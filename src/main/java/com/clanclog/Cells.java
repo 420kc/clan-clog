@@ -15,7 +15,6 @@ import java.io.InputStream;
 import javax.imageio.ImageIO;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -731,19 +730,17 @@ public class Cells
 
 	private void renderClueTiers(ClanClogResult result)
 	{
-		ClanClogResult.ClogUnion clog = result.getClog();
-		Map<String, List<Integer>> itemsByCategory = clog != null
-			? clog.getItemsByCategory() : Collections.emptyMap();
+		Map<String, Long> activities = result.getActivityTotals();
 
 		for (Map.Entry<String, JLabel> entry : clueTierLabels.entrySet())
 		{
 			String tier = entry.getKey();
 			JLabel label = entry.getValue();
-			String category = CLUE_CATEGORIES.get(tier);
-			List<Integer> items = category != null ? itemsByCategory.get(category) : null;
-			int count = items != null ? items.size() : 0;
-			label.setText(ClogHelper.pad(count > 0 ? ClogHelper.formatKc(count) : "--"));
-			label.setForeground(count > 0 ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+			long score = activities.getOrDefault(tier, 0L);
+			boolean has = score > 0;
+			int display = score > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) score;
+			label.setText(ClogHelper.pad(has ? ClogHelper.formatKc(display) : "--"));
+			label.setForeground(has ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
 		}
 	}
 
@@ -1046,61 +1043,11 @@ public class Cells
 		{
 			return;
 		}
-		TooltipData data = buildCustomRareData(name, itemIds, result);
+		TooltipData data = tooltipDataBuilder.buildRareBucketData(name, rareKey, itemIds, result);
 		label.setText(ClogHelper.pad(data.obtainedCount > 0 ? ClogHelper.formatKc(data.obtainedCount) : "--"));
 		rareTooltips.put(rareKey, data);
 		label.setForeground(data.obtainedCount > 0 ? KC_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
 		label.setToolTipText(" ");
-	}
-
-	/**
-	 * Build TooltipData for a custom rare set (Hard/Elite/Master Treasure). Native
-	 * clog rare categories aren't a single backend category -- they're a curated
-	 * union of item ids spanning 3rd-age + gilded + handful of named items. We
-	 * union holder-count metadata from {@code clog.item_meta} for the listed ids
-	 * and treat any present item as "obtained" by the clan.
-	 */
-	private TooltipData buildCustomRareData(String name, int[] itemIds, ClanClogResult result)
-	{
-		List<Integer> allItemIds = new ArrayList<>(itemIds.length);
-		for (int id : itemIds)
-		{
-			allItemIds.add(id);
-		}
-
-		Set<Integer> obtainedIds = new HashSet<>();
-		Map<Integer, Integer> obtainedCounts = new HashMap<>();
-		Map<Integer, Integer> holderCounts = new HashMap<>();
-		Map<Integer, String> firstSeenAt = new HashMap<>();
-		Map<Integer, String> firstSeenByRsn = new HashMap<>();
-
-		if (result != null && result.getClog() != null)
-		{
-			Map<String, ClanClogResult.ItemMeta> meta = result.getClog().getItemMeta();
-			for (int id : itemIds)
-			{
-				ClanClogResult.ItemMeta m = meta.get(String.valueOf(id));
-				if (m == null)
-				{
-					continue;
-				}
-				obtainedIds.add(id);
-				holderCounts.put(id, m.getHolderCount());
-				obtainedCounts.put(id, m.getHolderCount());
-				if (m.getFirstSeenAt() != null)
-				{
-					firstSeenAt.put(id, m.getFirstSeenAt());
-				}
-				if (m.getFirstSeenByRsn() != null)
-				{
-					firstSeenByRsn.put(id, m.getFirstSeenByRsn());
-				}
-			}
-		}
-
-		return new TooltipData(name, 0, obtainedIds.size(), itemIds.length,
-			allItemIds, obtainedIds, obtainedCounts,
-			holderCounts, firstSeenAt, firstSeenByRsn);
 	}
 
 	/**
@@ -1145,11 +1092,21 @@ public class Cells
 
 		for (Map.Entry<String, JLabel> entry : clueTierLabels.entrySet())
 		{
+			String tier = entry.getKey();
 			JLabel label = entry.getValue();
-			TooltipData data = tooltipDataMap.get(entry.getKey());
-			if (data != null && data.totalItems > 0 && data.obtainedCount > 0)
+			boolean hasValue = result.getActivityTotals().getOrDefault(tier, 0L) > 0;
+			if (!hasValue)
+			{
+				continue;
+			}
+			TooltipData data = tooltipDataMap.get(tier);
+			if (data != null && data.totalItems > 0)
 			{
 				label.setForeground(ClogHelper.clogColor(data.obtainedCount, data.totalItems));
+			}
+			else
+			{
+				label.setForeground(ClogHelper.COLOR_EMPTY);
 			}
 		}
 
@@ -1183,8 +1140,8 @@ public class Cells
 
 		if (totalKillsCell != null)
 		{
-			int[] bossCounts = aggregateBossTooltipCounts();
-			totalKillsCell.setForeground(summaryColor(bossCounts, hasAnyBossKc(result)));
+			totalKillsCell.setForeground(hasAnyBossKc(result)
+				? ClogHelper.COLOR_COMPLETED : ColorScheme.LIGHT_GRAY_COLOR);
 		}
 
 		if (totalCluesCell != null)

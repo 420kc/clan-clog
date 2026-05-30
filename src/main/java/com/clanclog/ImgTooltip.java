@@ -317,7 +317,7 @@ public class ImgTooltip extends TitleTooltip
 		{
 			name = itemManager.getItemComposition(itemId).getName();
 		}
-		catch (Exception e)
+		catch (RuntimeException | AssertionError e)
 		{
 			return;
 		}

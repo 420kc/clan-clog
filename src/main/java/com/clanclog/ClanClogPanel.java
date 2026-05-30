@@ -793,6 +793,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clearSearchText();
 		String progressPrefix = syncEligible ? "clanalyzing: " : "building: ";
 		setStatus(progressPrefix + "0/" + roster.size());
+		cells.clearCells();
 		membersPanel.renderRoster(clanName, roster);
 
 		// Phase 1: per-member hiscore fan-out
@@ -815,8 +816,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					return;
 				}
 				// Render boss KCs immediately from hiscore data
+				ClanClogResult existing = syncEligible ? null : lastBackendResult;
 				ClanClogResult merged = RosterClogBuilder.fromHiscores(
-					name, slug, roster, lastBackendResult);
+					name, slug, roster, existing);
 				cells.renderClanResult(merged);
 				membersPanel.renderRoster(name, roster);
 

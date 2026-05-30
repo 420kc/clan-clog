@@ -74,4 +74,52 @@ public class ClanTooltipDataBuilderTest
 
 		assertNull(data);
 	}
+
+	@Test
+	public void buildsRareBucketFromRealCategoryBeforeFixedFallback()
+	{
+		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
+			1, Collections.emptyMap());
+		result.setClog(new ClanClogResult.ClogUnion(
+			Map.of("third_age", List.of(10334, 10350)),
+			2,
+			2,
+			Map.of(
+				"10334", new ClanClogResult.ItemMeta(2),
+				"10350", new ClanClogResult.ItemMeta(1)),
+			Map.of("third_age", List.of(10334, 10350, 10348))));
+
+		TooltipData data = new ClanTooltipDataBuilder()
+			.buildRareBucketData("3rd Age", "third_age", new int[]{999}, result);
+
+		assertNotNull(data);
+		assertEquals(2, data.obtainedCount);
+		assertEquals(3, data.totalItems);
+		assertEquals(List.of(10334, 10350, 10348), data.allItemIds);
+		assertEquals(2, data.obtainedCounts.get(10334).intValue());
+		assertEquals(1, data.obtainedCounts.get(10350).intValue());
+	}
+
+	@Test
+	public void buildsRareBucketFromFixedItemsWhenCategoryCatalogMissing()
+	{
+		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
+			1, Collections.emptyMap());
+		result.setClog(new ClanClogResult.ClogUnion(
+			Collections.emptyMap(),
+			1,
+			1,
+			Map.of("10334", new ClanClogResult.ItemMeta(2)),
+			Collections.emptyMap()));
+
+		TooltipData data = new ClanTooltipDataBuilder()
+			.buildRareBucketData("3rd Age", "third_age",
+				new int[]{10334, 10350}, result);
+
+		assertNotNull(data);
+		assertEquals(1, data.obtainedCount);
+		assertEquals(2, data.totalItems);
+		assertTrue(data.obtainedIds.contains(10334));
+		assertEquals(2, data.obtainedCounts.get(10334).intValue());
+	}
 }
