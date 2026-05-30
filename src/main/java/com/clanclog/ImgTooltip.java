@@ -47,6 +47,7 @@ public class ImgTooltip extends TitleTooltip
 	private final int spriteSize;
 	private int effectiveCols;
 	private int hoveredItemIndex = -1;
+	private int selectedItemIndex = -1;
 	private int paintedGridStartY = -1;
 	private String notice = "No Collection Log Data";
 	private BufferedImage noticeIcon;
@@ -83,6 +84,22 @@ public class ImgTooltip extends TitleTooltip
 		addMouseListener(new MouseAdapter()
 		{
 			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				if (!SwingUtilities.isLeftMouseButton(e))
+				{
+					return;
+				}
+				int idx = getItemIndexAt(e.getX(), e.getY());
+				if (idx >= 0)
+				{
+					selectedItemIndex = idx;
+					hoveredItemIndex = idx;
+					repaint();
+				}
+			}
+
+			@Override
 			public void mouseExited(MouseEvent e)
 			{
 				if (hoveredItemIndex != -1)
@@ -113,6 +130,7 @@ public class ImgTooltip extends TitleTooltip
 		this.obtainedCounts = obtainedCounts;
 		this.itemManager = itemManager;
 		this.hoveredItemIndex = -1;
+		this.selectedItemIndex = -1;
 		this.paintedGridStartY = -1;
 
 		if (allItemIds == null || itemManager == null)
@@ -303,7 +321,7 @@ public class ImgTooltip extends TitleTooltip
 				int x = gridOffsetX + col * cellSize;
 				int y = startY + row * cellSize;
 
-				if (i == hoveredItemIndex)
+				if (i == hoveredItemIndex || i == selectedItemIndex)
 				{
 					g2.setColor(ITEM_HOVER_BG);
 					g2.fillRect(x - 1, y - 1, spriteSize + 2, spriteSize + 2);
@@ -344,8 +362,9 @@ public class ImgTooltip extends TitleTooltip
 
 	private void paintInfoBar(Graphics2D g2, int inset, int gridStartY, int w)
 	{
-		if (hoveredItemIndex < 0 || allItemIds == null
-			|| hoveredItemIndex >= allItemIds.size() || itemManager == null)
+		int itemIndex = hoveredItemIndex >= 0 ? hoveredItemIndex : selectedItemIndex;
+		if (itemIndex < 0 || allItemIds == null
+			|| itemIndex >= allItemIds.size() || itemManager == null)
 		{
 			return;
 		}
@@ -355,7 +374,7 @@ public class ImgTooltip extends TitleTooltip
 		int gridHeight = gridRows * cellSize - PADDING;
 		int barY = gridStartY + gridHeight + INFO_BAR_GAP;
 
-		int itemId = allItemIds.get(hoveredItemIndex);
+		int itemId = allItemIds.get(itemIndex);
 		String name;
 		try
 		{
