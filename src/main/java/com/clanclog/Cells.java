@@ -8,6 +8,7 @@
 package com.clanclog;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -463,7 +464,7 @@ public class Cells
 			@Override
 			public JToolTip createToolTip()
 			{
-				return buildClueSummaryTooltip();
+				return keepTooltipOnHover(this, buildClueSummaryTooltip());
 			}
 		};
 		styleLabel(label, "Total Clues");
@@ -502,7 +503,7 @@ public class Cells
 			@Override
 			public JToolTip createToolTip()
 			{
-				return buildClanSummaryTooltip();
+				return keepTooltipOnHover(this, buildClanSummaryTooltip());
 			}
 		};
 		styleLabel(label, "Members");
@@ -538,7 +539,7 @@ public class Cells
 			@Override
 			public JToolTip createToolTip()
 			{
-				return buildTotalKillsTooltip();
+				return keepTooltipOnHover(this, buildTotalKillsTooltip());
 			}
 		};
 		styleLabel(label, "Total Kills");
@@ -577,7 +578,7 @@ public class Cells
 			@Override
 			public JToolTip createToolTip()
 			{
-				return buildPvpSummaryTooltip();
+				return keepTooltipOnHover(this, buildPvpSummaryTooltip());
 			}
 		};
 		styleLabel(label, "PvP Summary");
@@ -1298,22 +1299,23 @@ public class Cells
 
 	private JToolTip buildBossTooltip(JLabel owner, String boss)
 	{
-		return buildSpriteTooltip(tooltipDataMap.get(boss), 5, boss, false);
+		return buildSpriteTooltip(owner, tooltipDataMap.get(boss), 5, boss, false);
 	}
 
 	private JToolTip buildClueTierTooltip(JLabel owner, String tier, String displayName, boolean compact)
 	{
-		return buildSpriteTooltip(tooltipDataMap.get(tier), compact ? 10 : 5, displayName, compact);
+		return buildSpriteTooltip(owner, tooltipDataMap.get(tier),
+			compact ? 10 : 5, displayName, compact);
 	}
 
 	private JToolTip buildClueRareTooltip(JLabel owner, String name, String clogCategory)
 	{
-		return buildSpriteTooltip(rareTooltips.get(clogCategory), 5, name, false);
+		return buildSpriteTooltip(owner, rareTooltips.get(clogCategory), 5, name, false);
 	}
 
 	private JToolTip buildCustomRareTooltip(JLabel owner, String name, String rareKey, int[] itemIds)
 	{
-		return buildSpriteTooltip(rareTooltips.get(rareKey), 5, name, false);
+		return buildSpriteTooltip(owner, rareTooltips.get(rareKey), 5, name, false);
 	}
 
 	/**
@@ -1326,20 +1328,33 @@ public class Cells
 	 * holder count (how many members own each item) without any branch on
 	 * {@link TooltipData#isClanFlavor()} at this layer.
 	 */
-	private JToolTip buildSpriteTooltip(@Nullable TooltipData data, int gridCols, String name, boolean compact)
+	private JToolTip buildSpriteTooltip(JLabel owner, @Nullable TooltipData data,
+		int gridCols, String name, boolean compact)
 	{
 		ImgTooltip tip = compact ? new ImgTooltip(gridCols, 15) : new ImgTooltip(gridCols);
+		tip.setComponent(owner);
 		tip.setTitle(name);
 		if (data == null)
 		{
 			tip.setObtained(0, 0);
 			tip.setNotice("No clan data");
-			return tip;
+			return keepTooltipOnHover(owner, tip);
 		}
 		tip.setObtained(data.obtainedCount, data.totalItems);
 		tip.setRank(data.rank);
 		tip.setItems(data.totalItems, data.allItemIds, data.obtainedIds,
 			data.obtainedCounts, itemManager);
+		return keepTooltipOnHover(owner, tip);
+	}
+
+	private JToolTip keepTooltipOnHover(JLabel owner, JToolTip tip)
+	{
+		tip.setComponent(owner);
+		Component parent = owner.getParent();
+		if (parent instanceof JPanel)
+		{
+			tooltipController.keepTooltipOnHover(tip, (JPanel) parent);
+		}
 		return tip;
 	}
 
