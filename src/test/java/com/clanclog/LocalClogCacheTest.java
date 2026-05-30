@@ -109,20 +109,7 @@ public class LocalClogCacheTest
 	public void providerCacheLoadsDiskBeforeReplacingLocalGains() throws Exception
 	{
 		File dir = tempDir();
-		Files.writeString(new File(dir, "420_kc.json").toPath(), "{"
-			+ "\"playerName\":\"420 kc\","
-			+ "\"lastUpdated\":\"2026-05-30T00:00:00Z\","
-			+ "\"uniqueObtained\":2,"
-			+ "\"uniqueTotal\":1701,"
-			+ "\"categories\":{"
-			+ "\"phantom_muspah\":[1,2,3],"
-			+ "\"fortis_colosseum\":[4,5]"
-			+ "},"
-			+ "\"obtained\":{"
-			+ "\"phantom_muspah\":[{\"id\":1,\"count\":2},{\"id\":2,\"count\":1}],"
-			+ "\"fortis_colosseum\":[{\"id\":4,\"count\":1}]"
-			+ "}"
-			+ "}", StandardCharsets.UTF_8);
+		writeCachedPlayer(dir);
 
 		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
 		Map<String, List<Integer>> categories = new HashMap<>();
@@ -148,9 +135,48 @@ public class LocalClogCacheTest
 		assertEquals(2, result.getUniqueObtained());
 	}
 
+	@Test
+	public void mergeCategoryLoadsDiskBeforeReplacingLocalGains() throws Exception
+	{
+		File dir = tempDir();
+		writeCachedPlayer(dir);
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+		cache.mergeCategory("420 kc", "phantom_muspah",
+			Arrays.asList(1, 2, 3),
+			Arrays.asList(new ClogResult.ClogItem(1, 1, null)));
+
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+		Map<Integer, Integer> muspahCounts =
+			countsById(result.getObtainedItems().get("phantom_muspah"));
+
+		assertEquals(2, muspahCounts.size());
+		assertEquals(Integer.valueOf(2), muspahCounts.get(1));
+		assertEquals(Integer.valueOf(1), muspahCounts.get(2));
+		assertTrue(result.getCategoryItems().containsKey("fortis_colosseum"));
+	}
+
 	private static File tempDir() throws Exception
 	{
 		return Files.createTempDirectory("clan-clog-cache-test").toFile();
+	}
+
+	private static void writeCachedPlayer(File dir) throws Exception
+	{
+		Files.writeString(new File(dir, "420_kc.json").toPath(), "{"
+			+ "\"playerName\":\"420 kc\","
+			+ "\"lastUpdated\":\"2026-05-30T00:00:00Z\","
+			+ "\"uniqueObtained\":2,"
+			+ "\"uniqueTotal\":1701,"
+			+ "\"categories\":{"
+			+ "\"phantom_muspah\":[1,2,3],"
+			+ "\"fortis_colosseum\":[4,5]"
+			+ "},"
+			+ "\"obtained\":{"
+			+ "\"phantom_muspah\":[{\"id\":1,\"count\":2},{\"id\":2,\"count\":1}],"
+			+ "\"fortis_colosseum\":[{\"id\":4,\"count\":1}]"
+			+ "}"
+			+ "}", StandardCharsets.UTF_8);
 	}
 
 	private static Map<Integer, Integer> countsById(List<ClogResult.ClogItem> items)

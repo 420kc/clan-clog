@@ -209,15 +209,7 @@ public class LocalClogCache
 		String key = RsnNormalizer.cacheKey(name);
 
 		// Preserve varp-sourced totals if they're higher than what Temple reports
-		PlayerClogData existing = players.get(key);
-		if (existing == null)
-		{
-			existing = loadFromDisk(name);
-			if (existing != null)
-			{
-				players.put(key, existing);
-			}
-		}
+		PlayerClogData existing = getOrLoad(key, name);
 
 		PlayerClogData data = new PlayerClogData();
 		data.playerName = name;
@@ -312,7 +304,11 @@ public class LocalClogCache
 			return;
 		}
 		String key = RsnNormalizer.cacheKey(normalized);
-		PlayerClogData data = players.computeIfAbsent(key, ignored -> newPlayerData(normalized));
+		PlayerClogData data = getOrLoad(key, normalized);
+		if (data == null)
+		{
+			data = players.computeIfAbsent(key, ignored -> newPlayerData(normalized));
+		}
 
 		data.lastUpdated = Instant.now().toString();
 		List<ClogResult.ClogItem> obtainedItems = obtained != null ? obtained : new ArrayList<>();
@@ -436,6 +432,27 @@ public class LocalClogCache
 		}
 
 		return 0;
+	}
+
+	private PlayerClogData getOrLoad(String key, String playerName)
+	{
+		PlayerClogData cached = players.get(key);
+		if (hasUsableData(cached))
+		{
+			return cached;
+		}
+		if (cached != null)
+		{
+			players.remove(key);
+		}
+
+		PlayerClogData loaded = loadFromDisk(playerName);
+		if (loaded != null)
+		{
+			players.put(key, loaded);
+			return loaded;
+		}
+		return null;
 	}
 
 	public ClogResult toClogResult(String playerName, Map<Integer, String> itemNames)
