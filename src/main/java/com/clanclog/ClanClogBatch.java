@@ -45,11 +45,11 @@ public class ClanClogBatch
 	private static final long LOOKUP_TIMEOUT_SECONDS = 30;
 
 	/**
-	 * Milliseconds between submitting each external provider lookup. Temple and
-	 * RuneProfile are stricter than Jagex, so we space real requests further apart
-	 * while allowing rich local-cache hits to resolve immediately.
+	 * Milliseconds between submitting each external provider lookup. Temple is
+	 * sensitive to bursty collection-log scans, so a correctness-first clanalyze
+	 * spaces real requests out while rich local-cache hits resolve immediately.
 	 */
-	private static final long STAGGER_DELAY_MS = 400;
+	private static final long STAGGER_DELAY_MS = 1000;
 	private static final int CACHED_SHORTCUT_MIN_CATEGORIES = 10;
 	private static final int CACHED_SHORTCUT_MIN_OBTAINED = 100;
 
