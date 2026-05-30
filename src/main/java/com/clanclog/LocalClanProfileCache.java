@@ -258,25 +258,7 @@ public class LocalClanProfileCache
 		{
 			return false;
 		}
-		ClanClogResult.ClogUnion clog = result.getClog();
-		if (clog != null && (clog.getTotalObtained() > 0
-			|| !clog.getItemsByCategory().isEmpty()
-			|| !clog.getItemMeta().isEmpty()))
-		{
-			return true;
-		}
-		if (!result.getBosses().isEmpty() || !result.getActivityTotals().isEmpty())
-		{
-			return true;
-		}
-		for (ClanMember member : profile.getRoster())
-		{
-			if (member.getHiscore() != null || member.getClog() != null)
-			{
-				return true;
-			}
-		}
-		return false;
+		return result.hasRepresentedData();
 	}
 
 	private static List<MemberRecord> encodeRoster(List<ClanMember> roster)

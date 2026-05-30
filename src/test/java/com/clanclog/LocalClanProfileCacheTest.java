@@ -93,6 +93,34 @@ public class LocalClanProfileCacheTest
 	}
 
 	@Test
+	public void latestSkipsZeroBossProfileShell() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		File older = writeProfile(dir, "good-clan", "Good Clan");
+		File newer = writeZeroBossProfile(dir, "zero-boss-clan", "Zero Boss Clan");
+		Files.setLastModifiedTime(older.toPath(), FileTime.fromMillis(1_000L));
+		Files.setLastModifiedTime(newer.toPath(), FileTime.fromMillis(2_000L));
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+		LocalClanProfileCache.StoredProfile latest = cache.latest();
+
+		assertNotNull(latest);
+		assertEquals("Good Clan", latest.getClanName());
+		assertEquals("good-clan", latest.getSlug());
+	}
+
+	@Test
+	public void getSkipsCatalogOnlyProfileShell() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		writeCatalogOnlyProfile(dir, "catalog-clan", "Catalog Clan");
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+
+		assertEquals(null, cache.get("catalog clan"));
+	}
+
+	@Test
 	public void getSkipsSlugMismatchedProfile() throws Exception
 	{
 		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
@@ -140,6 +168,48 @@ public class LocalClanProfileCacheTest
 			+ "\"display_name\":\"" + clanName + "\","
 			+ "\"member_count\":0,"
 			+ "\"bosses\":{\"Zulrah\":{\"clan_total_kc\":1}}"
+			+ "}"
+			+ "}";
+		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
+		return file;
+	}
+
+	private static File writeZeroBossProfile(File dir, String slug, String clanName) throws Exception
+	{
+		File file = new File(dir, slug + ".json");
+		String json = "{"
+			+ "\"clanName\":\"" + clanName + "\","
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"savedAt\":\"2026-05-30T00:00:00Z\","
+			+ "\"roster\":[],"
+			+ "\"result\":{"
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"display_name\":\"" + clanName + "\","
+			+ "\"member_count\":1,"
+			+ "\"bosses\":{\"Zulrah\":{\"clan_total_kc\":0,\"member_coverage\":0}}"
+			+ "}"
+			+ "}";
+		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
+		return file;
+	}
+
+	private static File writeCatalogOnlyProfile(File dir, String slug, String clanName) throws Exception
+	{
+		File file = new File(dir, slug + ".json");
+		String json = "{"
+			+ "\"clanName\":\"" + clanName + "\","
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"savedAt\":\"2026-05-30T00:00:00Z\","
+			+ "\"roster\":[],"
+			+ "\"result\":{"
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"display_name\":\"" + clanName + "\","
+			+ "\"member_count\":1,"
+			+ "\"clog\":{"
+			+ "\"items_by_category\":{\"shellbane_gryphon\":[]},"
+			+ "\"catalog_by_category\":{\"shellbane_gryphon\":[30000,30001]},"
+			+ "\"total_obtained\":0"
+			+ "}"
 			+ "}"
 			+ "}";
 		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
