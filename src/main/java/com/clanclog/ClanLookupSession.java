@@ -111,7 +111,7 @@ public class ClanLookupSession
 			{
 				return CompletableFuture.completedFuture(null);
 			}
-			if (profile.hasAggregateData() || profile.isReadyProfile())
+			if (profile.hasRepresentedData())
 			{
 				return CompletableFuture.completedFuture(profile);
 			}
