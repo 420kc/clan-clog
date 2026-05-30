@@ -63,6 +63,11 @@ public class LocalClanProfileCache
 		{
 			return;
 		}
+		if (!result.hasRepresentedData())
+		{
+			log.debug("Skipped empty clan profile cache write for {}", slug);
+			return;
+		}
 
 		StoredProfile profile = new StoredProfile();
 		profile.clanName = clanName;

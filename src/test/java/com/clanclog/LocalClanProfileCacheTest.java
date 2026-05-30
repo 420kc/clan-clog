@@ -8,6 +8,7 @@ import java.nio.file.attribute.FileTime;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 public class LocalClanProfileCacheTest
@@ -129,6 +130,21 @@ public class LocalClanProfileCacheTest
 		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
 
 		assertEquals(null, cache.get("coverage clan"));
+	}
+
+	@Test
+	public void putSkipsCoverageOnlyProfileShell() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		ClanClogResult result = ClanClogResult.forRoster(
+			"coverage-clan", "Coverage Clan", 2, java.util.Map.of());
+		result.setMemberCoverage(new ClanClogResult.MemberCoverage(
+			2, 1, 1, 0, 0, 0));
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+		cache.put("Coverage Clan", "coverage-clan", java.util.List.of(), result);
+
+		assertFalse(new File(dir, "coverage-clan.json").exists());
 	}
 
 	@Test
