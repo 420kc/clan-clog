@@ -96,14 +96,13 @@ public class Cells
 	private static final String CLOG_GILDED = "gilded";
 	private static final int THIRD_AGE_ITEM_ID = 10348;
 	private static final int GILDED_ITEM_ID = 3481;
-	private static final int THIRD_AGE_RING_ITEM_ID = 23185;
 	private static final int[] THIRD_AGE_ITEMS = {
 		10350, 10348, 10346, 23242, 10352,
 		10334, 10330, 10332, 10336,
 		10342, 10338, 10340, 10344,
 		12426, 12422, 12437, 12424,
 		23336, 23339, 23345, 23342,
-		20014, 20011, THIRD_AGE_RING_ITEM_ID
+		20014, 20011
 	};
 	private static final int[] GILDED_ITEMS = {
 		3486, 3481, 3483, 3485, 3488,

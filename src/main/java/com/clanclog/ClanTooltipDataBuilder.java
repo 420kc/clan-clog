@@ -131,8 +131,8 @@ public class ClanTooltipDataBuilder
 
 	/**
 	 * Build category-first data for synthetic rare buckets. The fixed Kill Clog
-	 * item set is the canon floor; provider catalogs can add to it, but must
-	 * not replace it.
+	 * item set is the canon; provider catalogs cannot add surprise items into
+	 * these product buckets.
 	 */
 	public TooltipData buildRareBucketData(String name, String category,
 		int[] fallbackItemIds, ClanClogResult result)
@@ -147,15 +147,6 @@ public class ClanTooltipDataBuilder
 			allItems.add(itemId);
 		}
 
-		if (clog != null)
-		{
-			List<Integer> catalog = clog.getCatalog(category);
-			if (catalog != null && !catalog.isEmpty())
-			{
-				allItems.addAll(catalog);
-			}
-		}
-
 		return buildFromItemIds(name, new ArrayList<>(allItems),
 			clog != null ? clog.getItemsByCategory().get(category) : null,
 			itemMeta);
@@ -164,8 +155,9 @@ public class ClanTooltipDataBuilder
 	private TooltipData buildFromItemIds(String name, List<Integer> allItemIds,
 		List<Integer> categoryItems, Map<String, ClanClogResult.ItemMeta> itemMetaRaw)
 	{
-		Set<Integer> obtainedIds = categoryItems != null
+		Set<Integer> rawObtainedIds = categoryItems != null
 			? new HashSet<>(categoryItems) : new HashSet<>();
+		Set<Integer> obtainedIds = new HashSet<>();
 		Map<Integer, Integer> holderCounts = new LinkedHashMap<>();
 		Map<Integer, String> firstSeenAt = new LinkedHashMap<>();
 		Map<Integer, String> firstSeenByRsn = new LinkedHashMap<>();
@@ -193,8 +185,9 @@ public class ClanTooltipDataBuilder
 					contributors.put(itemId, meta.getContributors());
 				}
 			}
-			else if (obtainedIds.contains(itemId))
+			else if (rawObtainedIds.contains(itemId))
 			{
+				obtainedIds.add(itemId);
 				obtainedCounts.put(itemId, 1);
 			}
 		}

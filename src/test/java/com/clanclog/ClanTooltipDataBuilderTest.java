@@ -1,6 +1,7 @@
 package com.clanclog;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -81,12 +82,12 @@ public class ClanTooltipDataBuilderTest
 	}
 
 	@Test
-	public void buildsRareBucketFromFixedItemsPlusProviderCatalog()
+	public void rareBucketUsesFixedCanonInsteadOfProviderCatalog()
 	{
 		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
 			1, Collections.emptyMap());
 		result.setClog(new ClanClogResult.ClogUnion(
-			Map.of("third_age", List.of(10334, 10350)),
+			Map.of("third_age", List.of(10334, 10350, 10348)),
 			2,
 			2,
 			Map.of(
@@ -97,12 +98,13 @@ public class ClanTooltipDataBuilderTest
 			Map.of("third_age", List.of(10334, 10350, 10348))));
 
 		TooltipData data = new ClanTooltipDataBuilder()
-			.buildRareBucketData("3rd Age", "third_age", new int[]{999}, result);
+			.buildRareBucketData("3rd Age", "third_age", new int[]{10334, 10350}, result);
 
 		assertNotNull(data);
 		assertEquals(2, data.obtainedCount);
-		assertEquals(4, data.totalItems);
-		assertEquals(List.of(999, 10334, 10350, 10348), data.allItemIds);
+		assertEquals(2, data.totalItems);
+		assertEquals(List.of(10334, 10350), data.allItemIds);
+		assertFalse(data.obtainedIds.contains(10348));
 		assertEquals(5, data.obtainedCounts.get(10334).intValue());
 		assertEquals(3, data.obtainedCounts.get(10350).intValue());
 		assertEquals(2, data.holderCounts.get(10334).intValue());
@@ -137,7 +139,7 @@ public class ClanTooltipDataBuilderTest
 	}
 
 	@Test
-	public void rareBucketCountsFixedItemsFromGlobalItemMeta()
+	public void rareBucketIgnoresItemsOutsideFixedCanon()
 	{
 		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
 			1, Collections.emptyMap());
@@ -152,14 +154,13 @@ public class ClanTooltipDataBuilderTest
 
 		TooltipData data = new ClanTooltipDataBuilder()
 			.buildRareBucketData("3rd Age", "third_age",
-				new int[]{12422, 23185}, result);
+				new int[]{12422}, result);
 
 		assertNotNull(data);
-		assertEquals(2, data.obtainedCount);
+		assertEquals(1, data.obtainedCount);
 		assertTrue(data.obtainedIds.contains(12422));
-		assertTrue(data.obtainedIds.contains(23185));
+		assertFalse(data.obtainedIds.contains(23185));
 		assertEquals(1, data.obtainedCounts.get(12422).intValue());
-		assertEquals(8, data.obtainedCounts.get(23185).intValue());
 	}
 
 	@Test
