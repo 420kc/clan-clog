@@ -121,6 +121,17 @@ public class LocalClanProfileCacheTest
 	}
 
 	@Test
+	public void getSkipsCoverageOnlyProfileShell() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		writeCoverageOnlyProfile(dir, "coverage-clan", "Coverage Clan");
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+
+		assertEquals(null, cache.get("coverage clan"));
+	}
+
+	@Test
 	public void getSkipsSlugMismatchedProfile() throws Exception
 	{
 		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
@@ -209,6 +220,30 @@ public class LocalClanProfileCacheTest
 			+ "\"items_by_category\":{\"shellbane_gryphon\":[]},"
 			+ "\"catalog_by_category\":{\"shellbane_gryphon\":[30000,30001]},"
 			+ "\"total_obtained\":0"
+			+ "}"
+			+ "}"
+			+ "}";
+		Files.writeString(file.toPath(), json, StandardCharsets.UTF_8);
+		return file;
+	}
+
+	private static File writeCoverageOnlyProfile(File dir, String slug, String clanName) throws Exception
+	{
+		File file = new File(dir, slug + ".json");
+		String json = "{"
+			+ "\"clanName\":\"" + clanName + "\","
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"savedAt\":\"2026-05-30T00:00:00Z\","
+			+ "\"roster\":[],"
+			+ "\"result\":{"
+			+ "\"slug\":\"" + slug + "\","
+			+ "\"display_name\":\"" + clanName + "\","
+			+ "\"member_count\":2,"
+			+ "\"member_coverage\":{"
+			+ "\"total\":2,"
+			+ "\"clog_ok\":1,"
+			+ "\"hiscore_only\":1,"
+			+ "\"not_found\":0"
 			+ "}"
 			+ "}"
 			+ "}";

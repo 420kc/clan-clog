@@ -50,6 +50,35 @@ public class ClanLookupSessionTest
 	}
 
 	@Test
+	public void startFallsBackWhenProfileHasOnlyCoverageCounts() throws Exception
+	{
+		ClanClogResult profile = result("{"
+			+ "\"slug\":\"clannabis\","
+			+ "\"display_name\":\"Clannabis\","
+			+ "\"build_status\":\"ready\","
+			+ "\"member_coverage\":{\"total\":2,\"clog_ok\":1,\"hiscore_only\":1,\"not_found\":0},"
+			+ "\"bosses\":{},"
+			+ "\"activity_totals\":{},"
+			+ "\"clog\":null"
+			+ "}");
+		ClanClogResult clog = result("{"
+			+ "\"slug\":\"clannabis\","
+			+ "\"display_name\":\"Clannabis\","
+			+ "\"member_coverage\":{\"total\":2,\"clog_ok\":1,\"hiscore_only\":1,\"not_found\":0},"
+			+ "\"clog\":{\"items_by_category\":{\"barrows\":[4708]},\"total_obtained\":1}"
+			+ "}");
+		FakeApiClient apiClient = new FakeApiClient(profile, clog);
+		RecordingListener listener = new RecordingListener();
+
+		SwingUtilities.invokeAndWait(() ->
+			new ClanLookupSession(apiClient).start("clannabis", listener));
+
+		assertTrue(listener.await());
+		assertSame(clog, listener.result.get());
+		assertEquals(1, apiClient.clogCalls);
+	}
+
+	@Test
 	public void startFallsBackWhenProfileRequestFails() throws Exception
 	{
 		ClanClogResult clog = result("{"
