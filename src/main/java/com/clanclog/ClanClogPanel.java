@@ -107,6 +107,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private String lastLoadedSlug;
 
+	/** True only after a completed in-client own-clan clanalyze run. */
+	private boolean syncPayloadFromClanalyze;
+
 	/** True when the visible own-clan profile came from cache and must be refreshed before upload. */
 	private boolean syncRequiresFreshClanalyze;
 
@@ -1048,6 +1051,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					lastLoadedRoster = roster;
 					lastLoadedClanName = clanName;
 					lastLoadedSlug = slug;
+					syncPayloadFromClanalyze = true;
 					syncRequiresFreshClanalyze = false;
 					clanProfileCache.put(clanName, slug, roster, partialResult);
 				}
@@ -1123,6 +1127,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			|| lastRenderedResult == null
 			|| lastLoadedRoster == null
 			|| lastLoadedSlug == null
+			|| !syncPayloadFromClanalyze
 			|| !slug.equals(lastLoadedSlug)
 			|| !lastRenderedResult.matchesSlug(slug)
 			|| !sameRosterMembers(lastLoadedRoster, roster))
@@ -1166,8 +1171,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				lastLoadedRoster = roster;
 				lastLoadedClanName = clanName;
 				lastLoadedSlug = slug;
+				syncPayloadFromClanalyze = false;
 				pendingRosterSyncEligible = true;
-				syncRequiresFreshClanalyze = false;
+				syncRequiresFreshClanalyze = true;
 				setCoverageFromResult(result);
 				showClanalyzeButton("refresh", "freshen clan profile");
 				updateSyncButtonVisibility();
@@ -1237,6 +1243,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (syncEligible)
 		{
 			showClanalyzeButton("refresh", "freshen clan profile before syncing");
+			syncPayloadFromClanalyze = false;
 			syncRequiresFreshClanalyze = true;
 			updateSyncButtonVisibility();
 		}
@@ -1333,6 +1340,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedRoster = roster;
 		lastLoadedClanName = name;
 		lastLoadedSlug = slug;
+		syncPayloadFromClanalyze = false;
 		clearCurrentLoad();
 
 		setClanHeaderText(name);
@@ -1387,10 +1395,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				lastLoadedRoster = roster;
 				lastLoadedClanName = displayName;
 				lastLoadedSlug = slug;
-				if (pendingRosterSyncEligible)
-				{
-					syncRequiresFreshClanalyze = false;
-				}
+				syncPayloadFromClanalyze = false;
 
 				setClanHeaderText(displayName);
 				cells.renderClanResult(result);
@@ -1457,6 +1462,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedRoster = null;
 		lastLoadedClanName = null;
 		lastLoadedSlug = null;
+		syncPayloadFromClanalyze = false;
 	}
 
 	/**
@@ -1478,6 +1484,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		return pendingRosterSyncEligible
 			&& !syncRequiresFreshClanalyze
+			&& syncPayloadFromClanalyze
 			&& lastRenderedResult != null
 			&& lastLoadedRoster != null
 			&& lastLoadedClanName != null
