@@ -1196,7 +1196,7 @@ public class Cells
 
 		if (pvpSummaryCell != null)
 		{
-			int[] pvpCounts = aggregateCategoryCounts(result, List.of("last_man_standing", "soul_wars"));
+			int[] pvpCounts = PvpSummaryTooltip.summaryCounts(result.getClog());
 			pvpSummaryCell.setForeground(summaryColor(pvpCounts, hasAnyPvpActivity(result)));
 		}
 	}

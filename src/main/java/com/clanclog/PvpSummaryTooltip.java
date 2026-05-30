@@ -5,8 +5,10 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.runelite.client.ui.FontManager;
 
 /**
@@ -18,6 +20,14 @@ public class PvpSummaryTooltip extends TitleTooltip
 {
 	private static final int ICON_SIZE = 13;
 	private static final int ICON_GAP = 4;
+	private static final String LMS_CATEGORY = "last_man_standing";
+	private static final String SOUL_WARS_CATEGORY = "soul_wars";
+	private static final List<Integer> LMS_CATALOG = List.of(
+		24189, 24190, 24191, 24192, 24195, 24198, 24201, 24204,
+		24868, 24869, 24870, 24871, 24207, 24209, 24211, 24213,
+		24215, 24520, 12849, 24229, 12798, 21202, 12800, 12802,
+		12759, 12761, 12763, 12757, 12771, 12769, 24217, 24219);
+	private static final List<Integer> SOUL_WARS_CATALOG = List.of(25348, 25346, 25340);
 
 	private long lmsScore;
 	private long soulWarsScore;
@@ -46,13 +56,13 @@ public class PvpSummaryTooltip extends TitleTooltip
 
 		if (clogResult != null)
 		{
-			int[] lms = ClogHelper.clogCounts("last_man_standing", clogResult);
+			int[] lms = ClogHelper.clogCounts(LMS_CATEGORY, clogResult);
 			if (lms != null)
 			{
 				lmsObtained = lms[0];
 				lmsTotal = lms[1];
 			}
-			int[] sw = ClogHelper.clogCounts("soul_wars", clogResult);
+			int[] sw = ClogHelper.clogCounts(SOUL_WARS_CATEGORY, clogResult);
 			if (sw != null)
 			{
 				swObtained = sw[0];
@@ -72,19 +82,20 @@ public class PvpSummaryTooltip extends TitleTooltip
 		bhHunterScore = activity(activities, "Bounty Hunter - Hunter");
 		bhRogueScore = activity(activities, "Bounty Hunter - Rogue");
 
-		int[] lms = unionCounts(clog, "last_man_standing");
-		if (lms != null)
-		{
-			lmsObtained = lms[0];
-			lmsTotal = lms[1];
-		}
+		int[] lms = clanCategoryCounts(clog, LMS_CATEGORY);
+		lmsObtained = lms[0];
+		lmsTotal = lms[1];
 
-		int[] sw = unionCounts(clog, "soul_wars");
-		if (sw != null)
-		{
-			swObtained = sw[0];
-			swTotal = sw[1];
-		}
+		int[] sw = clanCategoryCounts(clog, SOUL_WARS_CATEGORY);
+		swObtained = sw[0];
+		swTotal = sw[1];
+	}
+
+	static int[] summaryCounts(ClanClogResult.ClogUnion clog)
+	{
+		int[] lms = clanCategoryCounts(clog, LMS_CATEGORY);
+		int[] sw = clanCategoryCounts(clog, SOUL_WARS_CATEGORY);
+		return new int[]{lms[0] + sw[0], lms[1] + sw[1]};
 	}
 
 	public void setIcons(BufferedImage[] icons)
@@ -207,8 +218,14 @@ public class PvpSummaryTooltip extends TitleTooltip
 		return activities != null ? activities.getOrDefault(key, 0L) : 0L;
 	}
 
-	private static int[] unionCounts(ClanClogResult.ClogUnion clog, String category)
+	private static int[] clanCategoryCounts(ClanClogResult.ClogUnion clog, String category)
 	{
+		List<Integer> fixedCatalog = fixedCatalog(category);
+		if (fixedCatalog != null)
+		{
+			return new int[]{obtainedInCatalog(clog, category, fixedCatalog), fixedCatalog.size()};
+		}
+
 		if (clog == null)
 		{
 			return null;
@@ -222,5 +239,34 @@ public class PvpSummaryTooltip extends TitleTooltip
 		int obtained = items != null ? items.size() : 0;
 		int total = catalog != null && !catalog.isEmpty() ? catalog.size() : obtained;
 		return total > 0 ? new int[]{obtained, total} : null;
+	}
+
+	private static List<Integer> fixedCatalog(String category)
+	{
+		if (LMS_CATEGORY.equals(category))
+		{
+			return LMS_CATALOG;
+		}
+		if (SOUL_WARS_CATEGORY.equals(category))
+		{
+			return SOUL_WARS_CATALOG;
+		}
+		return null;
+	}
+
+	private static int obtainedInCatalog(ClanClogResult.ClogUnion clog, String category,
+		List<Integer> catalog)
+	{
+		if (clog == null)
+		{
+			return 0;
+		}
+		List<Integer> items = clog.getItemsByCategory().get(category);
+		if (items == null || items.isEmpty())
+		{
+			return 0;
+		}
+		Set<Integer> obtained = new HashSet<>(items);
+		return ClogHelper.countObtained(catalog, obtained);
 	}
 }

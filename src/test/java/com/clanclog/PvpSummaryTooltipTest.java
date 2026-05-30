@@ -10,18 +10,18 @@ import static org.junit.Assert.assertEquals;
 public class PvpSummaryTooltipTest
 {
 	@Test
-	public void setClanDataUsesAggregateActivitiesAndUnionCounts() throws Exception
+	public void setClanDataUsesAggregateActivitiesAndOfficialPvpCatalogs() throws Exception
 	{
 		ClanClogResult.ClogUnion clog = new ClanClogResult.ClogUnion(
 			Map.of(
-				"last_man_standing", List.of(1, 3),
-				"soul_wars", List.of(4, 5)),
+				"last_man_standing", List.of(24207, 24229),
+				"soul_wars", List.of(25340)),
 			4,
 			0,
 			Map.of(),
 			Map.of(
-				"last_man_standing", List.of(1, 2, 3),
-				"soul_wars", List.of(4, 5, 6, 7)));
+				"last_man_standing", List.of(24207, 24229),
+				"soul_wars", List.of(25340)));
 
 		PvpSummaryTooltip tooltip = new PvpSummaryTooltip();
 		tooltip.setClanData(Map.of(
@@ -37,9 +37,23 @@ public class PvpSummaryTooltipTest
 		assertEquals(42L, longField(tooltip, "bhHunterScore"));
 		assertEquals(9L, longField(tooltip, "bhRogueScore"));
 		assertEquals(2, intField(tooltip, "lmsObtained"));
-		assertEquals(3, intField(tooltip, "lmsTotal"));
-		assertEquals(2, intField(tooltip, "swObtained"));
-		assertEquals(4, intField(tooltip, "swTotal"));
+		assertEquals(32, intField(tooltip, "lmsTotal"));
+		assertEquals(1, intField(tooltip, "swObtained"));
+		assertEquals(3, intField(tooltip, "swTotal"));
+	}
+
+	@Test
+	public void setClanDataShowsEmptyOfficialPvpCatalogsWithoutObtainedItems() throws Exception
+	{
+		PvpSummaryTooltip tooltip = new PvpSummaryTooltip();
+		tooltip.setClanData(Map.of(
+			"LMS - Rank", 1200L,
+			"Soul Wars Zeal", 340L), null);
+
+		assertEquals(0, intField(tooltip, "lmsObtained"));
+		assertEquals(32, intField(tooltip, "lmsTotal"));
+		assertEquals(0, intField(tooltip, "swObtained"));
+		assertEquals(3, intField(tooltip, "swTotal"));
 	}
 
 	private static long longField(Object target, String name) throws Exception
