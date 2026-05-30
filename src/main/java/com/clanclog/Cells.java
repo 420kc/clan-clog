@@ -1292,11 +1292,12 @@ public class Cells
 
 	/**
 	 * Build a configured {@link ImgTooltip} from TooltipData. Holds the
-	 * single-flavor configuration (title + obtained + contributors + items) so every
+	 * single-flavor configuration (title + obtained + contributor count + items) so every
 	 * tooltip routing method funnels through one place.
 	 *
 	 * <p>Clan-flavor data uses {@code obtainedCounts} for duplicate item
-	 * quantity and optional contributor rows for the hover proof line.
+	 * quantity. Per-item proof is shown on the web contribution surface instead
+	 * of relying on Swing tooltip item hover or click behavior.
 	 */
 	private JToolTip buildSpriteTooltip(JLabel owner, @Nullable TooltipData data,
 		int gridCols, String name, boolean compact)
@@ -1313,7 +1314,6 @@ public class Cells
 		}
 		tip.setObtained(data.obtainedCount, data.totalItems);
 		tip.setInfoLine("Contributors: ", String.valueOf(data.contributorCount), Color.WHITE);
-		tip.setContributors(data.contributors);
 		tip.setItems(data.totalItems, data.allItemIds, data.obtainedIds,
 			data.obtainedCounts, itemManager);
 		return keepTooltipOnHover(owner, tip);

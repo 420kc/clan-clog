@@ -110,8 +110,6 @@ public class ClanTooltipDataBuilderTest
 		assertEquals(2, data.holderCounts.get(10334).intValue());
 		assertEquals(1, data.holderCounts.get(10350).intValue());
 		assertEquals(2, data.contributorCount);
-		assertEquals("alice", data.contributors.get(10334).get(0).getRsn());
-		assertEquals(3, data.contributors.get(10334).get(0).getQuantity());
 	}
 
 	@Test

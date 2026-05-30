@@ -116,8 +116,7 @@ public class ClanTooltipDataBuilder
 			holderCounts,
 			firstSeenAt,
 			firstSeenByRsn,
-			contributorCount(displayName, category, result, contributors),
-			contributors);
+			contributorCount(displayName, category, result, contributors));
 	}
 
 	/**
@@ -212,8 +211,7 @@ public class ClanTooltipDataBuilder
 			holderCounts,
 			firstSeenAt,
 			firstSeenByRsn,
-			uniqueContributorCount(contributors),
-			contributors);
+			uniqueContributorCount(contributors));
 	}
 
 	private static int contributorCount(String displayName, String category,
