@@ -50,10 +50,35 @@ public class CellsRenderParityTest
 		assertEquals(ClogHelper.COLOR_COMPLETED, totalKills.getForeground());
 	}
 
+	@Test
+	public void calvarionUsesKillClogNameAliasForBackendBossKc() throws Exception
+	{
+		Cells cells = new Cells(null, null, null, new ClanTooltipDataBuilder());
+		JLabel calvarion = new JLabel();
+		bossLabels(cells).put("Cal'varion", calvarion);
+
+		ClanClogResult result = ClanClogResult.forRoster("clan", "Clan",
+			1, Map.of("Calvar'ion", new ClanClogResult.BossAggregate(
+				123L, Collections.emptyList(), 1)));
+
+		cells.renderClanResult(result);
+
+		assertEquals(ClogHelper.pad("123"), calvarion.getText());
+		assertEquals(ClogHelper.COLOR_EMPTY, calvarion.getForeground());
+	}
+
 	@SuppressWarnings("unchecked")
 	private static Map<String, JLabel> clueLabels(Cells cells) throws Exception
 	{
 		Field field = Cells.class.getDeclaredField("clueTierLabels");
+		field.setAccessible(true);
+		return (Map<String, JLabel>) field.get(cells);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<String, JLabel> bossLabels(Cells cells) throws Exception
+	{
+		Field field = Cells.class.getDeclaredField("bossLabels");
 		field.setAccessible(true);
 		return (Map<String, JLabel>) field.get(cells);
 	}

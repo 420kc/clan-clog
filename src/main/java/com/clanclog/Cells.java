@@ -173,6 +173,11 @@ public class Cells
 	{
 		BOSS_NAME_TO_HISCORE_SKILL_NAME.put("Cal'varion", "Calvar'ion");
 	}
+	private static final Map<String, String> BOSS_NAME_ALIASES = new LinkedHashMap<>();
+	static
+	{
+		BOSS_NAME_ALIASES.put("Cal'varion", "Calvar'ion");
+	}
 
 	/** Standard kc text color (light gray-white) used for any cell that has a non-zero value. */
 	static final Color KC_COLOR = new Color(215, 215, 215);
@@ -712,7 +717,7 @@ public class Cells
 		{
 			String boss = entry.getKey();
 			JLabel label = entry.getValue();
-			ClanClogResult.BossAggregate agg = bosses.get(boss);
+			ClanClogResult.BossAggregate agg = bossAggregate(bosses, boss);
 			long kc = agg != null ? agg.getClanTotalKc() : 0L;
 			boolean hasKc = kc > 0;
 
@@ -1072,7 +1077,7 @@ public class Cells
 		{
 			String boss = entry.getKey();
 			JLabel label = entry.getValue();
-			ClanClogResult.BossAggregate agg = bosses.get(boss);
+			ClanClogResult.BossAggregate agg = bossAggregate(bosses, boss);
 			long kc = agg != null ? agg.getClanTotalKc() : 0L;
 
 			if (kc <= 0)
@@ -1170,6 +1175,19 @@ public class Cells
 			}
 		}
 		return false;
+	}
+
+	@Nullable
+	private static ClanClogResult.BossAggregate bossAggregate(
+		Map<String, ClanClogResult.BossAggregate> bosses, String boss)
+	{
+		ClanClogResult.BossAggregate agg = bosses.get(boss);
+		if (agg != null)
+		{
+			return agg;
+		}
+		String alias = BOSS_NAME_ALIASES.get(boss);
+		return alias != null ? bosses.get(alias) : null;
 	}
 
 	private static boolean hasAnyPvpActivity(ClanClogResult result)
