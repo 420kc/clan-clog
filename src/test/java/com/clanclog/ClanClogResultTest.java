@@ -3,6 +3,7 @@ package com.clanclog;
 import com.google.gson.Gson;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -103,5 +104,25 @@ public class ClanClogResultTest
 		assertTrue(json.contains("\"temple_ok\":4"));
 		assertTrue(json.contains("\"hiscore_only\":5"));
 		assertTrue(json.contains("\"temple_missing\":5"));
+	}
+
+	@Test
+	public void clogUnionSerializesCatalogByCategory()
+	{
+		ClanClogResult.ClogUnion union = new ClanClogResult.ClogUnion(
+			Map.of("shellbane_gryphon", List.of(30000, 30001)),
+			2,
+			2,
+			Map.of(),
+			Map.of("shellbane_gryphon",
+				List.of(30000, 30001, 30002, 30003)));
+
+		String json = GSON.toJson(union);
+		ClanClogResult.ClogUnion parsed =
+			GSON.fromJson(json, ClanClogResult.ClogUnion.class);
+
+		assertTrue(json.contains("\"catalog_by_category\""));
+		assertEquals(List.of(30000, 30001, 30002, 30003),
+			parsed.getCatalog("shellbane_gryphon"));
 	}
 }

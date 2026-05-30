@@ -1275,16 +1275,15 @@ public class Cells
 		int total = 0;
 		for (String category : categories)
 		{
-			List<Integer> items = clog.getItemsByCategory().get(category);
 			List<Integer> catalog = clog.getCatalog(category);
-			if (items == null && (catalog == null || catalog.isEmpty()))
+			if (catalog == null || catalog.isEmpty())
 			{
 				continue;
 			}
-			obtained += items != null ? items.size() : 0;
-			total += catalog != null && !catalog.isEmpty()
-				? catalog.size()
-				: (items != null ? items.size() : 0);
+			List<Integer> items = clog.getItemsByCategory().get(category);
+			Set<Integer> obtainedIds = items != null ? new HashSet<>(items) : new HashSet<>();
+			obtained += ClogHelper.countObtained(catalog, obtainedIds);
+			total += catalog.size();
 		}
 		return total > 0 ? new int[]{obtained, total} : null;
 	}

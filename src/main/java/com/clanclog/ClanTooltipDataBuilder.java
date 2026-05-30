@@ -21,9 +21,9 @@ import javax.inject.Singleton;
  * passed through the existing obtained-count overlay path so the sprite grid
  * can stay close to Kill Clog's item tooltip renderer.
  *
- * <p>Client-built clan results include the full category catalog, so empty
- * categories can still render a dim sprite grid. Backend-only results fall
- * back to obtained-only until the API ships catalog payloads.
+ * <p>Client-built and synced clan results include the full category catalog,
+ * so empty categories can still render a dim sprite grid. Results without a
+ * catalog intentionally do not render obtained-only as complete.
  */
 @Singleton
 public class ClanTooltipDataBuilder
@@ -51,23 +51,17 @@ public class ClanTooltipDataBuilder
 			return null;
 		}
 
-		List<Integer> categoryItems = result.getClog().getItemsByCategory().get(category);
 		List<Integer> catalog = result.getClog().getCatalog(category);
-		if ((categoryItems == null || categoryItems.isEmpty())
-			&& (catalog == null || catalog.isEmpty()))
+		if (catalog == null || catalog.isEmpty())
 		{
 			return null;
 		}
 
-		// When the client-side catalog is available (from per-member clog
-		// data), use it as the full item list so completion shows X/Y
-		// correctly. Falls back to obtained-only when no catalog exists
-		// (e.g. backend-only data without catalog support).
-		List<Integer> allItemIds = catalog != null && !catalog.isEmpty()
-			? new ArrayList<>(catalog)
-			: new ArrayList<>(categoryItems);
+		List<Integer> categoryItems = result.getClog().getItemsByCategory().get(category);
+		List<Integer> allItemIds = new ArrayList<>(catalog);
 		Set<Integer> obtainedIds = categoryItems != null
 			? new HashSet<>(categoryItems) : new HashSet<>();
+		int obtainedCount = ClogHelper.countObtained(allItemIds, obtainedIds);
 
 		// Per-item meta enrichment from clog.item_meta (keyed by item id as string)
 		Map<String, ClanClogResult.ItemMeta> itemMetaRaw = result.getClog().getItemMeta();
@@ -102,7 +96,7 @@ public class ClanTooltipDataBuilder
 		return new TooltipData(
 			displayName,
 			0, // rank is not meaningful at clan scope; placeholder
-			obtainedIds.size(),
+			obtainedCount,
 			allItemIds.size(),
 			allItemIds,
 			obtainedIds,

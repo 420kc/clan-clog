@@ -400,11 +400,11 @@ public class ClanClogResult
 
 		/**
 		 * Full catalog per category: every item ID that exists in the category,
-		 * not just the ones the clan obtained. Populated by client-side
-		 * aggregation from per-member collection-log data. Null when deserialized
-		 * from a backend response (the backend doesn't ship catalogs yet).
+		 * not just the ones the clan obtained. This must survive local cache and
+		 * killclog.com sync, or boss tooltips cannot show unobtained items.
 		 */
-		private transient Map<String, List<Integer>> catalogByCategory;
+		@SerializedName("catalog_by_category")
+		private Map<String, List<Integer>> catalogByCategory;
 
 		/** Gson reflective constructor. */
 		@SuppressWarnings("unused")
@@ -451,10 +451,7 @@ public class ClanClogResult
 			return recentlyAcquired != null ? recentlyAcquired : Collections.emptyList();
 		}
 
-		/**
-		 * Full catalog for a category, or null if not available. Only
-		 * populated after client-side clog aggregation (not from backend).
-		 */
+		/** Full catalog for a category, or null if not available. */
 		public List<Integer> getCatalog(String category)
 		{
 			return catalogByCategory != null ? catalogByCategory.get(category) : null;

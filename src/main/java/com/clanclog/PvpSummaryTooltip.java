@@ -230,14 +230,15 @@ public class PvpSummaryTooltip extends TitleTooltip
 		{
 			return null;
 		}
-		List<Integer> items = clog.getItemsByCategory().get(category);
 		List<Integer> catalog = clog.getCatalog(category);
-		if (items == null && (catalog == null || catalog.isEmpty()))
+		if (catalog == null || catalog.isEmpty())
 		{
 			return null;
 		}
-		int obtained = items != null ? items.size() : 0;
-		int total = catalog != null && !catalog.isEmpty() ? catalog.size() : obtained;
+		List<Integer> items = clog.getItemsByCategory().get(category);
+		int obtained = items != null
+			? ClogHelper.countObtained(catalog, new HashSet<>(items)) : 0;
+		int total = catalog.size();
 		return total > 0 ? new int[]{obtained, total} : null;
 	}
 
