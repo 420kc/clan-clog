@@ -65,6 +65,18 @@ public class ClanClogResultTest
 	}
 
 	@Test
+	public void matchesSlugNormalizesExpectedSlug()
+	{
+		ClanClogResult result = GSON.fromJson("{"
+			+ "\"slug\":\"clannabis\","
+			+ "\"display_name\":\"Clannabis\""
+			+ "}", ClanClogResult.class);
+
+		assertTrue(result.matchesSlug("Clannabis"));
+		assertFalse(result.matchesSlug("Clannabis CC"));
+	}
+
+	@Test
 	public void memberCoverageParsesNeutralAndLegacyKeys()
 	{
 		ClanClogResult.MemberCoverage neutral = GSON.fromJson("{"

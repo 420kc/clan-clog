@@ -1407,6 +1407,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		String clanName = lastLoadedClanName;
 		List<ClanMember> roster = lastLoadedRoster;
 		ClanClogResult result = lastRenderedResult;
+		if (!result.matchesSlug(slug))
+		{
+			setStatus("sync failed: stale clan profile");
+			return;
+		}
 
 		// Step 1: sync roster. On failure, surface the backend's error code
 		// (rank_not_authorized, slug_mismatch, owner_not_in_roster, ...) and stop.

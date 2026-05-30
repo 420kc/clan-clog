@@ -206,6 +206,23 @@ public class ClanClogResult
 		return "roster_only".equalsIgnoreCase(buildStatus);
 	}
 
+	public boolean matchesSlug(String expectedSlug)
+	{
+		String expected = slugify(expectedSlug);
+		return !expected.isEmpty() && expected.equals(slugify(slug));
+	}
+
+	private static String slugify(String value)
+	{
+		if (value == null)
+		{
+			return "";
+		}
+		return value.toLowerCase()
+			.replaceAll("[^a-z0-9]+", "-")
+			.replaceAll("^-+|-+$", "");
+	}
+
 	// ── Package-private mutators for roster-derived overlays ──────────────
 
 	private static class ProfileMember
