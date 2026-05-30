@@ -348,12 +348,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rc.anchor = GridBagConstraints.WEST;
 		row.add(statusLabel, rc);
 
-		rc.gridx = 1;
-		rc.weightx = 0;
-		rc.fill = GridBagConstraints.NONE;
-		rc.anchor = GridBagConstraints.EAST;
-		row.add(coverageCounts, rc);
-
 		return row;
 	}
 
@@ -1072,8 +1066,42 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			setStatus("ready · press clanalyze to start");
 			showClanalyzeButton("clanalyze", "build clan profile");
 		}
+		renderBackendOwnClanProfile(name, new ArrayList<>(pendingRoster));
 		revalidate();
 		repaint();
+	}
+
+	private void renderBackendOwnClanProfile(String clanName, List<ClanMember> roster)
+	{
+		final String slug = slugify(clanName);
+		final int version = loadVersion;
+		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (ex != null || result == null || !result.hasAggregateData()
+					|| version != loadVersion || currentLoadSlug != null)
+				{
+					return;
+				}
+				if (pendingClanName == null || !normalize(pendingClanName).equals(normalize(clanName)))
+				{
+					return;
+				}
+
+				cells.renderClanResult(result);
+				membersPanel.renderRoster(clanName, roster);
+				lastBackendResult = result;
+				lastRenderedResult = result;
+				lastLoadedRoster = roster;
+				lastLoadedClanName = clanName;
+				lastLoadedSlug = slug;
+				pendingRosterSyncEligible = true;
+				syncRequiresFreshClanalyze = true;
+				setCoverageFromResult(result);
+				showClanalyzeButton("refresh", "refresh clan profile");
+				showSyncButton("refresh clan profile before syncing");
+				setStatus(" ");
+			}));
 	}
 
 	private boolean renderCachedClanProfile(String clanName, List<ClanMember> roster,
@@ -1248,10 +1276,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			setCoverageFromResult(result);
 		}
-		String saved = stored.getSavedAt();
-		String date = saved != null && saved.contains("T")
-			? saved.substring(0, saved.indexOf('T')) : saved;
-		setStatus("cached profile" + (date != null ? " · " + date : ""));
+		setStatus(" ");
 		return true;
 	}
 
@@ -1422,8 +1447,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void setCoverageCounts(int hiscoreHits, int clogHits)
 	{
-		boolean show = hiscoreHits > 0 || clogHits > 0;
-		coverageCounts.setVisible(show);
+		coverageCounts.setVisible(false);
 		hiscoreCoverageLabel.setText(formatCoverageCount(hiscoreHits));
 		clogCoverageLabel.setText(formatCoverageCount(clogHits));
 		hiscoreCoverageLabel.setToolTipText(hiscoreHits + " hiscores represented");

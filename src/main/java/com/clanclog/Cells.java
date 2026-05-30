@@ -860,10 +860,12 @@ public class Cells
 		ClanClogResult.MemberCoverage coverage = result.getMemberCoverage();
 		if (coverage != null && coverage.getTotal() > 0)
 		{
-			tip.addLine("Clog members: ",
+			tip.addLine("Kill Clog: ",
 				coverage.getClogOk() + "/" + coverage.getTotal(),
 				coverageColor(coverage.getClogOk(), coverage.getTotal()));
-			addPositiveLine(tip, "Hiscore only: ", coverage.getHiscoreOnly());
+			tip.addLine("Hiscores: ",
+				coverage.getHiscoreRepresented() + "/" + coverage.getTotal(),
+				coverageColor(coverage.getHiscoreRepresented(), coverage.getTotal()));
 			addPositiveLine(tip, "No data: ", coverage.getNotFound());
 			addPositiveLine(tip, "Opted out: ", coverage.getOptedOut());
 			addPositiveLine(tip, "Errors: ", coverage.getError(), ClogHelper.COLOR_EMPTY);

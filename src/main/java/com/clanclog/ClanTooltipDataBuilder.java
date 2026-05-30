@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,10 +119,9 @@ public class ClanTooltipDataBuilder
 	}
 
 	/**
-	 * Build category-first data for synthetic rare buckets. Temple and
-	 * RuneProfile can provide real catalogs for 3rd Age/Gilded and RuneProfile
-	 * rare clue pages; when they do, use those catalogs. Otherwise fall back to
-	 * the fixed Kill Clog item set and clan-wide item metadata.
+	 * Build category-first data for synthetic rare buckets. The fixed Kill Clog
+	 * item set is the canon floor; provider catalogs can add to it, but must
+	 * not replace it.
 	 */
 	public TooltipData buildRareBucketData(String name, String category,
 		int[] fallbackItemIds, ClanClogResult result)
@@ -130,22 +130,24 @@ public class ClanTooltipDataBuilder
 		Map<String, ClanClogResult.ItemMeta> itemMeta = clog != null
 			? clog.getItemMeta() : Collections.emptyMap();
 
+		Set<Integer> allItems = new LinkedHashSet<>();
+		for (int itemId : fallbackItemIds)
+		{
+			allItems.add(itemId);
+		}
+
 		if (clog != null)
 		{
 			List<Integer> catalog = clog.getCatalog(category);
 			if (catalog != null && !catalog.isEmpty())
 			{
-				return buildFromItemIds(name, new ArrayList<>(catalog),
-					clog.getItemsByCategory().get(category), itemMeta);
+				allItems.addAll(catalog);
 			}
 		}
 
-		List<Integer> fixedItems = new ArrayList<>(fallbackItemIds.length);
-		for (int itemId : fallbackItemIds)
-		{
-			fixedItems.add(itemId);
-		}
-		return buildFromItemIds(name, fixedItems, null, itemMeta);
+		return buildFromItemIds(name, new ArrayList<>(allItems),
+			clog != null ? clog.getItemsByCategory().get(category) : null,
+			itemMeta);
 	}
 
 	private TooltipData buildFromItemIds(String name, List<Integer> allItemIds,

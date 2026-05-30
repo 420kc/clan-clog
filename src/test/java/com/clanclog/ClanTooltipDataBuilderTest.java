@@ -76,7 +76,7 @@ public class ClanTooltipDataBuilderTest
 	}
 
 	@Test
-	public void buildsRareBucketFromRealCategoryBeforeFixedFallback()
+	public void buildsRareBucketFromFixedItemsPlusProviderCatalog()
 	{
 		ClanClogResult result = ClanClogResult.forRoster("test-clan", "Test Clan",
 			1, Collections.emptyMap());
@@ -94,8 +94,8 @@ public class ClanTooltipDataBuilderTest
 
 		assertNotNull(data);
 		assertEquals(2, data.obtainedCount);
-		assertEquals(3, data.totalItems);
-		assertEquals(List.of(10334, 10350, 10348), data.allItemIds);
+		assertEquals(4, data.totalItems);
+		assertEquals(List.of(999, 10334, 10350, 10348), data.allItemIds);
 		assertEquals(2, data.obtainedCounts.get(10334).intValue());
 		assertEquals(1, data.obtainedCounts.get(10350).intValue());
 	}
