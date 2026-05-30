@@ -137,6 +137,12 @@ public class LocalClanProfileCache
 			{
 				profile.slug = slug;
 			}
+			if (!matchesSlug(slug, profile.slug)
+				|| !matchesSlug(slug, profile.result.getSlug()))
+			{
+				log.debug("Ignored clan profile cache with mismatched slug '{}'", slug);
+				return null;
+			}
 			if (profile.clanName == null || profile.clanName.isBlank())
 			{
 				profile.clanName = profile.slug;
@@ -227,6 +233,11 @@ public class LocalClanProfileCache
 		return value.toLowerCase()
 			.replaceAll("[^a-z0-9]+", "-")
 			.replaceAll("^-+|-+$", "");
+	}
+
+	private static boolean matchesSlug(String expectedSlug, String value)
+	{
+		return value == null || value.isBlank() || slugify(value).equals(expectedSlug);
 	}
 
 	private static List<MemberRecord> encodeRoster(List<ClanMember> roster)
