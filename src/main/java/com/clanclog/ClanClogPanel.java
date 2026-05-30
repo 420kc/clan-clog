@@ -519,6 +519,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		statsRow.add(cells.buildPvpSummaryCell());
 		grid.add(statsRow);
 
+		// 7px separator between the summary row and clue/reward rows.
+		JPanel sep = new JPanel();
+		sep.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		sep.setPreferredSize(new Dimension(0, 7));
+		sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
+		sep.setAlignmentX(0f);
+		grid.add(sep);
+
 		// Row 1: [3rd Age] [Total Clues] [Gilded]
 		JPanel row1 = new JPanel(new GridLayout(1, 3));
 		row1.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -536,14 +544,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rareRow.add(cells.buildEliteRareCell());
 		rareRow.add(cells.buildMasterRareCell());
 		grid.add(rareRow);
-
-		// 7px separator
-		JPanel sep = new JPanel();
-		sep.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		sep.setPreferredSize(new Dimension(0, 7));
-		sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 7));
-		sep.setAlignmentX(0f);
-		grid.add(sep);
 
 		// Clue tiers: 2 rows of 3 (beginner -> master)
 		JPanel clueTiers = cells.buildClueTierGrid();
