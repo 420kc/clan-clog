@@ -92,6 +92,17 @@ public class LocalClanProfileCacheTest
 		assertEquals(null, cache.get("empty clan"));
 	}
 
+	@Test
+	public void getSkipsSlugMismatchedProfile() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		writeProfile(dir, "wrong-clan", "Wrong Clan", "other-clan");
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+
+		assertEquals(null, cache.get("wrong clan"));
+	}
+
 	private static File writeProfile(File dir, String slug, String clanName) throws Exception
 	{
 		return writeProfile(dir, slug, clanName, slug);
