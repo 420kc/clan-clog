@@ -104,6 +104,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Nullable
 	private String lastLoadedSlug;
 
+	/** True when the visible own-clan profile came from cache and must be refreshed before upload. */
+	private boolean syncRequiresFreshClanalyze;
+
 	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
 	@Nullable
 	private String currentLoadSlug;
@@ -784,6 +787,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		startCurrentLoad(slug, version);
 
 		clanalyzeButton.setVisible(false);
+		syncRequiresFreshClanalyze = false;
+		hideSyncButton();
 		if (!syncEligible)
 		{
 			clearSyncState();
@@ -980,6 +985,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					lastLoadedRoster = roster;
 					lastLoadedClanName = clanName;
 					lastLoadedSlug = slug;
+					syncRequiresFreshClanalyze = false;
 					clanProfileCache.put(clanName, slug, roster, partialResult);
 				}
 				else
@@ -1126,7 +1132,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (syncEligible)
 		{
 			showClanalyzeButton("refresh", "refresh clan profile");
-			hideSyncButton();
+			syncRequiresFreshClanalyze = true;
+			showSyncButton("refresh clan profile before syncing");
 		}
 		else
 		{
@@ -1141,6 +1148,16 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		syncButton.setEnabled(true);
 		syncButton.setVisible(false);
+		revalidate();
+		repaint();
+	}
+
+	private void showSyncButton(String tooltip)
+	{
+		syncButton.setEnabled(true);
+		syncButton.setToolTipText(tooltip);
+		applyActionButtonColor(syncButton, KC4);
+		syncButton.setVisible(true);
 		revalidate();
 		repaint();
 	}
@@ -1251,6 +1268,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedClanName = null;
 		lastLoadedSlug = null;
 		pendingRosterSyncEligible = false;
+		syncRequiresFreshClanalyze = false;
 		syncButton.setEnabled(true);
 		syncButton.setVisible(false);
 		revalidate();
@@ -1264,15 +1282,42 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void updateSyncButtonVisibility()
 	{
-		boolean show = config.enableSync()
+		boolean ready = config.enableSync()
 			&& pendingRosterSyncEligible
 			&& lastRenderedResult != null
 			&& lastLoadedRoster != null
 			&& lastLoadedClanName != null
 			&& clanReader.localPlayerKeyRank() != null;
-		syncButton.setVisible(show);
+		boolean freshOwnClan = pendingRosterSyncEligible
+			&& lastRenderedResult != null
+			&& lastLoadedRoster != null
+			&& lastLoadedClanName != null
+			&& !syncRequiresFreshClanalyze;
+		if (freshOwnClan)
+		{
+			showSyncButton(syncGateTooltip(ready));
+			return;
+		}
+		syncButton.setVisible(false);
 		revalidate();
 		repaint();
+	}
+
+	private String syncGateTooltip(boolean ready)
+	{
+		if (ready)
+		{
+			return "sync to killclog.com";
+		}
+		if (!config.enableSync())
+		{
+			return "enable sync in plugin config";
+		}
+		if (clanReader.localPlayerKeyRank() == null)
+		{
+			return "owner or deputy owner rank required";
+		}
+		return "finish clanalyze before syncing";
 	}
 
 	/**
@@ -1282,6 +1327,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void onSyncClicked()
 	{
+		if (syncRequiresFreshClanalyze)
+		{
+			setStatus("refresh clan profile before sync");
+			return;
+		}
 		if (!config.enableSync())
 		{
 			setStatus("enable sync in plugin config first");
