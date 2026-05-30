@@ -57,6 +57,22 @@ public class RosterClogBuilderTest
 		assertEquals(1, union.getItemMeta().get("3").getQuantityTotal());
 	}
 
+	@Test
+	public void buildClogUnionPreservesCatalogBeyondObtainedItems()
+	{
+		ClanMember member = memberWithClog("Cataloger", 2,
+			Map.of("shellbane_gryphon", List.of(item(30000), item(30001))),
+			Map.of("shellbane_gryphon", List.of(30000, 30001, 30002, 30003)));
+
+		ClanClogResult.ClogUnion union = RosterClogBuilder.buildClogUnion(
+			Collections.singletonList(member));
+
+		assertEquals(List.of(30000, 30001), union.getItemsByCategory().get("shellbane_gryphon"));
+		assertEquals(List.of(30000, 30001, 30002, 30003),
+			union.getCatalog("shellbane_gryphon"));
+		assertEquals(2, union.getTotalObtained());
+	}
+
 	private static ClanMember member(String rsn, String lastChanged)
 	{
 		ClanMember member = new ClanMember(rsn, rsn, null, null,
@@ -70,8 +86,6 @@ public class RosterClogBuilderTest
 	private static ClanMember memberWithClog(String rsn, int uniqueObtained,
 		Map<String, List<ClogResult.ClogItem>> obtainedItems)
 	{
-		ClanMember member = new ClanMember(rsn, rsn, null, null,
-			AccountType.REGULAR, null, 0L, null, null);
 		Map<String, List<Integer>> categories = new HashMap<>();
 		for (Map.Entry<String, List<ClogResult.ClogItem>> entry : obtainedItems.entrySet())
 		{
@@ -82,6 +96,15 @@ public class RosterClogBuilderTest
 			}
 			categories.put(entry.getKey(), ids);
 		}
+		return memberWithClog(rsn, uniqueObtained, obtainedItems, categories);
+	}
+
+	private static ClanMember memberWithClog(String rsn, int uniqueObtained,
+		Map<String, List<ClogResult.ClogItem>> obtainedItems,
+		Map<String, List<Integer>> categories)
+	{
+		ClanMember member = new ClanMember(rsn, rsn, null, null,
+			AccountType.REGULAR, null, 0L, null, null);
 
 		ClogResult clog = new ClogResult(rsn, obtainedItems, categories,
 			Collections.emptyMap(), null, AccountType.REGULAR);
