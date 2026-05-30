@@ -89,7 +89,7 @@ public class LocalClanProfileCache
 		{
 			return null;
 		}
-		return readProfile(new File(cacheDir, slug + ".json"), slug);
+		return readProfile(new File(cacheDir, slug + ".json"), slug, true);
 	}
 
 	@Nullable

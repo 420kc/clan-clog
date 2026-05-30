@@ -81,6 +81,17 @@ public class LocalClanProfileCacheTest
 		assertEquals("good-clan", latest.getSlug());
 	}
 
+	@Test
+	public void getSkipsEmptyProfileShell() throws Exception
+	{
+		File dir = Files.createTempDirectory("clan-profile-cache-test").toFile();
+		writeEmptyProfile(dir, "empty-clan", "Empty Clan");
+
+		LocalClanProfileCache cache = new LocalClanProfileCache(new Gson(), dir);
+
+		assertEquals(null, cache.get("empty clan"));
+	}
+
 	private static File writeProfile(File dir, String slug, String clanName) throws Exception
 	{
 		return writeProfile(dir, slug, clanName, slug);
