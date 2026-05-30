@@ -119,6 +119,23 @@ public class ClanClogResultTest
 	}
 
 	@Test
+	public void representedDataRequiresCoverageOrPositiveTotals()
+	{
+		ClanClogResult empty = ClanClogResult.forRoster(
+			"empty-clan", "Empty Clan", 2, Map.of());
+		empty.setMemberCoverage(new ClanClogResult.MemberCoverage(
+			2, 0, 0, 0, 2, 0));
+
+		ClanClogResult covered = ClanClogResult.forRoster(
+			"covered-clan", "Covered Clan", 2, Map.of());
+		covered.setMemberCoverage(new ClanClogResult.MemberCoverage(
+			2, 0, 1, 0, 1, 0));
+
+		assertFalse(empty.hasRepresentedData());
+		assertTrue(covered.hasRepresentedData());
+	}
+
+	@Test
 	public void clogUnionSerializesCatalogByCategory()
 	{
 		ClanClogResult.ClogUnion union = new ClanClogResult.ClogUnion(

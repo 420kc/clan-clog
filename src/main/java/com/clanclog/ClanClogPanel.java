@@ -982,19 +982,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				membersPanel.renderRoster(clanName, roster);
 
 				rememberClan(clanName);
-				if (syncEligible)
-				{
-					// Stash state for sync button
-					lastRenderedResult = partialResult;
-					lastLoadedRoster = roster;
-					lastLoadedClanName = clanName;
-					lastLoadedSlug = slug;
-					syncRequiresFreshClanalyze = false;
-				}
-				else
-				{
-					clearSyncState();
-				}
 
 				// Coverage buckets, mutually exclusive so they sum to the roster
 				// size. Honest input for the sync + the killclog.com/c surface:
@@ -1020,9 +1007,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				int clogCount = clogOk;
 				partialResult.setMemberCoverage(new ClanClogResult.MemberCoverage(
 					roster.size(), clogOk, hiscoreOnly, 0, notFound, 0));
-				if (syncEligible)
+				if (syncEligible && partialResult.hasRepresentedData())
 				{
+					// Stash state for sync button
+					lastRenderedResult = partialResult;
+					lastLoadedRoster = roster;
+					lastLoadedClanName = clanName;
+					lastLoadedSlug = slug;
+					syncRequiresFreshClanalyze = false;
 					clanProfileCache.put(clanName, slug, roster, partialResult);
+				}
+				else
+				{
+					clearSyncState();
 				}
 				setCoverageCounts(hiscoreHits, clogCount);
 				setStatus(" ");

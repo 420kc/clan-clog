@@ -196,6 +196,34 @@ public class ClanClogResult
 			|| !getActivityTotals().isEmpty();
 	}
 
+	public boolean hasRepresentedData()
+	{
+		if (memberCoverage != null && memberCoverage.getHiscoreRepresented() > 0)
+		{
+			return true;
+		}
+		if (clog != null && (clog.getTotalObtained() > 0
+			|| !clog.getItemsByCategory().isEmpty()))
+		{
+			return true;
+		}
+		for (BossAggregate boss : getBosses().values())
+		{
+			if (boss != null && (boss.getMemberCoverage() > 0 || boss.getClanTotalKc() > 0))
+			{
+				return true;
+			}
+		}
+		for (Long value : getActivityTotals().values())
+		{
+			if (value != null && value > 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public boolean isReadyProfile()
 	{
 		return "ready".equalsIgnoreCase(buildStatus);
