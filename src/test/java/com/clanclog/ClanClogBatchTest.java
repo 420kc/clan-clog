@@ -62,6 +62,28 @@ public class ClanClogBatchTest
 		assertEquals(0, service.lookupCalls);
 	}
 
+	@Test
+	public void staleCachedDataFallsBackWhenProviderFails() throws Exception
+	{
+		ClogResult cached = result("CBC",
+			"third_age", Arrays.asList(10334, 10336, 10338), Arrays.asList(10334, 10338));
+		FakeClogFetchService service = new FakeClogFetchService(cached, false, null, true);
+		ClanClogBatch batch = new ClanClogBatch(service);
+		ClanMember member = member("CBC");
+
+		try
+		{
+			batch.fetchAll(Collections.singletonList(member), 1, null).get(2, TimeUnit.SECONDS);
+		}
+		finally
+		{
+			batch.shutdown();
+		}
+
+		assertSame(cached, member.getClog());
+		assertEquals(1, service.lookupCalls);
+	}
+
 	private static ClanMember member(String rsn)
 	{
 		return new ClanMember(rsn, rsn, "Member", "GUEST",
@@ -94,15 +116,23 @@ public class ClanClogBatchTest
 		private final ClogResult cached;
 		private final boolean richCachedData;
 		private final ClogResult provider;
+		private final boolean providerFailure;
 		private int lookupCalls;
 
 		FakeClogFetchService(ClogResult cached, boolean richCachedData,
 			ClogResult provider)
 		{
+			this(cached, richCachedData, provider, false);
+		}
+
+		FakeClogFetchService(ClogResult cached, boolean richCachedData,
+			ClogResult provider, boolean providerFailure)
+		{
 			super(null, null, null);
 			this.cached = cached;
 			this.richCachedData = richCachedData;
 			this.provider = provider;
+			this.providerFailure = providerFailure;
 		}
 
 		@Override
@@ -122,6 +152,12 @@ public class ClanClogBatchTest
 		public CompletableFuture<ClogResult> lookup(String playerName)
 		{
 			lookupCalls++;
+			if (providerFailure)
+			{
+				CompletableFuture<ClogResult> failed = new CompletableFuture<>();
+				failed.completeExceptionally(new RuntimeException("provider failed"));
+				return failed;
+			}
 			return CompletableFuture.completedFuture(provider);
 		}
 	}
