@@ -456,7 +456,8 @@ public class LocalClogCache
 		try
 		{
 			long updatedAt = Instant.parse(data.lastUpdated).toEpochMilli();
-			return System.currentTimeMillis() - updatedAt <= maxAgeMs;
+			long ageMs = System.currentTimeMillis() - updatedAt;
+			return ageMs >= 0 && ageMs <= maxAgeMs;
 		}
 		catch (RuntimeException e)
 		{

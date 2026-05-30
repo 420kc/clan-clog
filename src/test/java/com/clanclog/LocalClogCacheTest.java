@@ -198,6 +198,17 @@ public class LocalClogCacheTest
 		assertEquals(false, cache.isUpdatedWithin("420 kc", 1));
 	}
 
+	@Test
+	public void isUpdatedWithinRejectsFutureTimestamp() throws Exception
+	{
+		File dir = tempDir();
+		writeCachedPlayer(dir, "2999-05-30T00:00:00Z");
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+
+		assertEquals(false, cache.isUpdatedWithin("420 kc", Long.MAX_VALUE));
+	}
+
 	private static File tempDir() throws Exception
 	{
 		return Files.createTempDirectory("clan-clog-cache-test").toFile();
@@ -205,9 +216,14 @@ public class LocalClogCacheTest
 
 	private static void writeCachedPlayer(File dir) throws Exception
 	{
+		writeCachedPlayer(dir, "2026-05-30T00:00:00Z");
+	}
+
+	private static void writeCachedPlayer(File dir, String lastUpdated) throws Exception
+	{
 		Files.writeString(new File(dir, "420_kc.json").toPath(), "{"
 			+ "\"playerName\":\"420 kc\","
-			+ "\"lastUpdated\":\"2026-05-30T00:00:00Z\","
+			+ "\"lastUpdated\":\"" + lastUpdated + "\","
 			+ "\"uniqueObtained\":2,"
 			+ "\"uniqueTotal\":1701,"
 			+ "\"categories\":{"
