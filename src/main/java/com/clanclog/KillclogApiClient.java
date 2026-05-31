@@ -193,7 +193,7 @@ public class KillclogApiClient
 			this(ok, status, errorCode, detail, false, false, 0, 0);
 		}
 
-		private SyncResponse(boolean ok, int status, @Nullable String errorCode,
+		SyncResponse(boolean ok, int status, @Nullable String errorCode,
 			@Nullable String detail, boolean rosterChanged, boolean resultRescoped,
 			int rosterAdded, int rosterRemoved)
 		{
