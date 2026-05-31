@@ -13,6 +13,7 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -62,6 +63,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String CLAN_TAB_HINT = "click off/back to your clan tab";
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
+	private static final String HEADER_BANNER_RESOURCE = "/com/clanclog/clanclog-banner-28.png";
 
 	private final ClanClogConfig config;
 	private final ConfigManager configManager;
@@ -207,7 +209,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		syncButton.addActionListener(e -> onSyncClicked());
 		syncButton.setVisible(false);
 
+		c.insets = new Insets(0, 0, 4, 0);
+		add(buildBrandHeader(), c);
+
 		// Status + coverage sits above search so the profile row stays clean.
+		c.gridy++;
 		c.insets = new Insets(0, 0, 3, 0);
 		add(buildStatusRow(), c);
 
@@ -332,6 +338,56 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			SwingUtilities.invokeLater(this::renderLatestStoredClanProfile);
 		}
+	}
+
+	private JPanel buildBrandHeader()
+	{
+		JPanel row = new JPanel(new GridBagLayout());
+		row.setOpaque(false);
+		row.setBorder(new EmptyBorder(0, 0, 2, 0));
+
+		GridBagConstraints hc = new GridBagConstraints();
+		hc.gridy = 0;
+		hc.weightx = 0;
+		hc.insets = new Insets(0, 2, 0, 2);
+
+		ImageIcon banner = loadHeaderBanner();
+		int x = 0;
+		if (banner != null)
+		{
+			hc.gridx = x++;
+			row.add(headerBannerLabel(banner), hc);
+		}
+
+		JLabel title = new JLabel("Clan Clog");
+		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(16f));
+		title.setForeground(KC4);
+		title.setHorizontalAlignment(JLabel.CENTER);
+		title.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		hc.gridx = x++;
+		row.add(title, hc);
+
+		if (banner != null)
+		{
+			hc.gridx = x;
+			row.add(headerBannerLabel(banner), hc);
+		}
+		return row;
+	}
+
+	private static JLabel headerBannerLabel(ImageIcon banner)
+	{
+		JLabel label = new JLabel(banner);
+		label.setBorder(new EmptyBorder(0, 0, 0, 0));
+		return label;
+	}
+
+	@Nullable
+	private static ImageIcon loadHeaderBanner()
+	{
+		URL url = ClanClogPanel.class.getResource(HEADER_BANNER_RESOURCE);
+		return url != null ? new ImageIcon(url) : null;
 	}
 
 	/** Persist the last analyzed/viewed clan name so "Remember Last Clan" can restore it. */

@@ -5,6 +5,7 @@ import java.util.List;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class ClanClogPanelTest
@@ -47,6 +48,12 @@ public class ClanClogPanelTest
 		List<ClanMember> roster = Collections.singletonList(member("420 kc", "OWNER"));
 
 		assertNull(ClanClogPanel.syncOwnerRsn(null, roster));
+	}
+
+	@Test
+	public void headerBannerResourceIsPackaged()
+	{
+		assertNotNull(ClanClogPanel.class.getResource("/com/clanclog/clanclog-banner-28.png"));
 	}
 
 	private static ClanMember member(String rsn, String rank)
