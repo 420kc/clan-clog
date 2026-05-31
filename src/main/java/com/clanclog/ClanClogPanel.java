@@ -1104,6 +1104,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingRosterSyncEligible = true;
 		setClanHeaderText(name);
 		clearSearchText();
+		updateSyncButtonVisibility();
 		if (preserveFreshClanalyzeRender(name, pendingRoster))
 		{
 			revalidate();
@@ -1256,13 +1257,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		syncButton.setEnabled(true);
 		syncButton.setVisible(false);
+		syncButton.setText("sync");
 		revalidate();
 		repaint();
 	}
 
-	private void showSyncButton(String tooltip)
+	private void showSyncButton(String tooltip, boolean enabled)
 	{
-		syncButton.setEnabled(true);
+		syncButton.setText("sync roster");
+		syncButton.setEnabled(enabled);
 		syncButton.setToolTipText(tooltip);
 		applyActionButtonColor(syncButton, KC4);
 		syncButton.setVisible(true);
@@ -1472,12 +1475,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void updateSyncButtonVisibility()
 	{
-		if (hasSyncRosterPayload() && hasSyncAuthority())
+		if (!hasSyncRosterPayload())
 		{
-			showSyncButton("sync roster to killclog.com");
+			hideSyncButton();
 			return;
 		}
-		hideSyncButton();
+		showSyncButton(hasSyncAuthority() ? "sync roster to killclog.com" : syncGateTooltip(),
+			hasSyncAuthority());
 	}
 
 	private boolean hasSyncRosterPayload()
