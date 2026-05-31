@@ -797,8 +797,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	/**
 	 * Build a clan profile from a roster. For the user's in-game clan this is a
-	 * sync-eligible clanalyze run. For a public WOM roster this is view-only, but
-	 * still renders the Kill Clog-style aggregate instead of stopping at a roster.
+	 * sync-eligible clanalyze run. Public clan search results should read an
+	 * existing killclog.com aggregate profile instead of compiling in-client.
 	 *
 	 * <p>Two-phase batch: hiscores first (boss KCs render immediately), then
 	 * per-member clog fetch (highlight colors + clog tooltips render when done).
@@ -958,9 +958,24 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				{
 					return;
 				}
-				loadFromRoster(groupName, roster, false);
+				renderPublicRosterOnly(groupName, roster);
 			});
 		});
+	}
+
+	private void renderPublicRosterOnly(String clanName, List<ClanMember> roster)
+	{
+		clearCurrentLoad();
+		clearLoadedProfileState();
+		clearCoverageCounts();
+		hideSyncButton();
+		hideClanalyzeButton();
+		setClanHeaderText(clanName);
+		clearSearchText();
+		cells.clearCells();
+		membersPanel.renderRoster(clanName, roster);
+		rememberClan(clanName);
+		setStatus("public roster loaded · waiting for killclog.com profile");
 	}
 
 	/**
@@ -1747,8 +1762,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		if (!result.hasRepresentedData() && !result.getMembers().isEmpty())
 		{
-			loadFromRoster(name != null && !name.isEmpty() ? name : slug,
-				result.getMembers(), false);
+			renderPublicRosterOnly(name != null && !name.isEmpty() ? name : slug,
+				new ArrayList<>(result.getMembers()));
 			return;
 		}
 		if (!result.hasRepresentedData())
