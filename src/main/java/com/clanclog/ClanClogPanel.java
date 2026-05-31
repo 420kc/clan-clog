@@ -1504,9 +1504,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	/**
-	 * Show the sync button only when a verified in-game roster is loaded and
-	 * the local player holds OWNER or DEPUTY_OWNER rank. The rank check reads
-	 * from cached in-game data populated by {@link InGameClanReader#refresh()}.
+	 * Show the sync button only when a verified in-game roster is loaded. The
+	 * color and click gate reflect whether the captured roster proves an
+	 * OWNER / DEPUTY_OWNER local player can publish it.
 	 */
 	private void updateSyncButtonVisibility()
 	{
@@ -1542,8 +1542,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private boolean hasSyncAuthority()
 	{
 		return config.enableSync()
-			&& clanReader.localPlayerKeyRank() != null
-			&& clanReader.localPlayerName() != null;
+			&& syncKeyRank() != null
+			&& syncOwnerRsn() != null;
 	}
 
 	private String syncGateTooltip()
@@ -1552,12 +1552,81 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return "enable sync in plugin config";
 		}
-		if (clanReader.localPlayerKeyRank() == null
-			|| clanReader.localPlayerName() == null)
+		if (!hasSyncRosterPayload())
 		{
-			return "open clan tab as owner/deputy to sync";
+			return "open clan tab to sync roster";
 		}
-		return "open clan tab to sync roster";
+		if (syncOwnerRsn() == null)
+		{
+			return "log in and open clan tab to sync";
+		}
+		if (syncKeyRank() == null)
+		{
+			return "owner or deputy rank required to sync";
+		}
+		return "sync roster to killclog.com";
+	}
+
+	@Nullable
+	private String syncOwnerRsn()
+	{
+		return syncOwnerRsn(clanReader.localPlayerName(), pendingRoster);
+	}
+
+	@Nullable
+	static String syncOwnerRsn(@Nullable String localName, @Nullable List<ClanMember> roster)
+	{
+		String localKey = normalize(localName);
+		if (localKey.isEmpty())
+		{
+			return null;
+		}
+		if (roster != null)
+		{
+			for (ClanMember member : roster)
+			{
+				if (member != null && normalize(member.getRsn()).equals(localKey))
+				{
+					return member.getRsn();
+				}
+			}
+		}
+		return RsnNormalizer.normalize(localName);
+	}
+
+	@Nullable
+	private String syncKeyRank()
+	{
+		String readerRank = clanReader.localPlayerKeyRank();
+		if (isSyncKeyRank(readerRank))
+		{
+			return readerRank;
+		}
+		return syncKeyRank(clanReader.localPlayerName(), pendingRoster);
+	}
+
+	@Nullable
+	static String syncKeyRank(@Nullable String localName, @Nullable List<ClanMember> roster)
+	{
+		String localKey = normalize(localName);
+		if (localKey.isEmpty() || roster == null)
+		{
+			return null;
+		}
+		for (ClanMember member : roster)
+		{
+			if (member != null && normalize(member.getRsn()).equals(localKey)
+				&& isSyncKeyRank(member.getRankName()))
+			{
+				return member.getRankName();
+			}
+		}
+		return null;
+	}
+
+	static boolean isSyncKeyRank(@Nullable String rank)
+	{
+		return "OWNER".equals(rank) || "DEPUTY_OWNER".equals(rank);
 	}
 
 	private static boolean sameRosterMembers(List<ClanMember> a, List<ClanMember> b)
@@ -1605,8 +1674,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return;
 		}
 
-		String keyRank = clanReader.localPlayerKeyRank();
-		String ownerRsn = clanReader.localPlayerName();
+		String keyRank = syncKeyRank();
+		String ownerRsn = syncOwnerRsn();
 		if (keyRank == null || ownerRsn == null || pendingRoster == null
 			|| pendingClanName == null)
 		{

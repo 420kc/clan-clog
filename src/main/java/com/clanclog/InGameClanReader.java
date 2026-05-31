@@ -111,9 +111,14 @@ public class InGameClanReader
 		{
 			return null;
 		}
+		String localKey = RsnNormalizer.cacheKey(localName);
+		if (localKey.isEmpty())
+		{
+			return null;
+		}
 		for (net.runelite.api.clan.ClanMember m : cs.getMembers())
 		{
-			if (m.getName() != null && m.getName().equalsIgnoreCase(localName))
+			if (m.getName() != null && RsnNormalizer.cacheKey(m.getName()).equals(localKey))
 			{
 				ClanRank rank = m.getRank();
 				if (ClanRank.OWNER.equals(rank))
