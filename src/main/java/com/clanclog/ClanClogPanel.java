@@ -1295,13 +1295,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		repaint();
 	}
 
-	private void showSyncButton(String text, String tooltip, boolean enabled, Color color)
+	private void showSyncButton(String text, String tooltip, Color color)
 	{
 		syncButton.setText(text);
 		syncButton.setPreferredSize(null);
 		Dimension preferred = syncButton.getPreferredSize();
 		syncButton.setPreferredSize(new Dimension(Math.max(preferred.width, 30), 18));
-		syncButton.setEnabled(enabled);
+		syncButton.setEnabled(true);
 		syncButton.setToolTipText(tooltip);
 		setActionButtonBaseColor(syncButton, color);
 		syncButton.setVisible(true);
@@ -1517,17 +1517,17 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		if (rosterSyncInFlight)
 		{
-			showSyncButton("syncing...", "syncing roster to killclog.com", true, KC2);
+			showSyncButton("syncing...", "syncing roster to killclog.com", KC2);
 			return;
 		}
 		if (rosterSyncAccepted)
 		{
-			showSyncButton("roster synced", "roster accepted by killclog.com", true, KC1);
+			showSyncButton("roster synced", "roster accepted by killclog.com", KC1);
 			return;
 		}
 		boolean canSync = hasSyncAuthority();
 		showSyncButton("sync roster", canSync ? "sync roster to killclog.com" : syncGateTooltip(),
-			canSync, KC4);
+			canSync ? KC4 : TEXT_DIM);
 	}
 
 	private boolean hasSyncRosterPayload()
