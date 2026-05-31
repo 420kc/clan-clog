@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -69,7 +70,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
-	private static final String HEADER_TITLE_RESOURCE = "/com/clanclog/clanclog-title.png";
 	private static final String HEADER_BOOK_RESOURCE = "/com/clanclog/clanclog-book-28.png";
 
 	private final ClanClogConfig config;
@@ -379,46 +379,27 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		hc.insets = new Insets(0, 3, 0, 3);
 
 		ImageIcon bookIcon = loadHeaderBook();
-		ImageIcon titleIcon = loadHeaderTitle();
-		if (titleIcon != null)
+		if (bookIcon != null)
 		{
-			if (bookIcon != null)
-			{
-				group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
-				hc.gridx++;
-			}
-
-			JLabel title = new JLabel(titleIcon);
-			title.setHorizontalAlignment(JLabel.CENTER);
-			title.setToolTipText("Clan Clog");
-			group.add(title, hc);
-
-			if (bookIcon != null)
-			{
-				hc.gridx++;
-				group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
-			}
-
-			row.add(group, centeredHeaderConstraints());
-			return row;
+			group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
+			hc.gridx++;
 		}
 
 		JLabel title = new JLabel("Clan Clog");
-		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(16f));
+		title.setFont(new Font("Courier New", Font.BOLD, 20));
 		title.setForeground(KC4);
 		title.setHorizontalAlignment(JLabel.CENTER);
 		title.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		group.add(title, hc);
+		if (bookIcon != null)
+		{
+			hc.gridx++;
+			group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
+		}
+
 		row.add(group, centeredHeaderConstraints());
 		return row;
-	}
-
-	@Nullable
-	private static ImageIcon loadHeaderTitle()
-	{
-		URL url = ClanClogPanel.class.getResource(HEADER_TITLE_RESOURCE);
-		return url != null ? new ImageIcon(url) : null;
 	}
 
 	@Nullable

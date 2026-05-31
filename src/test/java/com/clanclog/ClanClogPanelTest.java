@@ -56,7 +56,6 @@ public class ClanClogPanelTest
 	@Test
 	public void headerResourcesArePackaged()
 	{
-		assertNotNull(ClanClogPanel.class.getResource("/com/clanclog/clanclog-title.png"));
 		assertNotNull(ClanClogPanel.class.getResource("/com/clanclog/clanclog-book-28.png"));
 	}
 
