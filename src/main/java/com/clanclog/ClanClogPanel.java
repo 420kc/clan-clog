@@ -61,6 +61,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String CLAN_TAB_HINT = "click off/back to your clan tab";
+	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
 
 	private final ClanClogConfig config;
 	private final ConfigManager configManager;
@@ -108,6 +109,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	/** True only after a completed in-client own-clan clanalyze render. */
 	private boolean renderedFromClanalyze;
+
+	/** True while the roster sync POST is in flight. */
+	private boolean rosterSyncInFlight;
+
+	/** True after killclog.com accepts the current roster snapshot. */
+	private boolean rosterSyncAccepted;
 
 	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
 	@Nullable
@@ -196,6 +203,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.weightx = 1;
 		c.weighty = 0;
 
+		configureActionButton(syncButton, "sync roster to killclog.com");
+		syncButton.addActionListener(e -> onSyncClicked());
+		syncButton.setVisible(false);
+
 		// Status + coverage sits above search so the profile row stays clean.
 		c.insets = new Insets(0, 0, 3, 0);
 		add(buildStatusRow(), c);
@@ -265,8 +276,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		});
 		configureActionButton(clanalyzeButton, "build clan profile");
 		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
-		configureActionButton(syncButton, "sync to killclog.com");
-		syncButton.addActionListener(e -> onSyncClicked());
 
 		c.gridy++;
 		c.insets = new Insets(0, 0, 2, 0);
@@ -384,6 +393,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rc.anchor = GridBagConstraints.WEST;
 		row.add(statusLabel, rc);
 
+		GridBagConstraints sc = new GridBagConstraints();
+		sc.gridx = 1;
+		sc.gridy = 0;
+		sc.weightx = 0;
+		sc.fill = GridBagConstraints.NONE;
+		sc.anchor = GridBagConstraints.EAST;
+		sc.insets = new Insets(0, 6, 0, 0);
+		row.add(syncButton, sc);
+
 		return row;
 	}
 
@@ -434,9 +452,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		ac.anchor = GridBagConstraints.EAST;
 		ac.insets = new Insets(0, 0, 0, 3);
 		actions.add(clanalyzeButton, ac);
-		ac.gridx = 1;
-		ac.insets = new Insets(0, 0, 0, 0);
-		actions.add(syncButton, ac);
 
 		JPanel row = new JPanel(null)
 		{
@@ -480,7 +495,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		button.setContentAreaFilled(false);
 		button.setOpaque(false);
 		button.setMargin(new Insets(0, 5, 0, 5));
-		applyActionButtonColor(button, KC4);
+		setActionButtonBaseColor(button, KC4);
 		Dimension preferred = button.getPreferredSize();
 		button.setPreferredSize(new Dimension(Math.max(preferred.width, 30), 18));
 		button.putClientProperty(
@@ -503,7 +518,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			{
 				if (button.isEnabled())
 				{
-					applyActionButtonColor(button, KC4);
+					applyActionButtonColor(button, actionButtonBaseColor(button));
 				}
 			}
 
@@ -522,10 +537,22 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				if (button.isEnabled())
 				{
 					applyActionButtonColor(button,
-						button.contains(e.getPoint()) ? KC2 : KC4);
+						button.contains(e.getPoint()) ? KC2 : actionButtonBaseColor(button));
 				}
 			}
 		});
+	}
+
+	private static void setActionButtonBaseColor(JButton button, Color color)
+	{
+		button.putClientProperty(ACTION_BASE_COLOR_PROPERTY, color);
+		applyActionButtonColor(button, color);
+	}
+
+	private static Color actionButtonBaseColor(JButton button)
+	{
+		Object value = button.getClientProperty(ACTION_BASE_COLOR_PROPERTY);
+		return value instanceof Color ? (Color) value : KC4;
 	}
 
 	private static void applyActionButtonColor(JButton button, Color color)
@@ -1100,6 +1127,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			name = "my clan";
 		}
 		pendingClanName = name;
+		boolean samePendingRoster = pendingRoster != null && sameRosterMembers(pendingRoster, roster);
+		if (!samePendingRoster)
+		{
+			rosterSyncAccepted = false;
+		}
 		pendingRoster = new ArrayList<>(roster);
 		pendingRosterSyncEligible = true;
 		setClanHeaderText(name);
@@ -1258,16 +1290,20 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		syncButton.setEnabled(true);
 		syncButton.setVisible(false);
 		syncButton.setText("sync");
+		setActionButtonBaseColor(syncButton, KC4);
 		revalidate();
 		repaint();
 	}
 
-	private void showSyncButton(String tooltip, boolean enabled)
+	private void showSyncButton(String text, String tooltip, boolean enabled, Color color)
 	{
-		syncButton.setText("sync roster");
+		syncButton.setText(text);
+		syncButton.setPreferredSize(null);
+		Dimension preferred = syncButton.getPreferredSize();
+		syncButton.setPreferredSize(new Dimension(Math.max(preferred.width, 30), 18));
 		syncButton.setEnabled(enabled);
 		syncButton.setToolTipText(tooltip);
-		applyActionButtonColor(syncButton, KC4);
+		setActionButtonBaseColor(syncButton, color);
 		syncButton.setVisible(true);
 		revalidate();
 		repaint();
@@ -1417,7 +1453,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanalyzeButton.setPreferredSize(new Dimension(Math.max(preferred.width, 30), 18));
 		clanalyzeButton.setToolTipText(tooltip);
 		clanalyzeButton.setEnabled(true);
-		applyActionButtonColor(clanalyzeButton, KC4);
+		setActionButtonBaseColor(clanalyzeButton, KC4);
 		clanalyzeButton.setVisible(true);
 	}
 
@@ -1453,10 +1489,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		clearLoadedProfileState();
 		pendingRosterSyncEligible = false;
-		syncButton.setEnabled(true);
-		syncButton.setVisible(false);
-		revalidate();
-		repaint();
+		rosterSyncInFlight = false;
+		rosterSyncAccepted = false;
+		hideSyncButton();
 	}
 
 	private void clearLoadedProfileState()
@@ -1480,8 +1515,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			hideSyncButton();
 			return;
 		}
-		showSyncButton(hasSyncAuthority() ? "sync roster to killclog.com" : syncGateTooltip(),
-			hasSyncAuthority());
+		if (rosterSyncInFlight)
+		{
+			showSyncButton("syncing...", "syncing roster to killclog.com", true, KC2);
+			return;
+		}
+		if (rosterSyncAccepted)
+		{
+			showSyncButton("roster synced", "roster accepted by killclog.com", true, KC1);
+			return;
+		}
+		boolean canSync = hasSyncAuthority();
+		showSyncButton("sync roster", canSync ? "sync roster to killclog.com" : syncGateTooltip(),
+			canSync, KC4);
 	}
 
 	private boolean hasSyncRosterPayload()
@@ -1542,6 +1588,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void onSyncClicked()
 	{
+		if (rosterSyncInFlight)
+		{
+			setStatus("syncing roster to killclog.com...");
+			return;
+		}
 		if (!hasSyncRosterPayload())
 		{
 			updateSyncButtonVisibility();
@@ -1578,26 +1629,30 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedRoster = roster;
 		lastLoadedClanName = clanName;
 		lastLoadedSlug = slug;
-		syncButton.setEnabled(false);
-		applyActionButtonColor(syncButton, KC4);
+		rosterSyncInFlight = true;
+		rosterSyncAccepted = false;
+		updateSyncButtonVisibility();
 		setStatus("syncing roster to killclog.com...");
 
 		apiClient.syncRoster(slug, clanName, ownerRsn, keyRank, roster)
 			.whenComplete((resp, ex) ->
 				SwingUtilities.invokeLater(() ->
 				{
-					syncButton.setEnabled(true);
-					applyActionButtonColor(syncButton, KC4);
+					rosterSyncInFlight = false;
 					if (ex == null && resp != null && resp.isOk())
 					{
 						refreshBackendProfileAfterSync(slug, clanName, roster, version, resp);
 					}
 					else if (resp != null)
 					{
+						rosterSyncAccepted = false;
+						updateSyncButtonVisibility();
 						setStatus("sync failed: " + resp.describe());
 					}
 					else
 					{
+						rosterSyncAccepted = false;
+						updateSyncButtonVisibility();
 						setStatus("sync failed"
 							+ (ex != null ? ": " + ex.getMessage() : ""));
 					}
@@ -1608,10 +1663,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		List<ClanMember> roster, int version, KillclogApiClient.SyncResponse syncResponse)
 	{
 		renderedFromClanalyze = false;
+		rosterSyncAccepted = true;
 		pendingRosterSyncEligible = true;
 		updateSyncButtonVisibility();
 		String syncSummary = syncResponse.describeSuccess();
-		setStatus("synced" + syncSummary + " · refreshing profile...");
+		setStatus("roster synced" + syncSummary + " · refreshing profile...");
 
 		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
 			SwingUtilities.invokeLater(() ->
@@ -1623,7 +1679,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 				if (ex != null || result == null || !result.hasRepresentedData())
 				{
-					setStatus("synced to killclog.com/c/" + slug + syncSummary
+					updateSyncButtonVisibility();
+					setStatus("roster synced to killclog.com/c/" + slug + syncSummary
 						+ " · profile refresh unavailable");
 					return;
 				}
@@ -1652,7 +1709,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				setCoverageFromResult(result);
 				clanProfileCache.put(displayName, slug, resultRoster, result);
 				updateSyncButtonVisibility();
-				setStatus("synced to killclog.com/c/" + slug + syncSummary);
+				setStatus("roster synced to killclog.com/c/" + slug + syncSummary);
 			}));
 	}
 
@@ -1718,6 +1775,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static Color statusColor(String text)
 	{
 		String value = text == null ? "" : text.toLowerCase();
+		if (value.startsWith("roster synced"))
+		{
+			return KC1;
+		}
+		if (value.startsWith("syncing"))
+		{
+			return KC2;
+		}
 		if (value.startsWith("done") || value.startsWith("synced")
 			|| value.startsWith("clan profile"))
 		{
