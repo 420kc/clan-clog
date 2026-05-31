@@ -12,9 +12,9 @@ import net.runelite.api.events.ChatMessage;
 
 /**
  * Listens for modern OSRS Clan-system chatbox events (joined / left / kicked)
- * and dispatches Clogsworth narrations. In a follow-up sub-phase, the same
- * events will also POST to the killclog-api {@code /api/clan/<slug>/events}
- * endpoint to keep the backend roster in sync.
+ * and dispatches Clogsworth narrations. Own-clan events also POST to the
+ * killclog-api {@code /api/clan/<slug>/events} endpoint when sync is enabled
+ * and the local player has key-rank authority.
  *
  * <p>Wired by {@link ClanClogPlugin} which holds the {@code @Subscribe}
  * dispatch and delegates here so this class stays a pure event-parser.
@@ -49,11 +49,13 @@ public class ChatScanner
 		"^(.+?) has been kicked from (?:your |the )?clan(?: by (.+?))?\\.?$");
 
 	private final ClogsworthDispatcher clogsworth;
+	private final ClanEventReporter eventReporter;
 
 	@Inject
-	public ChatScanner(ClogsworthDispatcher clogsworth)
+	public ChatScanner(ClogsworthDispatcher clogsworth, ClanEventReporter eventReporter)
 	{
 		this.clogsworth = clogsworth;
+		this.eventReporter = eventReporter;
 	}
 
 	public void handle(ChatMessage event)
@@ -75,33 +77,34 @@ public class ChatScanner
 		}
 		String stripped = stripTokens(raw).trim();
 
+		boolean reportBackend = type == ChatMessageType.CLAN_MESSAGE;
 		Matcher m = JOINED.matcher(stripped);
 		if (m.matches())
 		{
-			dispatch("joined", m.group(1), m.group(2));
+			dispatch("joined", m.group(1), m.group(2), reportBackend);
 			return;
 		}
 		m = JOINED_NO_ACTOR.matcher(stripped);
 		if (m.matches())
 		{
-			dispatch("joined", m.group(1), null);
+			dispatch("joined", m.group(1), null, reportBackend);
 			return;
 		}
 		m = LEFT.matcher(stripped);
 		if (m.matches())
 		{
-			dispatch("left", m.group(1), null);
+			dispatch("left", m.group(1), null, reportBackend);
 			return;
 		}
 		m = KICKED.matcher(stripped);
 		if (m.matches())
 		{
-			dispatch("kicked", m.group(1), m.group(2));
+			dispatch("kicked", m.group(1), m.group(2), reportBackend);
 			return;
 		}
 	}
 
-	private void dispatch(String eventType, String rsn, String actor)
+	private void dispatch(String eventType, String rsn, String actor, boolean reportBackend)
 	{
 		if (rsn == null)
 		{
@@ -126,8 +129,10 @@ public class ChatScanner
 		// that vary slightly across clients.
 		String seed = eventType + ":" + rsnClean.toLowerCase() + (actorClean != null ? ":" + actorClean.toLowerCase() : "");
 		clogsworth.narrate(eventType, placeholders, seed);
-		// TODO sub-phase next: also POST to killclog-api /api/clan/<slug>/events
-		// once KillclogApiClient + the local clan-record cache are wired.
+		if (reportBackend)
+		{
+			eventReporter.report(eventType, rsnClean);
+		}
 	}
 
 	/** Strip RuneLite chat format tokens like &lt;col=...&gt;...&lt;/col&gt; and &lt;img=N&gt;. */

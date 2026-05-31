@@ -47,8 +47,8 @@ import okhttp3.ResponseBody;
  *   <li>{@code POST /api/clan/<slug>/sync} - owner/deputy verified roster snapshot</li>
  *   <li>{@code POST /api/clan/<slug>/result} - precomputed clan aggregate snapshot</li>
  * </ul>
- * {@code POST /check} and {@code POST /events} remain backend routes for
- * freshness checks and future passive roster events, not primary render reads.
+ * {@code POST /events} reports verified passive roster events, not primary
+ * render reads.
  *
  * <p>Reads resolve to {@code null} only on a confirmed 404 (clan not found).
  * Transport failures, non-404 error statuses, and parse errors complete
@@ -346,6 +346,24 @@ public class KillclogApiClient
 
 		Request request = new Request.Builder()
 			.url(BASE_URL + "/api/clan/" + slug + "/result")
+			.header("User-Agent", USER_AGENT)
+			.post(RequestBody.create(JSON_TYPE, gson.toJson(body)))
+			.build();
+
+		return postAsync(request);
+	}
+
+	public CompletableFuture<SyncResponse> postClanEvent(String slug, String eventType,
+		String targetRsn, String reporterRsn, String observedAt)
+	{
+		JsonObject body = new JsonObject();
+		body.addProperty("type", eventType);
+		body.addProperty("target_rsn", targetRsn);
+		body.addProperty("reporter_rsn", reporterRsn);
+		body.addProperty("observed_at", observedAt);
+
+		Request request = new Request.Builder()
+			.url(BASE_URL + "/api/clan/" + slug + "/events")
 			.header("User-Agent", USER_AGENT)
 			.post(RequestBody.create(JSON_TYPE, gson.toJson(body)))
 			.build();
