@@ -183,13 +183,28 @@ public class KillclogApiClient
 		private final int status;
 		@Nullable private final String errorCode;
 		@Nullable private final String detail;
+		private final boolean rosterChanged;
+		private final boolean resultRescoped;
+		private final int rosterAdded;
+		private final int rosterRemoved;
 
 		SyncResponse(boolean ok, int status, @Nullable String errorCode, @Nullable String detail)
+		{
+			this(ok, status, errorCode, detail, false, false, 0, 0);
+		}
+
+		private SyncResponse(boolean ok, int status, @Nullable String errorCode,
+			@Nullable String detail, boolean rosterChanged, boolean resultRescoped,
+			int rosterAdded, int rosterRemoved)
 		{
 			this.ok = ok;
 			this.status = status;
 			this.errorCode = errorCode;
 			this.detail = detail;
+			this.rosterChanged = rosterChanged;
+			this.resultRescoped = resultRescoped;
+			this.rosterAdded = rosterAdded;
+			this.rosterRemoved = rosterRemoved;
 		}
 
 		public boolean isOk()
@@ -224,6 +239,60 @@ public class KillclogApiClient
 				return "http " + status;
 			}
 			return detail != null ? detail : "network error";
+		}
+
+		SyncResponse withRosterMetadataFrom(SyncResponse rosterResponse)
+		{
+			if (rosterResponse == null)
+			{
+				return this;
+			}
+			return new SyncResponse(ok, status, errorCode, detail,
+				rosterResponse.rosterChanged, rosterResponse.resultRescoped,
+				rosterResponse.rosterAdded, rosterResponse.rosterRemoved);
+		}
+
+		public boolean isRosterChanged()
+		{
+			return rosterChanged;
+		}
+
+		public boolean isResultRescoped()
+		{
+			return resultRescoped;
+		}
+
+		public int getRosterAdded()
+		{
+			return rosterAdded;
+		}
+
+		public int getRosterRemoved()
+		{
+			return rosterRemoved;
+		}
+
+		public String describeSuccess()
+		{
+			String countDetail = rosterChangeCountDetail();
+			if (resultRescoped)
+			{
+				return " · roster updated" + countDetail;
+			}
+			if (rosterChanged)
+			{
+				return " · roster changed" + countDetail;
+			}
+			return "";
+		}
+
+		private String rosterChangeCountDetail()
+		{
+			if (rosterAdded == 0 && rosterRemoved == 0)
+			{
+				return "";
+			}
+			return " (+" + rosterAdded + "/-" + rosterRemoved + ")";
 		}
 	}
 
@@ -306,7 +375,7 @@ public class KillclogApiClient
 					int status = response.code();
 					if (response.isSuccessful())
 					{
-						future.complete(new SyncResponse(true, status, null, null));
+						future.complete(parseSuccessResponse(status, responseBody));
 						return;
 					}
 					String errorCode = extractErrorCode(responseBody);
@@ -317,6 +386,45 @@ public class KillclogApiClient
 			}
 		});
 		return future;
+	}
+
+	private SyncResponse parseSuccessResponse(int status, @Nullable ResponseBody body)
+	{
+		if (body == null)
+		{
+			return new SyncResponse(true, status, null, null);
+		}
+		try
+		{
+			JsonObject json = gson.fromJson(body.string(), JsonObject.class);
+			if (json == null)
+			{
+				return new SyncResponse(true, status, null, null);
+			}
+			boolean rosterChanged = json.has("roster_changed")
+				&& json.get("roster_changed").getAsBoolean();
+			boolean resultRescoped = json.has("result_rescoped")
+				&& json.get("result_rescoped").getAsBoolean();
+			JsonObject delta = json.has("roster_delta") && json.get("roster_delta").isJsonObject()
+				? json.getAsJsonObject("roster_delta") : null;
+			int added = jsonArraySize(delta, "added");
+			int removed = jsonArraySize(delta, "removed");
+			return new SyncResponse(true, status, null, null,
+				rosterChanged, resultRescoped, added, removed);
+		}
+		catch (IOException | JsonSyntaxException | IllegalStateException ignored)
+		{
+			return new SyncResponse(true, status, null, null);
+		}
+	}
+
+	private static int jsonArraySize(@Nullable JsonObject json, String field)
+	{
+		if (json == null || !json.has(field) || !json.get(field).isJsonArray())
+		{
+			return 0;
+		}
+		return json.getAsJsonArray(field).size();
 	}
 
 	/** Pull the backend's {@code {"error": "..."}} code from a failure body, or null. */

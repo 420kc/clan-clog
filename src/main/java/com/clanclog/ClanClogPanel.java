@@ -1594,7 +1594,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					return java.util.concurrent.CompletableFuture.completedFuture(rosterResp);
 				}
 				// Step 2: sync pre-computed result
-				return apiClient.syncResult(slug, ownerRsn, keyRank, result);
+				return apiClient.syncResult(slug, ownerRsn, keyRank, result)
+					.thenApply(resultResp -> resultResp.withRosterMetadataFrom(rosterResp));
 			})
 			.whenComplete((resp, ex) ->
 				SwingUtilities.invokeLater(() ->
@@ -1603,7 +1604,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					applyActionButtonColor(syncButton, KC4);
 					if (ex == null && resp != null && resp.isOk())
 					{
-						refreshBackendProfileAfterSync(slug, clanName, roster, version);
+						refreshBackendProfileAfterSync(slug, clanName, roster, version, resp);
 					}
 					else if (resp != null)
 					{
@@ -1618,14 +1619,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	private void refreshBackendProfileAfterSync(String slug, String clanName,
-		List<ClanMember> roster, int version)
+		List<ClanMember> roster, int version, KillclogApiClient.SyncResponse syncResponse)
 	{
 		syncPayloadFromClanalyze = false;
 		syncRequiresFreshClanalyze = true;
 		pendingRosterSyncEligible = true;
 		updateSyncButtonVisibility();
 		showClanalyzeButton("refresh", "freshen clan profile");
-		setStatus("synced · refreshing profile...");
+		String syncSummary = syncResponse.describeSuccess();
+		setStatus("synced" + syncSummary + " · refreshing profile...");
 
 		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
 			SwingUtilities.invokeLater(() ->
@@ -1637,7 +1639,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 				if (ex != null || result == null || !result.hasRepresentedData())
 				{
-					setStatus("synced to killclog.com/c/" + slug
+					setStatus("synced to killclog.com/c/" + slug + syncSummary
 						+ " · profile refresh unavailable");
 					return;
 				}
@@ -1668,7 +1670,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				clanProfileCache.put(displayName, slug, resultRoster, result);
 				showClanalyzeButton("refresh", "freshen clan profile");
 				updateSyncButtonVisibility();
-				setStatus("synced to killclog.com/c/" + slug);
+				setStatus("synced to killclog.com/c/" + slug + syncSummary);
 			}));
 	}
 
