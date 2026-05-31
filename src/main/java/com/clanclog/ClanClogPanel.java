@@ -1570,8 +1570,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		String slug = lastLoadedSlug;
 		String clanName = lastLoadedClanName;
-		List<ClanMember> roster = lastLoadedRoster;
+		List<ClanMember> roster = new ArrayList<>(lastLoadedRoster);
 		ClanClogResult result = lastRenderedResult;
+		final int version = loadVersion;
 		if (!result.matchesSlug(slug))
 		{
 			updateSyncButtonVisibility();
@@ -1602,7 +1603,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					applyActionButtonColor(syncButton, KC4);
 					if (ex == null && resp != null && resp.isOk())
 					{
-						setStatus("synced to killclog.com/c/" + slug);
+						refreshBackendProfileAfterSync(slug, clanName, roster, version);
 					}
 					else if (resp != null)
 					{
@@ -1614,6 +1615,61 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 							+ (ex != null ? ": " + ex.getMessage() : ""));
 					}
 				}));
+	}
+
+	private void refreshBackendProfileAfterSync(String slug, String clanName,
+		List<ClanMember> roster, int version)
+	{
+		syncPayloadFromClanalyze = false;
+		syncRequiresFreshClanalyze = true;
+		pendingRosterSyncEligible = true;
+		updateSyncButtonVisibility();
+		showClanalyzeButton("refresh", "freshen clan profile");
+		setStatus("synced · refreshing profile...");
+
+		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (version != loadVersion || currentLoadSlug != null
+					|| lastLoadedSlug == null || !slug.equals(lastLoadedSlug))
+				{
+					return;
+				}
+				if (ex != null || result == null || !result.hasRepresentedData())
+				{
+					setStatus("synced to killclog.com/c/" + slug
+						+ " · profile refresh unavailable");
+					return;
+				}
+
+				String displayName = result.getDisplayName();
+				if (displayName == null || displayName.isBlank())
+				{
+					displayName = clanName;
+				}
+				List<ClanMember> resultRoster = !result.getMembers().isEmpty()
+					? new ArrayList<>(result.getMembers()) : roster;
+
+				pendingClanName = displayName;
+				pendingRoster = resultRoster;
+				pendingRosterSyncEligible = true;
+				lastBackendResult = result;
+				lastRenderedResult = result;
+				lastLoadedRoster = resultRoster;
+				lastLoadedClanName = displayName;
+				lastLoadedSlug = slug;
+				syncPayloadFromClanalyze = false;
+				syncRequiresFreshClanalyze = true;
+
+				setClanHeaderText(displayName);
+				cells.renderClanResult(result);
+				membersPanel.renderRoster(displayName, resultRoster);
+				setCoverageFromResult(result);
+				clanProfileCache.put(displayName, slug, resultRoster, result);
+				showClanalyzeButton("refresh", "freshen clan profile");
+				updateSyncButtonVisibility();
+				setStatus("synced to killclog.com/c/" + slug);
+			}));
 	}
 
 	private void setStatus(String text)
