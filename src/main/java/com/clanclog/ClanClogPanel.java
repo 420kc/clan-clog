@@ -13,11 +13,15 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -32,11 +36,14 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.FlatTextField;
 import net.runelite.client.ui.components.IconTextField;
+import net.runelite.client.util.AsyncBufferedImage;
+import net.runelite.client.util.ImageUtil;
 
 /**
  * Main clan clog surface. Layout mirrors Kill Clog: search header and
@@ -62,7 +69,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
-	private static final String HEADER_BANNER_RESOURCE = "/com/clanclog/clanclog-banner-28.png";
+	private static final String HEADER_TITLE_RESOURCE = "/com/clanclog/clanclog-title.png";
+	private static final String HEADER_BOOK_RESOURCE = "/com/clanclog/clanclog-book-28.png";
 
 	private final ClanClogConfig config;
 	private final ConfigManager configManager;
@@ -77,6 +85,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final ClanLookupSession clanLookupSession;
 	private final Cells cells;
 	private final ClanMembersPanel membersPanel;
+	private final ItemManager itemManager;
 
 	private final JLabel statusLabel = new JLabel(" ");
 	private final JPanel coverageCounts = new JPanel(new GridBagLayout());
@@ -84,9 +93,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final JLabel clogCoverageLabel = new JLabel("--");
 	private final IconTextField searchBar = new IconTextField();
 	private final JLabel clanHeader = new JLabel(" ");
+	private final JLabel clanClogInfoLabel = new JLabel(" ");
 	private final JButton clanalyzeButton = new JButton("clanalyze");
 	private final JButton syncButton = new JButton("sync");
 	private final ActivitiesTray activitiesTray;
+	private final Map<String, ImageIcon> clogTierIcons = new LinkedHashMap<>();
 
 	/** Last backend/fixture ClanClogResult. Merged with hiscore data after batch completes. */
 	@Nullable
@@ -156,7 +167,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		LocalHiscoreCache hiscoreCache, ClogFetchService clogFetchService,
 		LocalClanProfileCache clanProfileCache,
 		InGameClanReader clanReader, KillclogApiClient apiClient,
-		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel)
+		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel,
+		ItemManager itemManager)
 	{
 		super(true);
 		this.config = config;
@@ -172,6 +184,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		this.clanLookupSession = clanLookupSession;
 		this.cells = cells;
 		this.membersPanel = membersPanel;
+		this.itemManager = itemManager;
 
 		// Configure PluginPanel's scroll pane (Kill Clog parity)
 		JScrollPane sp = getScrollPane();
@@ -279,6 +292,16 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 			}
 		});
+		clanClogInfoLabel.setFont(FontManager.getRunescapeSmallFont());
+		clanClogInfoLabel.setForeground(KC_TEXT);
+		clanClogInfoLabel.setHorizontalAlignment(JLabel.RIGHT);
+		clanClogInfoLabel.setBorder(new EmptyBorder(0, 0, 0, 4));
+		clanClogInfoLabel.setMinimumSize(new Dimension(0, 0));
+		clanClogInfoLabel.setIconTextGap(3);
+		clanClogInfoLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		setClanClogInfo(null);
+
 		configureActionButton(clanalyzeButton, "build clan profile");
 		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
 
@@ -298,6 +321,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		c.gridy++;
 		add(cells.buildBossGrid(), c);
+		loadClogTierIcons();
 
 		clanReader.addListener(roster ->
 			SwingUtilities.invokeLater(() -> onInGameRosterRefreshed(roster)));
@@ -343,19 +367,40 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		JPanel row = new JPanel(new GridBagLayout());
 		row.setOpaque(false);
-		row.setBorder(new EmptyBorder(0, 0, 2, 0));
+		row.setBorder(new EmptyBorder(0, 0, 4, 0));
+
+		JPanel group = new JPanel(new GridBagLayout());
+		group.setOpaque(false);
 
 		GridBagConstraints hc = new GridBagConstraints();
 		hc.gridy = 0;
+		hc.gridx = 0;
 		hc.weightx = 0;
-		hc.insets = new Insets(0, 2, 0, 2);
+		hc.insets = new Insets(0, 3, 0, 3);
 
-		ImageIcon banner = loadHeaderBanner();
-		int x = 0;
-		if (banner != null)
+		ImageIcon bookIcon = loadHeaderBook();
+		ImageIcon titleIcon = loadHeaderTitle();
+		if (titleIcon != null)
 		{
-			hc.gridx = x++;
-			row.add(headerBannerLabel(banner), hc);
+			if (bookIcon != null)
+			{
+				group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
+				hc.gridx++;
+			}
+
+			JLabel title = new JLabel(titleIcon);
+			title.setHorizontalAlignment(JLabel.CENTER);
+			title.setToolTipText("Clan Clog");
+			group.add(title, hc);
+
+			if (bookIcon != null)
+			{
+				hc.gridx++;
+				group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
+			}
+
+			row.add(group, centeredHeaderConstraints());
+			return row;
 		}
 
 		JLabel title = new JLabel("Clan Clog");
@@ -364,29 +409,41 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		title.setHorizontalAlignment(JLabel.CENTER);
 		title.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		hc.gridx = x++;
-		row.add(title, hc);
-
-		if (banner != null)
-		{
-			hc.gridx = x;
-			row.add(headerBannerLabel(banner), hc);
-		}
+		group.add(title, hc);
+		row.add(group, centeredHeaderConstraints());
 		return row;
 	}
 
-	private static JLabel headerBannerLabel(ImageIcon banner)
+	@Nullable
+	private static ImageIcon loadHeaderTitle()
 	{
-		JLabel label = new JLabel(banner);
-		label.setBorder(new EmptyBorder(0, 0, 0, 0));
-		return label;
+		URL url = ClanClogPanel.class.getResource(HEADER_TITLE_RESOURCE);
+		return url != null ? new ImageIcon(url) : null;
 	}
 
 	@Nullable
-	private static ImageIcon loadHeaderBanner()
+	private static ImageIcon loadHeaderBook()
 	{
-		URL url = ClanClogPanel.class.getResource(HEADER_BANNER_RESOURCE);
+		URL url = ClanClogPanel.class.getResource(HEADER_BOOK_RESOURCE);
 		return url != null ? new ImageIcon(url) : null;
+	}
+
+	private static JLabel headerImageLabel(ImageIcon icon, String tooltip)
+	{
+		JLabel label = new JLabel(icon);
+		label.setHorizontalAlignment(JLabel.CENTER);
+		label.setToolTipText(tooltip);
+		return label;
+	}
+
+	private static GridBagConstraints centeredHeaderConstraints()
+	{
+		GridBagConstraints hc = new GridBagConstraints();
+		hc.gridx = 0;
+		hc.gridy = 0;
+		hc.weightx = 1;
+		hc.anchor = GridBagConstraints.CENTER;
+		return hc;
 	}
 
 	/** Persist the last analyzed/viewed clan name so "Remember Last Clan" can restore it. */
@@ -526,9 +583,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				int actionW = Math.min(actionSize.width, actionMaxW);
 				int actionH = Math.min(height, Math.max(actionSize.height, 18));
 				int actionY = Math.max(0, (height - actionH) / 2);
+				int actionX = width - actionW;
+				int infoX = Math.min(width, toggleX + toggleW + 4);
+				int infoW = Math.max(0, actionX - infoX - 4);
 
 				trayToggle.setBounds(toggleX, toggleY, toggleW, toggleH);
-				actions.setBounds(width - actionW, actionY, actionW, actionH);
+				clanClogInfoLabel.setBounds(infoX, 0, infoW, height);
+				actions.setBounds(actionX, actionY, actionW, actionH);
 				clanHeader.setBounds(0, 0, Math.max(0, toggleX - 4), height);
 			}
 		};
@@ -536,6 +597,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		row.setPreferredSize(new Dimension(0, 22));
 		row.add(clanHeader);
 		row.add(trayToggle);
+		row.add(clanClogInfoLabel);
 		row.add(actions);
 
 		return row;
@@ -903,7 +965,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clearSearchText();
 		String progressPrefix = syncEligible ? "clanalyzing: " : "building: ";
 		setStatus(progressPrefix + "0/" + roster.size());
-		cells.clearCells();
+		clearRenderedClanResult();
 		membersPanel.renderRoster(clanName, roster);
 
 		// Phase 1: per-member hiscore fan-out
@@ -929,7 +991,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				ClanClogResult existing = syncEligible ? null : lastBackendResult;
 				ClanClogResult merged = RosterClogBuilder.fromHiscores(
 					name, slug, roster, existing);
-				cells.renderClanResult(merged);
+				renderClanResult(merged);
 				membersPanel.renderRoster(name, roster);
 
 				int hiscoreHits = 0;
@@ -1051,7 +1113,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		hideClanalyzeButton();
 		setClanHeaderText(clanName);
 		clearSearchText();
-		cells.clearCells();
+		clearRenderedClanResult();
 		membersPanel.renderRoster(clanName, roster);
 		rememberClan(clanName);
 		setStatus(publicRosterStatus(roster.size(), shell));
@@ -1078,23 +1140,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	static String profileLoadedStatus(ClanClogResult result)
 	{
-		return profileStatus("profile loaded", result);
+		return " ";
 	}
 
 	static String cachedProfileStatus(ClanClogResult result)
 	{
-		return profileStatus("cached profile", result);
-	}
-
-	private static String profileStatus(String prefix, ClanClogResult result)
-	{
-		ClanClogResult.MemberCoverage coverage = result != null ? result.getMemberCoverage() : null;
-		if (coverage != null && coverage.getTotal() > 0)
-		{
-			return prefix + " · " + coverage.getClogRepresented()
-				+ "/" + coverage.getTotal() + " clogs";
-		}
-		return prefix;
+		return " ";
 	}
 
 	private static String formatMemberCount(int count)
@@ -1142,7 +1193,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 
 				// Re-render with clog highlight colors + tooltips
-				cells.renderClanResult(partialResult);
+				renderClanResult(partialResult);
 				membersPanel.renderRoster(clanName, roster);
 
 				rememberClan(clanName);
@@ -1269,7 +1320,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedRoster = new ArrayList<>(roster);
 		lastLoadedClanName = clanName;
 		pendingRosterSyncEligible = true;
-		cells.renderClanResult(lastRenderedResult);
+		renderClanResult(lastRenderedResult);
 		membersPanel.renderRoster(clanName, roster);
 		setCoverageFromResult(lastRenderedResult);
 		updateSyncButtonVisibility();
@@ -1294,7 +1345,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					return;
 				}
 
-				cells.renderClanResult(result);
+				renderClanResult(result);
 				membersPanel.renderRoster(clanName, roster);
 				lastBackendResult = result;
 				lastRenderedResult = result;
@@ -1365,7 +1416,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		cached.setMemberCoverage(new ClanClogResult.MemberCoverage(
 			roster.size(), clogHits, hiscoreOnly, 0, notFound, 0));
 
-		cells.renderClanResult(cached);
+		renderClanResult(cached);
 		membersPanel.renderRoster(clanName, roster);
 		rememberClan(clanName);
 		if (syncEligible)
@@ -1478,7 +1529,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		setClanHeaderText(name);
 		clearSearchText();
 		rememberClan(name);
-		cells.renderClanResult(result);
+		renderClanResult(result);
 		membersPanel.renderRoster(name, roster);
 		updateSyncButtonVisibility();
 		setCoverageFromRoster(roster);
@@ -1529,7 +1580,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				renderedFromClanalyze = false;
 
 				setClanHeaderText(displayName);
-				cells.renderClanResult(result);
+				renderClanResult(result);
 				if (roster != null && !roster.isEmpty())
 				{
 					membersPanel.renderRoster(displayName, roster);
@@ -1870,13 +1921,154 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				renderedFromClanalyze = false;
 
 				setClanHeaderText(displayName);
-				cells.renderClanResult(result);
+				renderClanResult(result);
 				membersPanel.renderRoster(displayName, resultRoster);
 				setCoverageFromResult(result);
 				clanProfileCache.put(displayName, slug, resultRoster, result);
 				updateSyncButtonVisibility();
 				setStatus("roster synced to killclog.com/c/" + slug + syncSummary);
 			}));
+	}
+
+	private void renderClanResult(ClanClogResult result)
+	{
+		cells.renderClanResult(result);
+		setClanClogInfo(result);
+	}
+
+	private void clearRenderedClanResult()
+	{
+		cells.clearCells();
+		setClanClogInfo(null);
+	}
+
+	private void setClanClogInfo(@Nullable ClanClogResult result)
+	{
+		clanClogInfoLabel.setText(totalClogInfoText(result));
+		clanClogInfoLabel.setToolTipText(totalClogInfoTooltip(result));
+		clanClogInfoLabel.setForeground(totalClogInfoColor(result));
+		clanClogInfoLabel.setIcon(totalClogInfoIcon(result));
+		revalidate();
+		repaint();
+	}
+
+	@Nullable
+	private ImageIcon totalClogInfoIcon(@Nullable ClanClogResult result)
+	{
+		String tierName = totalClogTierName(result);
+		return tierName != null ? clogTierIcons.get(tierName) : null;
+	}
+
+	static String totalClogInfoText(@Nullable ClanClogResult result)
+	{
+		int total = totalClogCount(result);
+		return total > 0 ? ClogHelper.pad(ClogHelper.formatKc(total)) : " ";
+	}
+
+	@Nullable
+	static String totalClogInfoTooltip(@Nullable ClanClogResult result)
+	{
+		int obtained = totalClogCount(result);
+		if (obtained <= 0)
+		{
+			return null;
+		}
+		int total = totalClogSlots(result);
+		if (total > 0)
+		{
+			return "Total clan clog: " + String.format("%,d", obtained)
+				+ "/" + String.format("%,d", total);
+		}
+		return "Total clan clog: " + String.format("%,d", obtained);
+	}
+
+	static Color totalClogInfoColor(@Nullable ClanClogResult result)
+	{
+		int obtained = totalClogCount(result);
+		if (obtained <= 0)
+		{
+			return KC_TEXT;
+		}
+		int total = totalClogSlots(result);
+		return total > 0 ? ClogHelper.clogColor(obtained, total)
+			: ClogHelper.COLOR_IN_PROGRESS;
+	}
+
+	@Nullable
+	static String totalClogTierName(@Nullable ClanClogResult result)
+	{
+		int obtained = totalClogCount(result);
+		if (obtained <= 0)
+		{
+			return null;
+		}
+		int total = totalClogSlots(result);
+		return ClogHelper.getClogTierName(obtained, total > 0 ? total : obtained);
+	}
+
+	private static int totalClogCount(@Nullable ClanClogResult result)
+	{
+		ClanClogResult.ClogUnion clog = result != null ? result.getClog() : null;
+		return clog != null ? clog.getTotalObtained() : 0;
+	}
+
+	private static int totalClogSlots(@Nullable ClanClogResult result)
+	{
+		ClanClogResult.ClogUnion clog = result != null ? result.getClog() : null;
+		if (clog == null)
+		{
+			return 0;
+		}
+		Set<Integer> ids = new HashSet<>();
+		for (List<Integer> categoryIds : clog.getCatalogByCategory().values())
+		{
+			if (categoryIds != null)
+			{
+				ids.addAll(categoryIds);
+			}
+		}
+		if (!ids.isEmpty())
+		{
+			return ids.size();
+		}
+		for (List<Integer> categoryIds : clog.getItemsByCategory().values())
+		{
+			if (categoryIds != null)
+			{
+				ids.addAll(categoryIds);
+			}
+		}
+		return ids.size();
+	}
+
+	private void loadClogTierIcons()
+	{
+		for (int i = 0; i < ClogHelper.CLOG_TIERS.length; i++)
+		{
+			final String tier = ClogHelper.CLOG_TIERS[i];
+			final int itemId = ClogHelper.CLOG_TIER_ITEM_IDS[i];
+			loadItemIcon(itemId, 13, 13, icon ->
+			{
+				clogTierIcons.put(tier, icon);
+				setClanClogInfo(lastRenderedResult);
+			});
+		}
+	}
+
+	private void loadItemIcon(int itemId, int width, int height, Consumer<ImageIcon> setter)
+	{
+		BufferedImage img = itemManager.getImage(itemId, 1, false);
+		if (img == null)
+		{
+			return;
+		}
+		setter.accept(new ImageIcon(ImageUtil.resizeImage(img, width, height)));
+		if (img instanceof AsyncBufferedImage)
+		{
+			((AsyncBufferedImage) img).onLoaded(() ->
+				SwingUtilities.invokeLater(() ->
+					setter.accept(new ImageIcon(ImageUtil.resizeImage(img, width, height)))));
+		}
 	}
 
 	private void setStatus(String text)
@@ -1982,7 +2174,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastBackendResult = null;
 		clearSyncState();
 		clanalyzeButton.setVisible(false);
-		cells.clearCells();
+		clearRenderedClanResult();
 		membersPanel.showPlaceholder("checking killclog.com");
 	}
 
@@ -2010,7 +2202,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (!result.hasRepresentedData())
 		{
 			clearCoverageCounts();
-			cells.clearCells();
+			clearRenderedClanResult();
 			setStatus("no clog profile for " + slug);
 			return;
 		}
@@ -2026,7 +2218,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		setCoverageFromResult(result);
 		setStatus(profileLoadedStatus(result));
-		cells.renderClanResult(result);
+		renderClanResult(result);
 		if (!roster.isEmpty())
 		{
 			membersPanel.renderRoster(displayName, roster);
@@ -2048,7 +2240,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		lastBackendResult = null;
 		clearCoverageCounts();
-		cells.clearCells();
+		clearRenderedClanResult();
 		// Backend has no record of this clan -- fall back to a WOM roster view.
 		if (viewQuery != null && !viewQuery.isBlank())
 		{
@@ -2070,7 +2262,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		lastBackendResult = null;
 		clearCoverageCounts();
-		cells.clearCells();
+		clearRenderedClanResult();
 		// Backend unreachable/errored -- try WOM so the user still sees a roster.
 		if (viewQuery != null && !viewQuery.isBlank())
 		{

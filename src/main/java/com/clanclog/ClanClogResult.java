@@ -503,6 +503,11 @@ public class ClanClogResult
 			return itemMeta != null ? itemMeta : Collections.emptyMap();
 		}
 
+		public Map<String, List<Integer>> getCatalogByCategory()
+		{
+			return catalogByCategory != null ? catalogByCategory : Collections.emptyMap();
+		}
+
 		public List<RecentItem> getRecentlyAcquired()
 		{
 			return recentlyAcquired != null ? recentlyAcquired : Collections.emptyList();

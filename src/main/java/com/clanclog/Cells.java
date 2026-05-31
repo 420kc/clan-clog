@@ -820,7 +820,7 @@ public class Cells
 		ClanClogResult.MemberCoverage coverage = result.getMemberCoverage();
 		if (coverage != null && coverage.getTotal() > 0)
 		{
-			tip.addLine("Kill Clog: ",
+			tip.addLine("Synced clogs: ",
 				coverage.getClogOk() + "/" + coverage.getTotal(),
 				coverageColor(coverage.getClogOk(), coverage.getTotal()));
 			tip.addLine("Hiscores: ",
@@ -946,9 +946,13 @@ public class Cells
 		return count > 0 ? Color.WHITE : NativeTooltip.NOTICE_COLOR;
 	}
 
-	private static Color coverageColor(int synced, int total)
+	static Color coverageColor(int synced, int total)
 	{
-		return synced >= total && total > 0 ? ClogHelper.COLOR_COMPLETED : ClogHelper.COLOR_IN_PROGRESS;
+		if (total <= 0 || synced <= 0)
+		{
+			return ClogHelper.COLOR_EMPTY;
+		}
+		return synced >= total ? ClogHelper.COLOR_COMPLETED : ClogHelper.COLOR_IN_PROGRESS;
 	}
 
 	private static Color statusColor(String status)

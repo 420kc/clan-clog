@@ -51,6 +51,14 @@ public class CellsRenderParityTest
 	}
 
 	@Test
+	public void coverageColorUsesNativeProgressionColors()
+	{
+		assertEquals(ClogHelper.COLOR_EMPTY, Cells.coverageColor(0, 344));
+		assertEquals(ClogHelper.COLOR_IN_PROGRESS, Cells.coverageColor(155, 344));
+		assertEquals(ClogHelper.COLOR_COMPLETED, Cells.coverageColor(344, 344));
+	}
+
+	@Test
 	public void calvarionUsesKillClogNameAliasForBackendBossKc() throws Exception
 	{
 		Cells cells = new Cells(null, null, null, new ClanTooltipDataBuilder());

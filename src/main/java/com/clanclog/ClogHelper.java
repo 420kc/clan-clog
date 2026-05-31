@@ -26,6 +26,9 @@ final class ClogHelper
 	};
 
 	static final int[] CLOG_TIER_THRESHOLDS = {100, 300, 500, 700, 900, 1000, 1100, 1200};
+	static final int[] CLOG_TIER_ITEM_IDS = {
+		30579, 30581, 30583, 30585, 30587, 30589, 30591, 30593, 30595
+	};
 
 	private ClogHelper()
 	{

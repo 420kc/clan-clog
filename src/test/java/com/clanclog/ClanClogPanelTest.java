@@ -54,9 +54,10 @@ public class ClanClogPanelTest
 	}
 
 	@Test
-	public void headerBannerResourceIsPackaged()
+	public void headerResourcesArePackaged()
 	{
-		assertNotNull(ClanClogPanel.class.getResource("/com/clanclog/clanclog-banner-28.png"));
+		assertNotNull(ClanClogPanel.class.getResource("/com/clanclog/clanclog-title.png"));
+		assertNotNull(ClanClogPanel.class.getResource("/com/clanclog/clanclog-book-28.png"));
 	}
 
 	@Test
@@ -85,25 +86,77 @@ public class ClanClogPanelTest
 	}
 
 	@Test
-	public void profileLoadedStatusShowsCoverage()
+	public void profileLoadedStatusStaysQuiet()
 	{
 		ClanClogResult result = result("{"
 			+ "\"member_coverage\":{\"total\":106,\"clog_ok\":22,\"hiscore_only\":70}"
 			+ "}");
 
-		assertEquals("profile loaded · 22/106 clogs",
-			ClanClogPanel.profileLoadedStatus(result));
+		assertEquals(" ", ClanClogPanel.profileLoadedStatus(result));
 	}
 
 	@Test
-	public void cachedProfileStatusShowsCoverage()
+	public void cachedProfileStatusStaysQuiet()
 	{
 		ClanClogResult result = result("{"
 			+ "\"member_coverage\":{\"total\":106,\"clog_ok\":3,\"hiscore_only\":70}"
 			+ "}");
 
-		assertEquals("cached profile · 3/106 clogs",
-			ClanClogPanel.cachedProfileStatus(result));
+		assertEquals(" ", ClanClogPanel.cachedProfileStatus(result));
+	}
+
+	@Test
+	public void totalClogInfoTextUsesRenderedClanUnion()
+	{
+		ClanClogResult result = result("{"
+			+ "\"clog\":{\"total_obtained\":1701}"
+			+ "}");
+
+		assertEquals("1701", ClanClogPanel.totalClogInfoText(result).trim());
+		assertEquals("Total clan clog: 1,701", ClanClogPanel.totalClogInfoTooltip(result));
+	}
+
+	@Test
+	public void totalClogInfoUsesCatalogCompletionColor()
+	{
+		ClanClogResult result = result("{"
+			+ "\"clog\":{\"total_obtained\":2,"
+			+ "\"catalog_by_category\":{\"boss\":[1,2,3,4]}}"
+			+ "}");
+
+		assertEquals(ClogHelper.COLOR_IN_PROGRESS, ClanClogPanel.totalClogInfoColor(result));
+		assertEquals("Total clan clog: 2/4", ClanClogPanel.totalClogInfoTooltip(result));
+	}
+
+	@Test
+	public void totalClogInfoColorsCompleteCatalogGreen()
+	{
+		ClanClogResult result = result("{"
+			+ "\"clog\":{\"total_obtained\":4,"
+			+ "\"catalog_by_category\":{\"boss\":[1,2,3,4]}}"
+			+ "}");
+
+		assertEquals(ClogHelper.COLOR_COMPLETED, ClanClogPanel.totalClogInfoColor(result));
+		assertEquals("Total clan clog: 4/4", ClanClogPanel.totalClogInfoTooltip(result));
+	}
+
+	@Test
+	public void totalClogInfoTierUsesCatalogTotal()
+	{
+		ClanClogResult result = resultWithCatalog(500, 1000);
+
+		assertEquals("steel", ClanClogPanel.totalClogTierName(result));
+	}
+
+	@Test
+	public void totalClogInfoStaysBlankWithoutClogUnion()
+	{
+		ClanClogResult result = result("{"
+			+ "\"member_coverage\":{\"total\":106,\"clog_ok\":22}"
+			+ "}");
+
+		assertEquals(" ", ClanClogPanel.totalClogInfoText(result));
+		assertNull(ClanClogPanel.totalClogInfoTooltip(result));
 	}
 
 	private static ClanMember member(String rsn, String rank)
@@ -115,5 +168,22 @@ public class ClanClogPanelTest
 	private static ClanClogResult result(String json)
 	{
 		return GSON.fromJson(json, ClanClogResult.class);
+	}
+
+	private static ClanClogResult resultWithCatalog(int obtained, int total)
+	{
+		StringBuilder json = new StringBuilder();
+		json.append("{\"clog\":{\"total_obtained\":").append(obtained)
+			.append(",\"catalog_by_category\":{\"all\":[");
+		for (int i = 1; i <= total; i++)
+		{
+			if (i > 1)
+			{
+				json.append(',');
+			}
+			json.append(i);
+		}
+		json.append("]}}}");
+		return result(json.toString());
 	}
 }
