@@ -1593,7 +1593,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				{
 					return java.util.concurrent.CompletableFuture.completedFuture(rosterResp);
 				}
-				// Step 2: sync pre-computed result
+				if (rosterResp.isResultRescoped())
+				{
+					return java.util.concurrent.CompletableFuture.completedFuture(rosterResp);
+				}
+				// Step 2: sync pre-computed result only when the backend did not
+				// already re-scope an authoritative server aggregate.
 				return apiClient.syncResult(slug, ownerRsn, keyRank, result)
 					.thenApply(resultResp -> resultResp.withRosterMetadataFrom(rosterResp));
 			})
