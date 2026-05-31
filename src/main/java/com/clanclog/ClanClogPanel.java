@@ -61,7 +61,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final Color HAMBURGER_COLOR = new Color(70, 70, 70);
 	private static final Color HAMBURGER_HOVER_COLOR = new Color(96, 96, 96);
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
-	private static final String CLAN_TAB_HINT = "click off/back to your clan tab";
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
 	private static final String HEADER_BANNER_RESOURCE = "/com/clanclog/clanclog-banner-28.png";
 
@@ -784,11 +783,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private String noClanHint()
 	{
-		if (config.defaultClan().trim().isEmpty())
-		{
-			return "no default clan · " + CLAN_TAB_HINT;
-		}
-		return CLAN_TAB_HINT;
+		return "search a clan or open your clan tab";
 	}
 
 	private void setSearchText(String text)
@@ -990,7 +985,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 				if (results == null || results.length == 0)
 				{
-					setStatus("no public clan match for \"" + query + "\"");
+					setStatus("no public roster for \"" + query + "\"");
 					membersPanel.showPlaceholder("no roster source");
 					return;
 				}
@@ -1019,7 +1014,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					{
 						return;
 					}
-					setStatus("no public roster returned");
+					setStatus("public roster unavailable");
 					setClanHeaderText(" ");
 				});
 				return;
@@ -1041,12 +1036,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				{
 					return;
 				}
-				renderPublicRosterOnly(groupName, roster);
+				renderPublicRosterOnly(groupName, roster, null);
 			});
 		});
 	}
 
-	private void renderPublicRosterOnly(String clanName, List<ClanMember> roster)
+	private void renderPublicRosterOnly(String clanName, List<ClanMember> roster,
+		@Nullable ClanClogResult shell)
 	{
 		clearCurrentLoad();
 		clearLoadedProfileState();
@@ -1058,7 +1054,41 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		cells.clearCells();
 		membersPanel.renderRoster(clanName, roster);
 		rememberClan(clanName);
-		setStatus("public roster loaded · waiting for killclog.com profile");
+		setStatus(publicRosterStatus(roster.size(), shell));
+	}
+
+	static String publicRosterStatus(int rosterSize, @Nullable ClanClogResult shell)
+	{
+		String buildStatus = shell != null ? shell.getBuildStatus() : null;
+		if (buildStatus != null && buildStatus.equalsIgnoreCase("pending"))
+		{
+			return "roster found · profile pending";
+		}
+		if (buildStatus != null && buildStatus.equalsIgnoreCase("building"))
+		{
+			return "roster found · profile building";
+		}
+		if (buildStatus != null && buildStatus.equalsIgnoreCase("ready"))
+		{
+			return "roster found · no clog data";
+		}
+		return "public roster only · " + formatMemberCount(rosterSize);
+	}
+
+	static String profileLoadedStatus(ClanClogResult result)
+	{
+		ClanClogResult.MemberCoverage coverage = result != null ? result.getMemberCoverage() : null;
+		if (coverage != null && coverage.getTotal() > 0)
+		{
+			return "profile loaded · " + coverage.getClogRepresented()
+				+ "/" + coverage.getTotal() + " clogs";
+		}
+		return "profile loaded";
+	}
+
+	private static String formatMemberCount(int count)
+	{
+		return count == 1 ? "1 member" : String.format("%,d members", Math.max(0, count));
 	}
 
 	/**
@@ -1232,7 +1262,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		membersPanel.renderRoster(clanName, roster);
 		setCoverageFromResult(lastRenderedResult);
 		updateSyncButtonVisibility();
-		setStatus(" ");
+		setStatus(profileLoadedStatus(lastRenderedResult));
 		return true;
 	}
 
@@ -1264,7 +1294,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				pendingRosterSyncEligible = true;
 				setCoverageFromResult(result);
 				updateSyncButtonVisibility();
-				setStatus(" ");
+				setStatus(profileLoadedStatus(result));
 			}));
 	}
 
@@ -1909,11 +1939,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			return KC2;
 		}
 		if (value.startsWith("done") || value.startsWith("synced")
-			|| value.startsWith("clan profile"))
+			|| value.startsWith("clan profile") || value.startsWith("profile loaded"))
 		{
 			return ClogHelper.COLOR_COMPLETED;
 		}
-		if (value.startsWith("ready") || value.startsWith("matched"))
+		if (value.startsWith("ready") || value.startsWith("matched")
+			|| value.startsWith("public roster") || value.startsWith("roster found"))
 		{
 			return KC4;
 		}
@@ -1930,13 +1961,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	@Override
 	public void onClanLookupStart(String slug)
 	{
-		setStatus("fetching clog data for " + slug + "...");
+		setStatus("checking killclog.com...");
 		clearCoverageCounts();
 		lastBackendResult = null;
 		clearSyncState();
 		clanalyzeButton.setVisible(false);
 		cells.clearCells();
-		membersPanel.showPlaceholder("fetching killclog.com profile");
+		membersPanel.showPlaceholder("checking killclog.com");
 	}
 
 	@Override
@@ -1957,14 +1988,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (!result.hasRepresentedData() && !result.getMembers().isEmpty())
 		{
 			renderPublicRosterOnly(name != null && !name.isEmpty() ? name : slug,
-				new ArrayList<>(result.getMembers()));
+				new ArrayList<>(result.getMembers()), result);
 			return;
 		}
 		if (!result.hasRepresentedData())
 		{
 			clearCoverageCounts();
 			cells.clearCells();
-			setStatus("no represented clog data for " + slug);
+			setStatus("no clog profile for " + slug);
 			return;
 		}
 		String displayName = name != null && !name.isEmpty() ? name : slug;
@@ -1978,7 +2009,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedSlug = slug;
 
 		setCoverageFromResult(result);
-		setStatus(" ");
+		setStatus(profileLoadedStatus(result));
 		cells.renderClanResult(result);
 		if (!roster.isEmpty())
 		{
@@ -2005,7 +2036,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		// Backend has no record of this clan -- fall back to a WOM roster view.
 		if (viewQuery != null && !viewQuery.isBlank())
 		{
-			setStatus("not synced yet · searching public rosters...");
+			setStatus("not synced · checking public rosters...");
 			searchByName(viewQuery);
 		}
 		else
@@ -2027,7 +2058,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		// Backend unreachable/errored -- try WOM so the user still sees a roster.
 		if (viewQuery != null && !viewQuery.isBlank())
 		{
-			setStatus("profile lookup unavailable · searching public rosters...");
+			setStatus("killclog unavailable · checking rosters...");
 			searchByName(viewQuery);
 		}
 		else
