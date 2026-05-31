@@ -1059,31 +1059,42 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	static String publicRosterStatus(int rosterSize, @Nullable ClanClogResult shell)
 	{
+		String memberCount = formatMemberCount(rosterSize);
 		String buildStatus = shell != null ? shell.getBuildStatus() : null;
 		if (buildStatus != null && buildStatus.equalsIgnoreCase("pending"))
 		{
-			return "roster found · profile pending";
+			return "profile pending · " + memberCount;
 		}
 		if (buildStatus != null && buildStatus.equalsIgnoreCase("building"))
 		{
-			return "roster found · profile building";
+			return "profile building · " + memberCount;
 		}
 		if (buildStatus != null && buildStatus.equalsIgnoreCase("ready"))
 		{
-			return "roster found · no clog data";
+			return "no clog profile · " + memberCount;
 		}
-		return "public roster only · " + formatMemberCount(rosterSize);
+		return "public roster only · " + memberCount;
 	}
 
 	static String profileLoadedStatus(ClanClogResult result)
 	{
+		return profileStatus("profile loaded", result);
+	}
+
+	static String cachedProfileStatus(ClanClogResult result)
+	{
+		return profileStatus("cached profile", result);
+	}
+
+	private static String profileStatus(String prefix, ClanClogResult result)
+	{
 		ClanClogResult.MemberCoverage coverage = result != null ? result.getMemberCoverage() : null;
 		if (coverage != null && coverage.getTotal() > 0)
 		{
-			return "profile loaded · " + coverage.getClogRepresented()
+			return prefix + " · " + coverage.getClogRepresented()
 				+ "/" + coverage.getTotal() + " clogs";
 		}
-		return "profile loaded";
+		return prefix;
 	}
 
 	private static String formatMemberCount(int count)
@@ -1367,7 +1378,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			clearSyncState();
 		}
 		setCoverageCounts(hiscoreHits, clogHits);
-		setStatus(" ");
+		setStatus(cachedProfileStatus(cached));
 		return true;
 	}
 
@@ -1943,8 +1954,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return ClogHelper.COLOR_COMPLETED;
 		}
+		if (value.startsWith("profile building"))
+		{
+			return KC2;
+		}
 		if (value.startsWith("ready") || value.startsWith("matched")
-			|| value.startsWith("public roster") || value.startsWith("roster found"))
+			|| value.startsWith("public roster") || value.startsWith("profile pending")
+			|| value.startsWith("cached profile"))
 		{
 			return KC4;
 		}

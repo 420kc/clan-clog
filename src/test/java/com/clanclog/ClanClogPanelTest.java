@@ -71,8 +71,17 @@ public class ClanClogPanelTest
 	{
 		ClanClogResult shell = result("{\"build_status\":\"pending\"}");
 
-		assertEquals("roster found · profile pending",
+		assertEquals("profile pending · 344 members",
 			ClanClogPanel.publicRosterStatus(344, shell));
+	}
+
+	@Test
+	public void publicRosterStatusNamesBuildingBackendProfile()
+	{
+		ClanClogResult shell = result("{\"build_status\":\"building\"}");
+
+		assertEquals("profile building · 1 member",
+			ClanClogPanel.publicRosterStatus(1, shell));
 	}
 
 	@Test
@@ -84,6 +93,17 @@ public class ClanClogPanelTest
 
 		assertEquals("profile loaded · 22/106 clogs",
 			ClanClogPanel.profileLoadedStatus(result));
+	}
+
+	@Test
+	public void cachedProfileStatusShowsCoverage()
+	{
+		ClanClogResult result = result("{"
+			+ "\"member_coverage\":{\"total\":106,\"clog_ok\":3,\"hiscore_only\":70}"
+			+ "}");
+
+		assertEquals("cached profile · 3/106 clogs",
+			ClanClogPanel.cachedProfileStatus(result));
 	}
 
 	private static ClanMember member(String rsn, String rank)
