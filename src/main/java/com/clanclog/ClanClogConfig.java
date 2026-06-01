@@ -52,22 +52,11 @@ public interface ClanClogConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "clanUrl",
-		name = "Clan URL",
-		description = "URL opened when clicking the clan name in the info bar (WOM page, private clan site, etc). Leave empty to disable.",
-		position = 4
-	)
-	default String clanUrl()
-	{
-		return "";
-	}
-
-	@ConfigItem(
 		keyName = "enableSync",
 		name = "Enable Sync to killclog.com",
 		description = "Allow syncing clan roster and aggregated data to killclog.com. Sends RSNs, ranks, boss KCs, and collection log items.",
 		warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers",
-		position = 5
+		position = 4
 	)
 	default boolean enableSync()
 	{

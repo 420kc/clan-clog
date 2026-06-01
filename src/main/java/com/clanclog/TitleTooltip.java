@@ -23,6 +23,7 @@ public abstract class TitleTooltip extends NativeTooltip
 
 	protected static final Color CLOG_GREEN = new Color(0, 255, 0);
 	protected static final Color CLOG_YELLOW = new Color(255, 255, 0);
+	protected static final Color CLOG_RED = new Color(255, 87, 0);
 
 	private String title;
 	private String subtitleLabel;
@@ -51,7 +52,8 @@ public abstract class TitleTooltip extends NativeTooltip
 
 	/**
 	 * Set the obtained subtitle line. Pass -1 for unknown ("?/Y").
-	 * Color: green if complete, yellow otherwise.
+	 * Color follows native OSRS progress: red for none, yellow for partial,
+	 * green for complete.
 	 */
 	public void setObtained(int obtained, int total)
 	{
@@ -59,10 +61,14 @@ public abstract class TitleTooltip extends NativeTooltip
 		setSubtitle("Obtained: ", countPart, completionColor(obtained, total));
 	}
 
-	/** Green when obtained >= total, yellow otherwise. */
+	/** Native OSRS stoplight progress: red, yellow, green. */
 	protected static Color completionColor(int obtained, int total)
 	{
-		return obtained >= total && total > 0 ? CLOG_GREEN : CLOG_YELLOW;
+		if (total <= 0 || obtained <= 0)
+		{
+			return CLOG_RED;
+		}
+		return obtained >= total ? CLOG_GREEN : CLOG_YELLOW;
 	}
 
 	/** Set an extra info line below the subtitle. Label in orange, value in given color. */

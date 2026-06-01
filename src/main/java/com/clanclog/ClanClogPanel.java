@@ -217,9 +217,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		c.weightx = 1;
 		c.weighty = 0;
 
-		configureActionButton(syncButton, "sync roster to killclog.com");
+		configureHeaderSyncButton(syncButton);
 		syncButton.addActionListener(e -> onSyncClicked());
-		syncButton.setVisible(false);
 
 		c.insets = new Insets(0, 0, 4, 0);
 		add(buildBrandHeader(), c);
@@ -250,48 +249,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanHeader.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		setClanHeaderText(" ");
-		clanHeader.addMouseListener(new MouseAdapter()
-		{
-			@Override
-			public void mouseEntered(MouseEvent e)
-			{
-				if (hasClanHeaderText())
-				{
-					clanHeader.setForeground(KC2);
-				}
-			}
-
-			@Override
-			public void mouseExited(MouseEvent e)
-			{
-				clanHeader.setForeground(KC4);
-			}
-
-			@Override
-			public void mousePressed(MouseEvent e)
-			{
-				String url = config.clanUrl();
-				String text = clanHeader.getText();
-				boolean hasText = text != null && !text.isBlank();
-				if (SwingUtilities.isLeftMouseButton(e) && hasText)
-				{
-					clanHeader.setForeground(KC1);
-				}
-				if (SwingUtilities.isLeftMouseButton(e) && hasText && url != null && !url.isBlank())
-				{
-					net.runelite.client.util.LinkBrowser.browse(url);
-				}
-			}
-
-			@Override
-			public void mouseReleased(MouseEvent e)
-			{
-				if (hasClanHeaderText())
-				{
-					clanHeader.setForeground(clanHeader.contains(e.getPoint()) ? KC2 : KC4);
-				}
-			}
-		});
 		clanClogInfoLabel.setFont(FontManager.getRunescapeSmallFont());
 		clanClogInfoLabel.setForeground(KC_TEXT);
 		clanClogInfoLabel.setHorizontalAlignment(JLabel.RIGHT);
@@ -395,7 +352,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (bookIcon != null)
 		{
 			hc.gridx++;
-			group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
+			group.add(syncButton, hc);
 		}
 
 		row.add(group, centeredHeaderConstraints());
@@ -444,12 +401,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanHeader.setForeground(KC4);
 	}
 
-	private boolean hasClanHeaderText()
-	{
-		String text = clanHeader.getText();
-		return text != null && !text.isBlank();
-	}
-
 	private JPanel buildStatusRow()
 	{
 		JPanel row = new JPanel(new GridBagLayout());
@@ -485,15 +436,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rc.fill = GridBagConstraints.HORIZONTAL;
 		rc.anchor = GridBagConstraints.WEST;
 		row.add(statusLabel, rc);
-
-		GridBagConstraints sc = new GridBagConstraints();
-		sc.gridx = 1;
-		sc.gridy = 0;
-		sc.weightx = 0;
-		sc.fill = GridBagConstraints.NONE;
-		sc.anchor = GridBagConstraints.EAST;
-		sc.insets = new Insets(0, 6, 0, 0);
-		row.add(syncButton, sc);
 
 		return row;
 	}
@@ -639,6 +581,24 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}
 			}
 		});
+	}
+
+	private static void configureHeaderSyncButton(JButton button)
+	{
+		configureActionButton(button, "open clan tab to sync roster");
+		ImageIcon icon = loadHeaderBook();
+		if (icon != null)
+		{
+			button.setIcon(icon);
+		}
+		button.setText("");
+		button.setMargin(new Insets(0, 0, 0, 0));
+		button.setPreferredSize(new Dimension(32, 32));
+		button.setMinimumSize(new Dimension(32, 32));
+		button.setContentAreaFilled(false);
+		button.setBorderPainted(true);
+		button.setVisible(true);
+		setActionButtonBaseColor(button, TEXT_DIM);
 	}
 
 	private static void setActionButtonBaseColor(JButton button, Color color)
@@ -1417,19 +1377,19 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void hideSyncButton()
 	{
 		syncButton.setEnabled(true);
-		syncButton.setVisible(false);
-		syncButton.setText("sync");
-		setActionButtonBaseColor(syncButton, KC4);
+		syncButton.setVisible(true);
+		syncButton.setText("");
+		syncButton.setPreferredSize(new Dimension(32, 32));
+		syncButton.setToolTipText("open clan tab to sync roster");
+		setActionButtonBaseColor(syncButton, TEXT_DIM);
 		revalidate();
 		repaint();
 	}
 
 	private void showSyncButton(String text, String tooltip, Color color)
 	{
-		syncButton.setText(text);
-		syncButton.setPreferredSize(null);
-		Dimension preferred = syncButton.getPreferredSize();
-		syncButton.setPreferredSize(new Dimension(Math.max(preferred.width, 30), 18));
+		syncButton.setText("");
+		syncButton.setPreferredSize(new Dimension(32, 32));
 		syncButton.setEnabled(true);
 		syncButton.setToolTipText(tooltip);
 		setActionButtonBaseColor(syncButton, color);

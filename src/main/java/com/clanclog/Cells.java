@@ -834,7 +834,7 @@ public class Cells
 		tip.addLine("Total Boss KC: ", formatTooltipCount(totalBossKc),
 			tooltipValueColor(totalBossKc));
 		tip.addLine("Bosses killed: ", bossesWithKc + "/" + BOSS_DISPLAY_ORDER.length,
-			tooltipValueColor(bossesWithKc));
+			coverageColor(bossesWithKc, BOSS_DISPLAY_ORDER.length));
 
 		ClanClogResult.ClogUnion clog = result.getClog();
 		if (clog != null)
@@ -1163,7 +1163,7 @@ public class Cells
 	{
 		if (counts != null && counts[1] > 0)
 		{
-			return ClogHelper.clogColor(counts[0], counts[1]);
+			return coverageColor(counts[0], counts[1]);
 		}
 		return hasValue ? ClogHelper.COLOR_EMPTY : ColorScheme.LIGHT_GRAY_COLOR;
 	}
