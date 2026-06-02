@@ -32,6 +32,8 @@ public class ClogSummaryTooltip extends TitleTooltip
 	private String tierName;
 	private String progressCount;
 	private String nextTierName;
+	private Color tierValueColor;
+	private Color progressValueColor;
 	private String syncDate;
 	private boolean syncStale;
 
@@ -57,6 +59,8 @@ public class ClogSummaryTooltip extends TitleTooltip
 			tierName = null;
 			progressCount = String.valueOf(ClogHelper.CLOG_TIER_THRESHOLDS[0] - obtained);
 			nextTierName = "bronze";
+			tierValueColor = null;
+			progressValueColor = completionColor(obtained, ClogHelper.CLOG_TIER_THRESHOLDS[0]);
 			return;
 		}
 
@@ -66,6 +70,8 @@ public class ClogSummaryTooltip extends TitleTooltip
 			tierName = "gilded";
 			progressCount = null;
 			nextTierName = null;
+			tierValueColor = CLOG_GREEN;
+			progressValueColor = null;
 			return;
 		}
 
@@ -97,6 +103,8 @@ public class ClogSummaryTooltip extends TitleTooltip
 		tierName = currentTier;
 		progressCount = String.valueOf(nextThreshold - obtained);
 		nextTierName = nextTier;
+		tierValueColor = CLOG_GREEN;
+		progressValueColor = completionColor(obtained, nextThreshold);
 	}
 
 	public void setSyncData(String dateText, boolean stale)
@@ -227,14 +235,14 @@ public class ClogSummaryTooltip extends TitleTooltip
 		// Current tier: [icon] Rune: 1100-1199
 		if (tierRange != null)
 		{
-			paintTierLine(g2, fm, inset, y, tierName, tierRange, Color.WHITE, null);
+			paintTierLine(g2, fm, inset, y, tierName, tierRange, tierValueColor, null);
 			y += LINE_HEIGHT;
 		}
 
 		// Progress: [icon] Dragon: 18 more
 		if (progressCount != null)
 		{
-			paintTierLine(g2, fm, inset, y, nextTierName, progressCount, Color.WHITE, " more");
+			paintTierLine(g2, fm, inset, y, nextTierName, progressCount, progressValueColor, " more");
 			y += LINE_HEIGHT;
 		}
 

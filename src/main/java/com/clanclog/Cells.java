@@ -840,7 +840,7 @@ public class Cells
 		if (clog != null)
 		{
 			tip.addLine("Clog slots: ", formatTooltipCount(clog.getTotalObtained()),
-				tooltipValueColor(clog.getTotalObtained()));
+				clogSlotColor(clog));
 		}
 		return tip;
 	}
@@ -944,6 +944,22 @@ public class Cells
 	private static Color tooltipValueColor(long count)
 	{
 		return count > 0 ? Color.WHITE : NativeTooltip.NOTICE_COLOR;
+	}
+
+	private static Color clogSlotColor(ClanClogResult.ClogUnion clog)
+	{
+		Set<Integer> ids = new HashSet<>();
+		for (List<Integer> categoryIds : clog.getCatalogByCategory().values())
+		{
+			if (categoryIds != null)
+			{
+				ids.addAll(categoryIds);
+			}
+		}
+		int total = ids.size();
+		return total > 0
+			? coverageColor(clog.getTotalObtained(), total)
+			: tooltipValueColor(clog.getTotalObtained());
 	}
 
 	static Color coverageColor(int synced, int total)
