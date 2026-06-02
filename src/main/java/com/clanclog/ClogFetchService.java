@@ -369,7 +369,7 @@ public class ClogFetchService
 		{
 			log.debug("RuneProfile fresher for '{}': {} vs {} obtained",
 				rp.getPlayerName(), rpCount, templeCount);
-			return rp;
+			return rp.withFallbackAccountTypeFrom(temple);
 		}
 		// Temple wins when tied or close because it has lastChanged + accountType.
 		return temple;

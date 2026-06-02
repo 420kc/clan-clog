@@ -7,6 +7,7 @@ import java.util.Map;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ClogFetchServiceTest
@@ -101,6 +102,20 @@ public class ClogFetchServiceTest
 	}
 
 	@Test
+	public void pickFreshestKeepsTempleAccountTypeWhenRuneProfileWins()
+	{
+		ClogResult temple = resultWithCount("CBC", 100,
+			"2026-05-28 10:24:58", AccountType.GROUP_IRONMAN);
+		ClogResult runeProfile = resultWithCount("CBC", 108, null, null);
+
+		ClogResult picked = ClogFetchService.pickFreshest(temple, runeProfile);
+
+		assertEquals(108, picked.getUniqueObtained());
+		assertEquals(AccountType.GROUP_IRONMAN, picked.getTempleAccountType());
+		assertNull(picked.getLastChanged());
+	}
+
+	@Test
 	public void normalizePageKeyMapsRuneProfileRarePagesToClanKeys()
 	{
 		assertEquals("third_age", ClogFetchService.normalizePageKey("3rd Age"));
@@ -110,5 +125,20 @@ public class ClogFetchServiceTest
 			ClogFetchService.normalizePageKey("Elite Treasure Trails (Rare)"));
 		assertEquals("master_rare",
 			ClogFetchService.normalizePageKey("Master Treasure Trails (Rare)"));
+	}
+
+	private static ClogResult resultWithCount(String playerName, int uniqueObtained,
+		String lastChanged, AccountType accountType)
+	{
+		ClogResult result = new ClogResult(
+			playerName,
+			new HashMap<>(),
+			new HashMap<>(),
+			new HashMap<>(),
+			lastChanged,
+			accountType);
+		result.setUniqueObtained(uniqueObtained);
+		result.setUniqueTotal(1701);
+		return result;
 	}
 }

@@ -73,6 +73,26 @@ public class ClogResult
 		return templeAccountType;
 	}
 
+	ClogResult withFallbackAccountTypeFrom(ClogResult fallback)
+	{
+		if (templeAccountType != null || fallback == null || fallback.templeAccountType == null)
+		{
+			return this;
+		}
+
+		ClogResult result = new ClogResult(
+			playerName,
+			obtainedItems,
+			categoryItems,
+			null,
+			lastChanged,
+			fallback.templeAccountType);
+		result.resolvedItemIds.addAll(resolvedItemIds);
+		result.uniqueObtained = uniqueObtained;
+		result.uniqueTotal = uniqueTotal;
+		return result;
+	}
+
 	public int getUniqueObtained()
 	{
 		return uniqueObtained;
