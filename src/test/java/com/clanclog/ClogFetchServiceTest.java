@@ -1,5 +1,6 @@
 package com.clanclog;
 
+import com.google.gson.Gson;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -127,6 +128,26 @@ public class ClogFetchServiceTest
 			ClogFetchService.normalizePageKey("Master Treasure Trails (Rare)"));
 	}
 
+	@Test
+	public void parseRuneProfileClogFallsBackToItemCountsWhenRootTotalsAreMissing()
+	{
+		String json = "{\"tabs\":[{\"name\":\"Bosses\",\"pages\":["
+			+ "{\"name\":\"Zulrah\",\"items\":["
+			+ "{\"id\":12921,\"name\":\"Tanzanite fang\",\"quantity\":1},"
+			+ "{\"id\":12922,\"name\":\"Serpentine visage\",\"quantity\":0}"
+			+ "]}]}]}";
+		ClogResult parsed = parseRuneProfileClog(json);
+
+		ClogResult temple = resultWithCount("CBC", 3,
+			"2026-05-28 10:24:58", AccountType.IRONMAN);
+		ClogResult picked = ClogFetchService.pickFreshest(temple, parsed);
+
+		assertEquals(-1, parsed.getUniqueObtained());
+		assertEquals(-1, parsed.getUniqueTotal());
+		assertEquals(1, parsed.getObtainedItems().get("zulrah").size());
+		assertEquals(temple, picked);
+	}
+
 	private static ClogResult resultWithCount(String playerName, int uniqueObtained,
 		String lastChanged, AccountType accountType)
 	{
@@ -140,5 +161,11 @@ public class ClogFetchServiceTest
 		result.setUniqueObtained(uniqueObtained);
 		result.setUniqueTotal(1701);
 		return result;
+	}
+
+	private static ClogResult parseRuneProfileClog(String json)
+	{
+		ClogFetchService service = new ClogFetchService(null, new Gson(), null);
+		return service.parseRuneProfileClog("CBC", json);
 	}
 }

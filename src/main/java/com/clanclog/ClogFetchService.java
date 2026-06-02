@@ -564,7 +564,7 @@ public class ClogFetchService
 	 * Items with {@code quantity > 0} are obtained. Page names are normalized
 	 * to Temple-compatible category keys.
 	 */
-	private ClogResult parseRuneProfileClog(String playerName, String json)
+	ClogResult parseRuneProfileClog(String playerName, String json)
 	{
 		JsonObject root = gson.fromJson(json, JsonObject.class);
 		if (root == null || !root.has("tabs"))
@@ -572,8 +572,8 @@ public class ClogFetchService
 			return null;
 		}
 
-		int rootObtained = intField(root, "obtained");
-		int rootTotal = intField(root, "total");
+		Integer rootObtained = optionalIntField(root, "obtained");
+		Integer rootTotal = optionalIntField(root, "total");
 
 		if (!root.get("tabs").isJsonArray())
 		{
@@ -663,8 +663,14 @@ public class ClogFetchService
 			itemNames,
 			null,
 			null);
-		result.setUniqueObtained(rootObtained);
-		result.setUniqueTotal(rootTotal);
+		if (rootObtained != null)
+		{
+			result.setUniqueObtained(rootObtained);
+		}
+		if (rootTotal != null)
+		{
+			result.setUniqueTotal(rootTotal);
+		}
 		return result;
 	}
 
@@ -897,6 +903,12 @@ public class ClogFetchService
 	private static int intField(JsonObject obj, String field)
 	{
 		return obj.has(field) && !obj.get(field).isJsonNull() ? obj.get(field).getAsInt() : 0;
+	}
+
+	private static Integer optionalIntField(JsonObject obj, String field)
+	{
+		return obj.has(field) && !obj.get(field).isJsonNull()
+			? obj.get(field).getAsInt() : null;
 	}
 
 	private CompletableFuture<HttpUtil.HttpResult> httpGet(String url)
