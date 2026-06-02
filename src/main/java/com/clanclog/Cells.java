@@ -462,7 +462,7 @@ public class Cells
 			@Override
 			public JToolTip createToolTip()
 			{
-				return keepTooltipOnHover(this, buildClanSummaryTooltip());
+				return keepTooltipOnHover(this, buildMemberSummaryTooltip());
 			}
 		};
 		styleLabel(label, "Members");
@@ -790,10 +790,9 @@ public class Cells
 		return tip;
 	}
 
-	private JToolTip buildClanSummaryTooltip()
+	JToolTip buildClanSummaryTooltip(@Nullable ClanClogResult result)
 	{
 		ClanSummaryTooltip tip = new ClanSummaryTooltip("Clan Summary");
-		ClanClogResult result = summaryResult;
 		if (result == null)
 		{
 			return tip;
@@ -810,26 +809,10 @@ public class Cells
 			}
 		}
 
-		tip.addLine("Members: ", formatTooltipCount(result.getMemberCount()),
-			tooltipValueColor(result.getMemberCount()));
 		addOptionalLine(tip, "Source: ", prettyToken(result.getSourceTier()));
 		addOptionalLine(tip, "Status: ", prettyToken(result.getBuildStatus()),
 			statusColor(result.getBuildStatus()));
 		addOptionalLine(tip, "Last sync: ", dateText(result.getLastSyncedAt()));
-
-		ClanClogResult.MemberCoverage coverage = result.getMemberCoverage();
-		if (coverage != null && coverage.getTotal() > 0)
-		{
-			tip.addLine("Synced clogs: ",
-				coverage.getClogOk() + "/" + coverage.getTotal(),
-				coverageColor(coverage.getClogOk(), coverage.getTotal()));
-			tip.addLine("Hiscores: ",
-				coverage.getHiscoreRepresented() + "/" + coverage.getTotal(),
-				coverageColor(coverage.getHiscoreRepresented(), coverage.getTotal()));
-			addPositiveLine(tip, "No data: ", coverage.getNotFound());
-			addPositiveLine(tip, "Opted out: ", coverage.getOptedOut());
-			addPositiveLine(tip, "Errors: ", coverage.getError(), ClogHelper.COLOR_EMPTY);
-		}
 
 		tip.addLine("Total Boss KC: ", formatTooltipCount(totalBossKc),
 			tooltipValueColor(totalBossKc));
@@ -842,6 +825,41 @@ public class Cells
 			tip.addLine("Clog slots: ", formatTooltipCount(clog.getTotalObtained()),
 				clogSlotColor(clog));
 		}
+		return tip;
+	}
+
+	private JToolTip buildMemberSummaryTooltip()
+	{
+		ClanSummaryTooltip tip = new ClanSummaryTooltip("Member Summary");
+		ClanClogResult result = summaryResult;
+		if (result == null)
+		{
+			return tip;
+		}
+
+		tip.addLine("Members: ", formatTooltipCount(result.getMemberCount()),
+			tooltipValueColor(result.getMemberCount()));
+
+		ClanClogResult.MemberCoverage coverage = result.getMemberCoverage();
+		if (coverage == null || coverage.getTotal() <= 0)
+		{
+			tip.addLine("Contributors: ", "--", NativeTooltip.NOTICE_COLOR);
+			tip.addLine("Hiscore only: ", "--", NativeTooltip.NOTICE_COLOR);
+			tip.addLine("Unverified: ", "--", NativeTooltip.NOTICE_COLOR);
+			return tip;
+		}
+
+		tip.addLine("Contributors: ",
+			coverage.getClogOk() + "/" + coverage.getTotal(),
+			coverageColor(coverage.getClogOk(), coverage.getTotal()));
+		tip.addLine("Hiscore only: ",
+			String.format("%,d", coverage.getHiscoreOnly()),
+			coverage.getHiscoreOnly() > 0 ? ClogHelper.PROGRESS_PARTIAL : ClogHelper.PROGRESS_COMPLETE);
+		tip.addLine("Unverified: ",
+			String.format("%,d", coverage.getNotFound()),
+			coverage.getNotFound() > 0 ? ClogHelper.PROGRESS_EMPTY : ClogHelper.PROGRESS_COMPLETE);
+		addPositiveLine(tip, "Opted out: ", coverage.getOptedOut(), ClogHelper.PROGRESS_EMPTY);
+		addPositiveLine(tip, "Errors: ", coverage.getError(), ClogHelper.PROGRESS_EMPTY);
 		return tip;
 	}
 
@@ -922,11 +940,6 @@ public class Cells
 		tip.addLine(label, value, valueColor);
 	}
 
-	private static void addPositiveLine(ClanSummaryTooltip tip, String label, int count)
-	{
-		addPositiveLine(tip, label, count, ClogHelper.COLOR_IN_PROGRESS);
-	}
-
 	private static void addPositiveLine(ClanSummaryTooltip tip, String label,
 		int count, Color valueColor)
 	{
@@ -964,16 +977,12 @@ public class Cells
 
 	static Color coverageColor(int synced, int total)
 	{
-		if (total <= 0 || synced <= 0)
-		{
-			return ClogHelper.COLOR_EMPTY;
-		}
-		return synced >= total ? ClogHelper.COLOR_COMPLETED : ClogHelper.COLOR_IN_PROGRESS;
+		return ClogHelper.progressColor(synced, total);
 	}
 
 	private static Color statusColor(String status)
 	{
-		return "ready".equalsIgnoreCase(status) ? ClogHelper.COLOR_COMPLETED : ClogHelper.COLOR_IN_PROGRESS;
+		return "ready".equalsIgnoreCase(status) ? ClogHelper.PROGRESS_COMPLETE : ClogHelper.PROGRESS_PARTIAL;
 	}
 
 	@Nullable
@@ -1181,7 +1190,7 @@ public class Cells
 		{
 			return coverageColor(counts[0], counts[1]);
 		}
-		return hasValue ? ClogHelper.COLOR_EMPTY : ColorScheme.LIGHT_GRAY_COLOR;
+		return hasValue ? ClogHelper.PROGRESS_EMPTY : ColorScheme.LIGHT_GRAY_COLOR;
 	}
 
 	private static int[] aggregateTooltipCounts(Iterable<TooltipData> values)

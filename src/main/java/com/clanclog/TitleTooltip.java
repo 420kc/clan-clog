@@ -21,9 +21,9 @@ public abstract class TitleTooltip extends NativeTooltip
 	static final Font TITLE_FONT_SMALL = FontManager.getRunescapeBoldFont().deriveFont(16f);
 	static final Color SEPARATOR_COLOR = new Color(80, 70, 50);
 
-	protected static final Color CLOG_GREEN = new Color(0, 255, 0);
-	protected static final Color CLOG_YELLOW = new Color(255, 255, 0);
-	protected static final Color CLOG_RED = new Color(255, 87, 0);
+	protected static final Color CLOG_GREEN = ClogHelper.PROGRESS_COMPLETE;
+	protected static final Color CLOG_YELLOW = ClogHelper.PROGRESS_PARTIAL;
+	protected static final Color CLOG_RED = ClogHelper.PROGRESS_EMPTY;
 
 	private String title;
 	private String subtitleLabel;
@@ -64,11 +64,7 @@ public abstract class TitleTooltip extends NativeTooltip
 	/** Native OSRS stoplight progress: red, yellow, green. */
 	protected static Color completionColor(int obtained, int total)
 	{
-		if (total <= 0 || obtained <= 0)
-		{
-			return CLOG_RED;
-		}
-		return obtained >= total ? CLOG_GREEN : CLOG_YELLOW;
+		return ClogHelper.progressColor(obtained, total);
 	}
 
 	/** Set an extra info line below the subtitle. Label in orange, value in given color. */

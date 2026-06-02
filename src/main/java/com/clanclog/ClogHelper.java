@@ -143,11 +143,16 @@ final class ClogHelper
 	// Clog tier logic
 	// -------------------------------------------------------------------------
 
-	/** Kill Clog parity: 4-tier clog completion palette. */
+	/** Kill Clog parity: 4-tier clog completion palette for visible grid cells. */
 	static final Color COLOR_COMPLETED = new Color(78, 240, 21);
 	static final Color COLOR_MISSING_1 = new Color(202, 255, 0);
 	static final Color COLOR_IN_PROGRESS = new Color(255, 173, 0);
 	static final Color COLOR_EMPTY = new Color(255, 87, 0);
+
+	/** Native OSRS stoplight palette for tooltip progress ratios. */
+	static final Color PROGRESS_COMPLETE = new Color(0, 255, 0);
+	static final Color PROGRESS_PARTIAL = new Color(255, 255, 0);
+	static final Color PROGRESS_EMPTY = new Color(255, 87, 0);
 
 	static Color clogColor(int obtained, int total)
 	{
@@ -155,6 +160,12 @@ final class ClogHelper
 		if (obtained == total - 1 && total > 1) return COLOR_MISSING_1;
 		if (obtained == 0) return COLOR_EMPTY;
 		return COLOR_IN_PROGRESS;
+	}
+
+	static Color progressColor(int obtained, int total)
+	{
+		if (total <= 0 || obtained <= 0) return PROGRESS_EMPTY;
+		return obtained >= total ? PROGRESS_COMPLETE : PROGRESS_PARTIAL;
 	}
 
 	static String getClogTierName(int obtained, int totalSlots)

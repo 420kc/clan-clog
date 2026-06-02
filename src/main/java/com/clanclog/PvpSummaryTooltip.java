@@ -199,7 +199,7 @@ public class PvpSummaryTooltip extends TitleTooltip
 		if (obtained >= 0)
 		{
 			String clogText = " (" + obtained + "/" + total + ")";
-			g2.setColor(ClogHelper.clogColor(obtained, total));
+			g2.setColor(ClogHelper.progressColor(obtained, total));
 			g2.drawString(clogText, x, textY);
 		}
 	}

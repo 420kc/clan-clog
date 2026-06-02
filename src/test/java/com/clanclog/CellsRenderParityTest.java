@@ -53,9 +53,9 @@ public class CellsRenderParityTest
 	@Test
 	public void coverageColorUsesNativeProgressionColors()
 	{
-		assertEquals(ClogHelper.COLOR_EMPTY, Cells.coverageColor(0, 344));
-		assertEquals(ClogHelper.COLOR_IN_PROGRESS, Cells.coverageColor(155, 344));
-		assertEquals(ClogHelper.COLOR_COMPLETED, Cells.coverageColor(344, 344));
+		assertEquals(ClogHelper.PROGRESS_EMPTY, Cells.coverageColor(0, 344));
+		assertEquals(ClogHelper.PROGRESS_PARTIAL, Cells.coverageColor(155, 344));
+		assertEquals(ClogHelper.PROGRESS_COMPLETE, Cells.coverageColor(344, 344));
 	}
 
 	@Test
