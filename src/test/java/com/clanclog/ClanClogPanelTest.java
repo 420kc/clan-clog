@@ -112,7 +112,6 @@ public class ClanClogPanelTest
 			+ "}");
 
 		assertEquals("1701", ClanClogPanel.totalClogInfoText(result).trim());
-		assertEquals("Total clan clog: 1,701", ClanClogPanel.totalClogInfoTooltip(result));
 	}
 
 	@Test
@@ -124,7 +123,6 @@ public class ClanClogPanelTest
 			+ "}");
 
 		assertEquals(ClogHelper.COLOR_IN_PROGRESS, ClanClogPanel.totalClogInfoColor(result));
-		assertEquals("Total clan clog: 2/4", ClanClogPanel.totalClogInfoTooltip(result));
 	}
 
 	@Test
@@ -136,7 +134,6 @@ public class ClanClogPanelTest
 			+ "}");
 
 		assertEquals(ClogHelper.COLOR_COMPLETED, ClanClogPanel.totalClogInfoColor(result));
-		assertEquals("Total clan clog: 4/4", ClanClogPanel.totalClogInfoTooltip(result));
 	}
 
 	@Test
@@ -155,7 +152,14 @@ public class ClanClogPanelTest
 			+ "}");
 
 		assertEquals(" ", ClanClogPanel.totalClogInfoText(result));
-		assertNull(ClanClogPanel.totalClogInfoTooltip(result));
+	}
+
+	@Test
+	public void shortDateTextUsesIsoDatePart()
+	{
+		assertEquals("2026-05-20", ClanClogPanel.shortDateText("2026-05-20T14:30:00Z"));
+		assertEquals("2026-05-20", ClanClogPanel.shortDateText("2026-05-20"));
+		assertNull(ClanClogPanel.shortDateText(null));
 	}
 
 	private static ClanMember member(String rsn, String rank)

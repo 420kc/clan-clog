@@ -5,6 +5,8 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -35,11 +37,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToolTip;
 import javax.swing.SwingUtilities;
-import javax.swing.border.Border;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import javax.swing.border.MatteBorder;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
@@ -89,6 +88,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final ClanLookupSession clanLookupSession;
 	private final Cells cells;
 	private final ClanMembersPanel membersPanel;
+	private final TooltipController tooltipController;
 	private final ItemManager itemManager;
 
 	private final JLabel statusLabel = new JLabel(" ");
@@ -96,12 +96,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final JLabel hiscoreCoverageLabel = new JLabel("--");
 	private final JLabel clogCoverageLabel = new JLabel("--");
 	private final IconTextField searchBar = new IconTextField();
-	private static final Border CLAN_HEADER_BORDER = new CompoundBorder(
-		new MatteBorder(0, 0, 1, 0, ColorScheme.DARK_GRAY_COLOR),
-		new EmptyBorder(0, 4, 0, 0));
-	private static final Border CLAN_HEADER_HOVER_BORDER = new CompoundBorder(
-		new MatteBorder(0, 0, 1, 0, KC4),
-		new EmptyBorder(0, 4, 0, 0));
 
 	private final JLabel clanHeader = new JLabel(" ")
 	{
@@ -110,8 +104,29 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return buildClanHeaderTooltip();
 		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			super.paintComponent(g);
+			paintUnderline(this, g, true);
+		}
 	};
-	private final JLabel clanClogInfoLabel = new JLabel(" ");
+	private final JLabel clanClogInfoLabel = new JLabel(" ")
+	{
+		@Override
+		public JToolTip createToolTip()
+		{
+			return buildClanClogInfoTooltip();
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			super.paintComponent(g);
+			paintUnderline(this, g, false);
+		}
+	};
 	private final JButton clanalyzeButton = new JButton("clanalyze");
 	private final JButton syncButton = new JButton("sync");
 	private final ActivitiesTray activitiesTray;
@@ -186,7 +201,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		LocalClanProfileCache clanProfileCache,
 		InGameClanReader clanReader, KillclogApiClient apiClient,
 		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel,
-		ItemManager itemManager)
+		TooltipController tooltipController, ItemManager itemManager)
 	{
 		super(true);
 		this.config = config;
@@ -202,6 +217,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		this.clanLookupSession = clanLookupSession;
 		this.cells = cells;
 		this.membersPanel = membersPanel;
+		this.tooltipController = tooltipController;
 		this.itemManager = itemManager;
 
 		// Configure PluginPanel's scroll pane (Kill Clog parity)
@@ -263,10 +279,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanHeader.setFont(FontManager.getRunescapeSmallFont());
 		clanHeader.setForeground(KC4);
 		clanHeader.setHorizontalAlignment(JLabel.LEFT);
-		clanHeader.setBorder(CLAN_HEADER_BORDER);
+		clanHeader.setBorder(new EmptyBorder(0, 4, 0, 0));
 		clanHeader.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		installClanHeaderHover();
 		setClanHeaderText(" ");
 		clanClogInfoLabel.setFont(FontManager.getRunescapeSmallFont());
 		clanClogInfoLabel.setForeground(KC_TEXT);
@@ -277,6 +292,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanClogInfoLabel.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		setClanClogInfo(null);
+		installSummaryLabelHover(clanHeader, clanClogInfoLabel);
 
 		configureActionButton(clanalyzeButton, "build clan profile");
 		clanalyzeButton.addActionListener(e -> onClanalyzeClicked());
@@ -420,25 +436,43 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanHeader.setForeground(KC4);
 	}
 
-	private void installClanHeaderHover()
+	private void installSummaryLabelHover(JLabel... labels)
 	{
-		clanHeader.addMouseListener(new MouseAdapter()
+		for (JLabel label : labels)
 		{
-			@Override
-			public void mouseEntered(MouseEvent e)
+			label.addMouseListener(new MouseAdapter()
 			{
-				if (clanHeader.getToolTipText() != null)
+				@Override
+				public void mousePressed(MouseEvent e)
 				{
-					clanHeader.setBorder(CLAN_HEADER_HOVER_BORDER);
+					if (config.tooltipMode() == TooltipMode.CLICK && label.getToolTipText() != null)
+					{
+						Container parent = label.getParent();
+						if (parent instanceof JPanel)
+						{
+							tooltipController.showClickTooltip(label, (JPanel) parent);
+						}
+					}
 				}
-			}
 
-			@Override
-			public void mouseExited(MouseEvent e)
-			{
-				clanHeader.setBorder(CLAN_HEADER_BORDER);
-			}
-		});
+				@Override
+				public void mouseEntered(MouseEvent e)
+				{
+					if (label.getToolTipText() != null)
+					{
+						label.putClientProperty("underlined", true);
+						label.repaint();
+					}
+				}
+
+				@Override
+				public void mouseExited(MouseEvent e)
+				{
+					label.putClientProperty("underlined", null);
+					label.repaint();
+				}
+			});
+		}
 	}
 
 	private JToolTip buildClanHeaderTooltip()
@@ -447,6 +481,64 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		JToolTip tip = cells.buildClanSummaryTooltip(result);
 		tip.setComponent(clanHeader);
 		return tip;
+	}
+
+	private JToolTip buildClanClogInfoTooltip()
+	{
+		ClogSummaryTooltip tip = new ClogSummaryTooltip();
+		tip.setComponent(clanClogInfoLabel);
+
+		ClanClogResult result = lastRenderedResult != null ? lastRenderedResult : lastBackendResult;
+		int obtained = totalClogCount(result);
+		if (obtained <= 0)
+		{
+			tip.setNotice("No Collection Log Data");
+			return tip;
+		}
+
+		int total = totalClogSlots(result);
+		Map<String, BufferedImage> icons = new LinkedHashMap<>();
+		for (Map.Entry<String, ImageIcon> entry : clogTierIcons.entrySet())
+		{
+			icons.put(entry.getKey(), ClogHelper.iconToImage(entry.getValue()));
+		}
+		tip.setTierData(obtained, total > 0 ? total : obtained, icons);
+
+		String sync = shortDateText(result != null ? result.getClogLastChanged() : null);
+		if (sync != null)
+		{
+			tip.setSyncData(sync, false);
+		}
+		return tip;
+	}
+
+	private static void paintUnderline(JLabel label, Graphics g, boolean leftAligned)
+	{
+		if (!Boolean.TRUE.equals(label.getClientProperty("underlined")))
+		{
+			return;
+		}
+		String text = label.getText();
+		if (text == null || text.isBlank())
+		{
+			return;
+		}
+		FontMetrics fm = g.getFontMetrics();
+		int textWidth = fm.stringWidth(text.trim());
+		int y = (label.getHeight() + fm.getAscent() - fm.getDescent()) / 2 + 1;
+		g.setColor(label.getForeground());
+		if (leftAligned)
+		{
+			int iconOffset = label.getIcon() != null
+				? label.getIcon().getIconWidth() + label.getIconTextGap() : 0;
+			int textStart = label.getInsets().left + iconOffset;
+			g.drawLine(textStart, y, textStart + textWidth, y);
+		}
+		else
+		{
+			int textEnd = label.getWidth() - label.getInsets().right;
+			g.drawLine(textEnd - textWidth, y, textEnd, y);
+		}
 	}
 
 	private JPanel buildStatusRow()
@@ -1934,7 +2026,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private void setClanClogInfo(@Nullable ClanClogResult result)
 	{
 		clanClogInfoLabel.setText(totalClogInfoText(result));
-		clanClogInfoLabel.setToolTipText(totalClogInfoTooltip(result));
+		clanClogInfoLabel.setToolTipText(totalClogCount(result) > 0 ? " " : null);
 		clanClogInfoLabel.setForeground(totalClogInfoColor(result));
 		clanClogInfoLabel.setIcon(totalClogInfoIcon(result));
 		revalidate();
@@ -1955,20 +2047,18 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	@Nullable
-	static String totalClogInfoTooltip(@Nullable ClanClogResult result)
+	static String shortDateText(@Nullable String raw)
 	{
-		int obtained = totalClogCount(result);
-		if (obtained <= 0)
+		if (raw == null || raw.isBlank())
 		{
 			return null;
 		}
-		int total = totalClogSlots(result);
-		if (total > 0)
+		int dateEnd = raw.indexOf('T');
+		if (dateEnd > 0)
 		{
-			return "Total clan clog: " + String.format("%,d", obtained)
-				+ "/" + String.format("%,d", total);
+			return raw.substring(0, dateEnd);
 		}
-		return "Total clan clog: " + String.format("%,d", obtained);
+		return raw.length() > 10 ? raw.substring(0, 10) : raw;
 	}
 
 	static Color totalClogInfoColor(@Nullable ClanClogResult result)
