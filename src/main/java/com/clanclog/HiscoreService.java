@@ -63,7 +63,7 @@ public class HiscoreService
 	//   2. Wait for RuneLite to add HiscoreSkill enum (check latest.release jar)
 	//   3. Add HiscoreSkill.BOSS_NAME to BOSSES[] in PanelData (alphabetical)
 	//   4. If HiscoreSkill.getName() != CSV name, add to NAME_OVERRIDES
-	//   5. If Temple uses non-standard category key, add to BOSS_CATEGORY_OVERRIDES in ClogService
+	//   5. If a provider uses a non-standard category key, add to ClogHelper overrides
 	private static final String[] BOSS_NAMES = {
 		"Abyssal Sire", "Alchemical Hydra", "Amoxliatl", "Araxxor",
 		"Artio", "Barrows Chests", "Brutus", "Bryophyta", "Callisto",

@@ -21,7 +21,7 @@ public class ClogResult
 	private final Set<Integer> resolvedItemIds;
 	/** When the source last reported a collection-log sync, or null if unavailable. */
 	private final String lastChanged;
-	/** Account type detected from Temple's game_mode, or null if unknown */
+	/** Account type carried by provider metadata, or null if unknown. */
 	private final AccountType templeAccountType;
 	/** Game-reported unique obtained count (varp 2943), or -1 if unavailable */
 	private int uniqueObtained = -1;

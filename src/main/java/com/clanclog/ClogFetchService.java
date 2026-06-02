@@ -347,9 +347,11 @@ public class ClogFetchService
 
 	/**
 	 * Compare two clog results and return whichever represents the most
-	 * recent sync. Collection log items only accumulate, so the result
-	 * with more obtained items is fresher. When counts are close (within 5),
-	 * prefer Temple for its richer metadata (lastChanged, accountType).
+	 * recent sync. Collection log items only accumulate, so the result with
+	 * more obtained items is fresher. When RuneProfile is meaningfully fresher,
+	 * keep its clog rows but preserve Temple account metadata when available.
+	 * When counts are close (within 5), prefer Temple for lastChanged/account
+	 * metadata.
 	 */
 	static ClogResult pickFreshest(ClogResult temple, ClogResult rp)
 	{
@@ -371,7 +373,7 @@ public class ClogFetchService
 				rp.getPlayerName(), rpCount, templeCount);
 			return rp.withFallbackAccountTypeFrom(temple);
 		}
-		// Temple wins when tied or close because it has lastChanged + accountType.
+		// Temple wins when tied or close because it has lastChanged + account metadata.
 		return temple;
 	}
 

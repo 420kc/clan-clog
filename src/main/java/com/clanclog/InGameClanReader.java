@@ -23,7 +23,8 @@ import net.runelite.api.clan.ClanSettings;
  * <p>Wraps {@code client.getClanSettings(slot)} for slots 0, 1, and the guest
  * channel. {@code ClanSettings.getMembers()} returns the full offline-inclusive
  * roster of every member -- not just currently-online ones. No external API
- * dependency; no rate limits; survives WOM / Temple / killclog.com outages.
+ * dependency; no rate limits; survives WOM / Temple / RuneProfile /
+ * killclog.com outages.
  *
  * <p>Cache refresh is driven by the plugin's {@code @Subscribe onWidgetLoaded}
  * hook: when the clan sidepanel opens in-game, the plugin calls

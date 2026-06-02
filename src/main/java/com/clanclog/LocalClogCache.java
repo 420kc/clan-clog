@@ -208,7 +208,7 @@ public class LocalClogCache
 		}
 		String key = RsnNormalizer.cacheKey(name);
 
-		// Preserve varp-sourced totals if they're higher than what Temple reports
+		// Preserve varp-sourced totals if they're higher than what providers report.
 		PlayerClogData existing = getOrLoad(key, name);
 
 		PlayerClogData data = new PlayerClogData();
@@ -523,7 +523,7 @@ public class LocalClogCache
 			categoriesCopy,
 			itemNames != null ? itemNames : new HashMap<>(),
 			data.lastChanged != null ? data.lastChanged : data.lastUpdated,
-			null  // no Temple account type for local data
+			null  // no provider account type for local data
 		);
 		if (data.uniqueObtained > 0)
 		{
