@@ -4,7 +4,9 @@ Clan Clog is a RuneLite plugin. The clan-scale sibling to [Kill Clog](https://gi
 
 ## product
 
-Search a clan name. See a Kill Clog Profile where the collection log is the union of every clan member's clog. The clan as a super-account whose unique-item set is the combined drop history of its members.
+Search a clan name. See a Clan Clog Profile: a shared PvM trophy case where the collection log is the union of every member's public drops.
+
+Clan Clog is a clan identity surface, not a leaderboard. The goal is to make a clan's collection log readable, shareable, and proof-backed through roster syncs, public hiscores, TempleOSRS, RuneProfile, and item-level proof when available.
 
 ## status
 

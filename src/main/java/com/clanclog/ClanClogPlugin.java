@@ -35,7 +35,7 @@ import net.runelite.client.util.Text;
 @Slf4j
 @PluginDescriptor(
 	name = "Clan Clog",
-	description = "Search a clan, see every member ranked",
+	description = "Search a clan, view its shared collection log",
 	tags = {"clan", "hiscores", "420kc"}
 )
 public class ClanClogPlugin extends Plugin
