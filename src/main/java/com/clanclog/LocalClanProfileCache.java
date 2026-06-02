@@ -463,8 +463,8 @@ public class LocalClanProfileCache
 			ClogRecord record = new ClogRecord();
 			record.playerName = result.getPlayerName();
 			record.lastChanged = result.getLastChanged();
-			record.accountType = result.getTempleAccountType() != null
-				? result.getTempleAccountType().name() : null;
+			record.accountType = result.getProviderAccountType() != null
+				? result.getProviderAccountType().name() : null;
 			record.uniqueObtained = result.getUniqueObtained() >= 0
 				? result.getUniqueObtained() : obtainedCount(result);
 			record.uniqueTotal = result.getUniqueTotal();

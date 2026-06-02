@@ -22,7 +22,7 @@ public class ClogResult
 	/** When the source last reported a collection-log sync, or null if unavailable. */
 	private final String lastChanged;
 	/** Account type carried by provider metadata, or null if unknown. */
-	private final AccountType templeAccountType;
+	private final AccountType providerAccountType;
 	/** Game-reported unique obtained count (varp 2943), or -1 if unavailable */
 	private int uniqueObtained = -1;
 	/** Game-reported total clog slots (varp 2944), or -1 if unavailable */
@@ -34,7 +34,7 @@ public class ClogResult
 		Map<String, List<Integer>> categoryItems,
 		Map<Integer, String> itemNames,
 		String lastChanged,
-		AccountType templeAccountType)
+		AccountType providerAccountType)
 	{
 		this.playerName = playerName;
 		this.obtainedItems = obtainedItems;
@@ -45,7 +45,7 @@ public class ClogResult
 			resolvedItemIds.addAll(itemNames.keySet());
 		}
 		this.lastChanged = lastChanged;
-		this.templeAccountType = templeAccountType;
+		this.providerAccountType = providerAccountType;
 	}
 
 	public String getPlayerName()
@@ -68,14 +68,14 @@ public class ClogResult
 		return categoryItems;
 	}
 
-	public AccountType getTempleAccountType()
+	public AccountType getProviderAccountType()
 	{
-		return templeAccountType;
+		return providerAccountType;
 	}
 
 	ClogResult withFallbackAccountTypeFrom(ClogResult fallback)
 	{
-		if (templeAccountType != null || fallback == null || fallback.templeAccountType == null)
+		if (providerAccountType != null || fallback == null || fallback.providerAccountType == null)
 		{
 			return this;
 		}
@@ -86,7 +86,7 @@ public class ClogResult
 			categoryItems,
 			null,
 			lastChanged,
-			fallback.templeAccountType);
+			fallback.providerAccountType);
 		result.resolvedItemIds.addAll(resolvedItemIds);
 		result.uniqueObtained = uniqueObtained;
 		result.uniqueTotal = uniqueTotal;

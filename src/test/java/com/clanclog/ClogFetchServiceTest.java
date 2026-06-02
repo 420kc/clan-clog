@@ -102,7 +102,7 @@ public class ClogFetchServiceTest
 	}
 
 	@Test
-	public void pickFreshestKeepsTempleAccountTypeWhenRuneProfileWins()
+	public void pickFreshestKeepsProviderAccountTypeWhenRuneProfileWins()
 	{
 		ClogResult temple = resultWithCount("CBC", 100,
 			"2026-05-28 10:24:58", AccountType.GROUP_IRONMAN);
@@ -111,7 +111,7 @@ public class ClogFetchServiceTest
 		ClogResult picked = ClogFetchService.pickFreshest(temple, runeProfile);
 
 		assertEquals(108, picked.getUniqueObtained());
-		assertEquals(AccountType.GROUP_IRONMAN, picked.getTempleAccountType());
+		assertEquals(AccountType.GROUP_IRONMAN, picked.getProviderAccountType());
 		assertNull(picked.getLastChanged());
 	}
 

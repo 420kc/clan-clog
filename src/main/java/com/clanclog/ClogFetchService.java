@@ -227,8 +227,8 @@ public class ClogFetchService
 			categories,
 			itemNames != null ? itemNames : new HashMap<>(),
 			newerString(provider.getLastChanged(), local.getLastChanged()),
-			provider.getTempleAccountType() != null
-				? provider.getTempleAccountType() : local.getTempleAccountType());
+			provider.getProviderAccountType() != null
+				? provider.getProviderAccountType() : local.getProviderAccountType());
 
 		int uniqueObtained = Math.max(
 			Math.max(provider.getUniqueObtained(), local.getUniqueObtained()),
