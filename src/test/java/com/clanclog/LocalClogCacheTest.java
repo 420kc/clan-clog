@@ -106,6 +106,45 @@ public class LocalClogCacheTest
 	}
 
 	@Test
+	public void providerCachePreservesAccountType() throws Exception
+	{
+		LocalClogCache cache = new LocalClogCache(new Gson(), tempDir());
+
+		Map<String, List<Integer>> categories = new HashMap<>();
+		categories.put("phantom_muspah", Arrays.asList(1, 2, 3));
+		Map<String, List<ClogResult.ClogItem>> obtained = new HashMap<>();
+		obtained.put("phantom_muspah",
+			Arrays.asList(new ClogResult.ClogItem(1, 1, null)));
+		cache.cacheResult(new ClogResult(
+			"420 kc", obtained, categories, new HashMap<>(), null,
+			AccountType.GROUP_IRONMAN));
+
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+
+		assertEquals(AccountType.GROUP_IRONMAN, result.getProviderAccountType());
+	}
+
+	@Test
+	public void providerCacheKeepsDiskAccountTypeWhenNextProviderOmitsIt() throws Exception
+	{
+		File dir = tempDir();
+		writeCachedPlayer(dir, "2026-05-30T00:00:00Z", AccountType.GROUP_IRONMAN);
+
+		LocalClogCache cache = new LocalClogCache(new Gson(), dir);
+		Map<String, List<Integer>> categories = new HashMap<>();
+		categories.put("phantom_muspah", Arrays.asList(1, 2, 3));
+		Map<String, List<ClogResult.ClogItem>> obtained = new HashMap<>();
+		obtained.put("phantom_muspah",
+			Arrays.asList(new ClogResult.ClogItem(1, 1, null)));
+		cache.cacheResult(new ClogResult(
+			"420 kc", obtained, categories, new HashMap<>(), null, null));
+
+		ClogResult result = cache.toClogResult("420 kc", new HashMap<>());
+
+		assertEquals(AccountType.GROUP_IRONMAN, result.getProviderAccountType());
+	}
+
+	@Test
 	public void providerCacheLoadsDiskBeforeReplacingLocalGains() throws Exception
 	{
 		File dir = tempDir();
@@ -221,9 +260,16 @@ public class LocalClogCacheTest
 
 	private static void writeCachedPlayer(File dir, String lastUpdated) throws Exception
 	{
+		writeCachedPlayer(dir, lastUpdated, null);
+	}
+
+	private static void writeCachedPlayer(File dir, String lastUpdated,
+		AccountType accountType) throws Exception
+	{
 		Files.writeString(new File(dir, "420_kc.json").toPath(), "{"
 			+ "\"playerName\":\"420 kc\","
 			+ "\"lastUpdated\":\"" + lastUpdated + "\","
+			+ accountTypeJson(accountType)
 			+ "\"uniqueObtained\":2,"
 			+ "\"uniqueTotal\":1701,"
 			+ "\"categories\":{"
@@ -235,6 +281,13 @@ public class LocalClogCacheTest
 			+ "\"fortis_colosseum\":[{\"id\":4,\"count\":1}]"
 			+ "}"
 			+ "}", StandardCharsets.UTF_8);
+	}
+
+	private static String accountTypeJson(AccountType accountType)
+	{
+		return accountType != null
+			? "\"accountType\":\"" + accountType.name() + "\","
+			: "";
 	}
 
 	private static Map<Integer, Integer> countsById(List<ClogResult.ClogItem> items)

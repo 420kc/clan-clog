@@ -31,7 +31,7 @@ import net.runelite.client.RuneLite;
  *
  * <p>Stores per-player clog data in {@code ~/.runelite/clan-clog/} as JSON files.
  * Populated via bulk capture when the player opens their collection log in-game.
- * Persists across client restarts , any account ever captured is available permanently.
+ * Persists across client restarts; any account ever captured is available permanently.
  *
  * <p>Disk writes are dispatched to a single background thread to avoid blocking the
  * game client thread.
@@ -49,7 +49,7 @@ public class LocalClogCache
 	private volatile String activePlayer;
 
 	/**
-	 * Disk I/O , single-threaded executor + per-player coalesce window.
+	 * Disk I/O: single-threaded executor plus a per-player coalesce window.
 	 * Bursts of category navigation collapse to one write per player.
 	 * Volatile so shutdown() can swap the reference visibly to concurrent submitters.
 	 */
@@ -118,8 +118,8 @@ public class LocalClogCache
 	}
 
 	/**
-	 * Swap in a fresh executor before shutting down the old one , keeps a live
-	 * executor available for the next startUp(). Without this, the @Singleton
+	 * Swap in a fresh executor before shutting down the old one. This keeps a
+	 * live executor available for the next startUp(). Without this, the @Singleton
 	 * survives plugin reload but its executor would be permanently dead.
 	 */
 	public void shutdown()
@@ -228,6 +228,9 @@ public class LocalClogCache
 			}
 		}
 		data.lastChanged = result.getLastChanged();
+		data.accountType = result.getProviderAccountType() != null
+			? result.getProviderAccountType().name()
+			: existing != null ? existing.accountType : null;
 		data.obtained = new ConcurrentHashMap<>();
 		data.categories = new ConcurrentHashMap<>();
 
@@ -504,7 +507,7 @@ public class LocalClogCache
 			return null;
 		}
 
-		// Defensive copies , callers may mutate their maps
+		// Defensive copies; callers may mutate their maps.
 		Map<String, List<ClogResult.ClogItem>> obtainedCopy = new HashMap<>();
 		for (Map.Entry<String, List<ClogResult.ClogItem>> entry : data.obtained.entrySet())
 		{
@@ -523,7 +526,7 @@ public class LocalClogCache
 			categoriesCopy,
 			itemNames != null ? itemNames : new HashMap<>(),
 			data.lastChanged != null ? data.lastChanged : data.lastUpdated,
-			null  // no provider account type for local data
+			parseAccountType(data.accountType)
 		);
 		if (data.uniqueObtained > 0)
 		{
@@ -697,13 +700,14 @@ public class LocalClogCache
 		return data;
 	}
 
-	/** Shallow copy sufficient for async disk write , lists are already copied in callers. */
+	/** Shallow copy sufficient for async disk write; lists are already copied in callers. */
 	private static PlayerClogData shallowCopy(PlayerClogData src)
 	{
 		PlayerClogData copy = new PlayerClogData();
 		copy.playerName = src.playerName;
 		copy.lastUpdated = src.lastUpdated;
 		copy.lastChanged = src.lastChanged;
+		copy.accountType = src.accountType;
 		copy.uniqueObtained = src.uniqueObtained;
 		copy.uniqueTotal = src.uniqueTotal;
 		copy.categories = new HashMap<>(src.categories);
@@ -711,11 +715,28 @@ public class LocalClogCache
 		return copy;
 	}
 
+	private static AccountType parseAccountType(String value)
+	{
+		if (value == null || value.isBlank())
+		{
+			return null;
+		}
+		try
+		{
+			return AccountType.valueOf(value);
+		}
+		catch (IllegalArgumentException ignored)
+		{
+			return null;
+		}
+	}
+
 	private static class PlayerClogData
 	{
 		String playerName;
 		String lastUpdated;
 		String lastChanged;
+		String accountType;
 		int uniqueObtained = -1;
 		int uniqueTotal = -1;
 		Map<String, List<Integer>> categories;
