@@ -2033,6 +2033,25 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		repaint();
 	}
 
+	@Override
+	public void onActivate()
+	{
+		tooltipController.captureDefaults(this);
+	}
+
+	@Override
+	public void onDeactivate()
+	{
+		tooltipController.restoreDefaults();
+	}
+
+	@Override
+	public void removeNotify()
+	{
+		super.removeNotify();
+		tooltipController.hideClickTooltip();
+	}
+
 	@Nullable
 	private ImageIcon totalClogInfoIcon(@Nullable ClanClogResult result)
 	{

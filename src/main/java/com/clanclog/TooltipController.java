@@ -2,20 +2,25 @@ package com.clanclog;
 
 import java.awt.AWTEvent;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToolTip;
 import javax.swing.Popup;
 import javax.swing.PopupFactory;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.ToolTipManager;
 import javax.swing.border.Border;
@@ -44,12 +49,15 @@ class TooltipController
 	private AWTEventListener clickDismissListener;
 	private JLabel clickDismissedLabel;
 	private JComponent clickDismissedComponent;
+	private Window focusWindow;
+	private WindowAdapter windowFocusListener;
 
 	// Hover state
 	private JPanel hoveredCell;
 	private Timer hoverExitTimer;
 
-	// ToolTipManager defaults , captured in onActivate, restored in onDeactivate
+	// ToolTipManager defaults captured on activate and restored on deactivate.
+	private boolean defaultsCaptured;
 	private int defaultDismissDelay;
 	private int defaultInitialDelay = -1;
 
@@ -283,38 +291,62 @@ class TooltipController
 		{
 			activeClickPopup.hide();
 			activeClickPopup = null;
-			activeClickLabel = null;
-			activeClickComponent = null;
 		}
+		activeClickLabel = null;
+		activeClickComponent = null;
 	}
 
-	/** Capture ToolTipManager defaults , call from onActivate(). */
+	/** Capture ToolTipManager defaults and panel window focus loss. */
+	void captureDefaults(Component owner)
+	{
+		captureDefaults();
+		installWindowFocusListener(owner);
+	}
+
+	/** Capture ToolTipManager defaults. */
 	void captureDefaults()
 	{
-		defaultDismissDelay = ToolTipManager.sharedInstance().getDismissDelay();
+		if (!defaultsCaptured)
+		{
+			defaultDismissDelay = ToolTipManager.sharedInstance().getDismissDelay();
+			defaultsCaptured = true;
+		}
 		ToolTipManager.sharedInstance().setDismissDelay(15000);
 
 		if (config.tooltipMode() == TooltipMode.CLICK)
 		{
-			defaultInitialDelay = ToolTipManager.sharedInstance().getInitialDelay();
+			if (defaultInitialDelay < 0)
+			{
+				defaultInitialDelay = ToolTipManager.sharedInstance().getInitialDelay();
+			}
 			ToolTipManager.sharedInstance().setInitialDelay(Integer.MAX_VALUE);
 		}
 	}
 
-	/** Restore ToolTipManager defaults , call from onDeactivate()/shutdown(). */
+	/** Restore ToolTipManager defaults from deactivate or shutdown. */
 	void restoreDefaults()
 	{
-		ToolTipManager.sharedInstance().setDismissDelay(defaultDismissDelay);
-		if (defaultInitialDelay >= 0)
+		if (defaultsCaptured)
 		{
-			ToolTipManager.sharedInstance().setInitialDelay(defaultInitialDelay);
-			defaultInitialDelay = -1;
+			ToolTipManager.sharedInstance().setDismissDelay(defaultDismissDelay);
+			if (defaultInitialDelay >= 0)
+			{
+				ToolTipManager.sharedInstance().setInitialDelay(defaultInitialDelay);
+				defaultInitialDelay = -1;
+			}
+			defaultsCaptured = false;
 		}
 		hideClickTooltip();
+		uninstallWindowFocusListener();
 	}
 
 	void clearHoveredCell()
 	{
+		if (hoverExitTimer != null)
+		{
+			hoverExitTimer.stop();
+			hoverExitTimer = null;
+		}
 		resetCellHover();
 		hoveredCell = null;
 	}
@@ -331,5 +363,49 @@ class TooltipController
 			resetCellHover();
 			hoveredCell = null;
 		}
+	}
+
+	private void installWindowFocusListener(Component owner)
+	{
+		if (owner == null)
+		{
+			return;
+		}
+		Window window = SwingUtilities.getWindowAncestor(owner);
+		if (window == null)
+		{
+			return;
+		}
+		if (focusWindow == window && windowFocusListener != null)
+		{
+			return;
+		}
+		uninstallWindowFocusListener();
+		focusWindow = window;
+		windowFocusListener = new WindowAdapter()
+		{
+			@Override
+			public void windowLostFocus(WindowEvent e)
+			{
+				hideTransientTooltipState();
+			}
+		};
+		window.addWindowFocusListener(windowFocusListener);
+	}
+
+	private void uninstallWindowFocusListener()
+	{
+		if (focusWindow != null && windowFocusListener != null)
+		{
+			focusWindow.removeWindowFocusListener(windowFocusListener);
+		}
+		focusWindow = null;
+		windowFocusListener = null;
+	}
+
+	private void hideTransientTooltipState()
+	{
+		hideClickTooltip();
+		clearHoveredCell();
 	}
 }

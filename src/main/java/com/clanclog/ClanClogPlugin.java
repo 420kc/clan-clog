@@ -114,7 +114,7 @@ public class ClanClogPlugin extends Plugin
 			.panel(panel)
 			.build();
 		clientToolbar.addNavigation(navButton);
-		tooltipController.captureDefaults();
+		tooltipController.captureDefaults(panel);
 		refreshInGameClanSoon();
 		log.debug("clan clog: startUp");
 	}
