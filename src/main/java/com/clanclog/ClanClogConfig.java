@@ -62,4 +62,16 @@ public interface ClanClogConfig extends Config
 	{
 		return false;
 	}
+
+	@ConfigItem(
+		keyName = "operatorSyncToken",
+		name = "Operator Sync Token",
+		description = "Temporary pre-public operator token for queuing observed in-game clan rosters from guest mode.",
+		warning = "This is an internal pre-public seeding tool. Leave blank unless Dylan asked you to use it.",
+		position = 5
+	)
+	default String operatorSyncToken()
+	{
+		return "";
+	}
 }

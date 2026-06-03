@@ -47,7 +47,63 @@ public class InGameClanReader
 	private volatile String cachedLocalName;
 	/** Cached on ClientThread during refresh(). Safe to read from EDT. */
 	private volatile String cachedKeyRank;
+	/** Cached guest ClanSettings snapshot. Safe to read from EDT. */
+	@Nullable
+	private volatile RosterSnapshot guestSnapshot;
 	private final List<Consumer<List<ClanMember>>> listeners = new CopyOnWriteArrayList<>();
+
+	public static final class RosterSnapshot
+	{
+		private final String sourceSlot;
+		private final String clanName;
+		private final List<ClanMember> roster;
+		@Nullable
+		private final String localPlayerName;
+		@Nullable
+		private final String localPlayerKeyRank;
+
+		private RosterSnapshot(String sourceSlot, String clanName, List<ClanMember> roster,
+			@Nullable String localPlayerName, @Nullable String localPlayerKeyRank)
+		{
+			this.sourceSlot = sourceSlot;
+			this.clanName = clanName;
+			this.roster = Collections.unmodifiableList(roster);
+			this.localPlayerName = localPlayerName;
+			this.localPlayerKeyRank = localPlayerKeyRank;
+		}
+
+		public String getSourceSlot()
+		{
+			return sourceSlot;
+		}
+
+		public String getClanName()
+		{
+			return clanName;
+		}
+
+		public List<ClanMember> getRoster()
+		{
+			return roster;
+		}
+
+		@Nullable
+		public String getLocalPlayerName()
+		{
+			return localPlayerName;
+		}
+
+		@Nullable
+		public String getLocalPlayerKeyRank()
+		{
+			return localPlayerKeyRank;
+		}
+
+		public boolean hasRoster()
+		{
+			return !roster.isEmpty();
+		}
+	}
 
 	@Inject
 	public InGameClanReader(Client client)
@@ -65,6 +121,13 @@ public class InGameClanReader
 	public String currentClanName()
 	{
 		return clanName;
+	}
+
+	@Nullable
+	public RosterSnapshot currentGuestSnapshot()
+	{
+		RosterSnapshot snapshot = guestSnapshot;
+		return snapshot != null && snapshot.hasRoster() ? snapshot : null;
 	}
 
 	public void addListener(Consumer<List<ClanMember>> listener)
@@ -136,6 +199,50 @@ public class InGameClanReader
 		return null;
 	}
 
+	@Nullable
+	private static RosterSnapshot snapshot(String sourceSlot, @Nullable ClanSettings source,
+		@Nullable String localName)
+	{
+		if (source == null)
+		{
+			return null;
+		}
+		String name = source.getName() != null && !source.getName().isEmpty()
+			? source.getName() : "unnamed clan";
+		List<ClanMember> roster = new ArrayList<>();
+		Set<String> seen = new HashSet<>();
+		for (net.runelite.api.clan.ClanMember m : source.getMembers())
+		{
+			ClanMember adapted = ClanMember.fromInGame(m, source);
+			if (adapted != null && seen.add(adapted.getRsn().toLowerCase()))
+			{
+				roster.add(adapted);
+			}
+		}
+		return new RosterSnapshot(sourceSlot, name, roster, localName,
+			resolveKeyRank(source, localName));
+	}
+
+	@Nullable
+	private static RosterSnapshot firstWithRoster(RosterSnapshot... snapshots)
+	{
+		for (RosterSnapshot snapshot : snapshots)
+		{
+			if (snapshot != null && snapshot.hasRoster())
+			{
+				return snapshot;
+			}
+		}
+		for (RosterSnapshot snapshot : snapshots)
+		{
+			if (snapshot != null)
+			{
+				return snapshot;
+			}
+		}
+		return null;
+	}
+
 	/**
 	 * Read fresh roster data from the live client. MUST be called on the client
 	 * thread (RuneLite's Client api is not thread-safe). Listeners are invoked
@@ -146,73 +253,27 @@ public class InGameClanReader
 		ClanSettings primary = client.getClanSettings(0);
 		ClanSettings secondary = client.getClanSettings(1);
 		ClanSettings guest = client.getGuestClanSettings();
-
-		// Pick ONE authoritative slot rather than merging members across slots.
-		// Merging let a guest/secondary clan's members into the synced roster
-		// while key-rank auth came from slot 0, mixing unrelated clans. Prefer
-		// the player's own clan (slot 0), then secondary, then the guest channel.
-		// Single-clan users are unaffected. Syncing a clan you only own in a
-		// non-primary slot is a deferred product decision.
-		//
-		// Prefer the first slot that actually carries a roster so a transient
-		// empty-but-non-null slot 0 can't suppress a populated secondary/guest.
-		// Fall back to the first non-null slot for the name when none have members.
-		ClanSettings[] order = { primary, secondary, guest };
-		String[] labels = { "primary", "secondary", "guest" };
-		ClanSettings source = null;
-		String slotLabel = "none";
-		for (int i = 0; i < order.length; i++)
-		{
-			if (order[i] != null && !order[i].getMembers().isEmpty())
-			{
-				source = order[i];
-				slotLabel = labels[i];
-				break;
-			}
-		}
-		if (source == null)
-		{
-			for (int i = 0; i < order.length; i++)
-			{
-				if (order[i] != null)
-				{
-					source = order[i];
-					slotLabel = labels[i] + " (empty)";
-					break;
-				}
-			}
-		}
-
-		clanName = (source != null && source.getName() != null && !source.getName().isEmpty())
-			? source.getName() : null;
-
-		// Dedup by lowercase RSN within the chosen slot (defensive; a slot
-		// shouldn't list a member twice, but the batch must not double-fire).
-		List<ClanMember> next = new ArrayList<>();
-		if (source != null)
-		{
-			Set<String> seen = new HashSet<>();
-			for (net.runelite.api.clan.ClanMember m : source.getMembers())
-			{
-				ClanMember adapted = ClanMember.fromInGame(m, source);
-				if (adapted != null && seen.add(adapted.getRsn().toLowerCase()))
-				{
-					next.add(adapted);
-				}
-			}
-		}
-
-		cached = Collections.unmodifiableList(next);
-
-		// Cache local player info on the client thread so EDT callers
-		// never touch the Client API directly. Key rank comes from the SAME
-		// slot as the roster so sync auth always matches the synced clan.
 		Player local = client.getLocalPlayer();
-		cachedLocalName = local != null ? local.getName() : null;
-		cachedKeyRank = resolveKeyRank(source, cachedLocalName);
+		String localName = local != null ? local.getName() : null;
+		RosterSnapshot primarySnapshot = snapshot("primary", primary, localName);
+		RosterSnapshot secondarySnapshot = snapshot("secondary", secondary, localName);
+		RosterSnapshot nextGuestSnapshot = snapshot("guest", guest, localName);
+
+		// Pick ONE authoritative display/sync slot rather than merging members
+		// across slots. The guest snapshot is cached separately for Dylan's
+		// temporary operator import flow; it is never merged into an own-clan
+		// roster and never reads guest-channel occupants.
+		RosterSnapshot selected = firstWithRoster(primarySnapshot, secondarySnapshot, nextGuestSnapshot);
+
+		clanName = selected != null ? selected.getClanName() : null;
+		cached = selected != null ? selected.getRoster() : Collections.emptyList();
+		cachedLocalName = localName;
+		cachedKeyRank = selected != null ? selected.getLocalPlayerKeyRank() : null;
+		guestSnapshot = nextGuestSnapshot;
 
 		log.debug("clan reader refresh: {} members from {} slot ({})",
-			cached.size(), slotLabel, clanName != null ? clanName : "unnamed");
+			cached.size(), selected != null ? selected.getSourceSlot() : "none",
+			clanName != null ? clanName : "unnamed");
 
 		for (Consumer<List<ClanMember>> l : listeners)
 		{

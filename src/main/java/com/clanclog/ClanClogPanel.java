@@ -194,6 +194,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	/** True only when the pending roster came from the verified in-game clan slot. */
 	private boolean pendingRosterSyncEligible;
 
+	/** True only for Dylan's temporary operator import from guest ClanSettings. */
+	private boolean pendingRosterOperatorEligible;
+
+	/** Source slot for the pending roster: primary, secondary, or guest. */
+	@Nullable
+	private String pendingRosterSourceSlot;
+
 	@Inject
 	public ClanClogPanel(ClanClogConfig config, ConfigManager configManager,
 		WomClient womClient, ClanHiscoreBatch batch, ClanClogBatch clogBatch,
@@ -1336,7 +1343,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 * Called whenever {@link InGameClanReader} refreshes (user opens their clan
 	 * tab in-game). Populates the header, roster view, and clanalyze button
 	 * but does NOT fire the expensive hiscore/clog batch. The user must press
-	 * "clanalyze" to start the fan-out. You can only clanalyze your own clan.
+	 * "clanalyze" to start the fan-out. Normal users work from their own clan;
+	 * Dylan's pre-public operator token can temporarily prefer the guest
+	 * ClanSettings roster so big clans can be queued before public release.
 	 */
 	private void onInGameRosterRefreshed(List<ClanMember> roster)
 	{
@@ -1344,25 +1353,32 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		{
 			return;
 		}
+		InGameClanReader.RosterSnapshot operatorSnapshot = operatorSyncEnabled()
+			? clanReader.currentGuestSnapshot() : null;
+		boolean operatorRoster = operatorSnapshot != null;
+		List<ClanMember> activeRoster = operatorRoster
+			? operatorSnapshot.getRoster() : roster;
 		// Showing the live in-game roster supersedes a pending backend VIEW, so
 		// invalidate its listener guard (onClanResult/NotFound/Error bail when
 		// viewVersion != loadVersion). Do NOT bump loadVersion here: this method
 		// fires on every clan-tab open, including mid-clanalyze, and bumping the
 		// shared token would cancel an in-flight clanalyze batch.
 		viewVersion = -1;
-		String name = clanReader.currentClanName();
+		String name = operatorRoster ? operatorSnapshot.getClanName() : clanReader.currentClanName();
 		if (name == null)
 		{
 			name = "my clan";
 		}
 		pendingClanName = name;
-		boolean samePendingRoster = pendingRoster != null && sameRosterMembers(pendingRoster, roster);
+		boolean samePendingRoster = pendingRoster != null && sameRosterMembers(pendingRoster, activeRoster);
 		if (!samePendingRoster)
 		{
 			rosterSyncAccepted = false;
 		}
-		pendingRoster = new ArrayList<>(roster);
-		pendingRosterSyncEligible = true;
+		pendingRoster = new ArrayList<>(activeRoster);
+		pendingRosterSyncEligible = !operatorRoster;
+		pendingRosterOperatorEligible = operatorRoster;
+		pendingRosterSourceSlot = operatorRoster ? operatorSnapshot.getSourceSlot() : "primary";
 		setClanHeaderText(name);
 		clearSearchText();
 		updateSyncButtonVisibility();
@@ -1375,7 +1391,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (!renderCachedClanProfile(name, pendingRoster, true))
 		{
 			membersPanel.renderRoster(name, pendingRoster);
-			setStatus("ready · press clanalyze to start");
+			setStatus(operatorRoster
+				? "guest roster captured · queue sync available"
+				: "ready · press clanalyze to start");
 			showClanalyzeButton("clanalyze", "build clan profile");
 		}
 		renderBackendOwnClanProfile(name, new ArrayList<>(pendingRoster));
@@ -1400,7 +1418,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		lastLoadedRoster = new ArrayList<>(roster);
 		lastLoadedClanName = clanName;
-		pendingRosterSyncEligible = true;
+		if (!pendingRosterOperatorEligible)
+		{
+			pendingRosterSyncEligible = true;
+		}
 		renderClanResult(lastRenderedResult);
 		membersPanel.renderRoster(clanName, roster);
 		setCoverageFromResult(lastRenderedResult);
@@ -1434,7 +1455,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				lastLoadedClanName = clanName;
 				lastLoadedSlug = slug;
 				renderedFromClanalyze = false;
-				pendingRosterSyncEligible = true;
+				if (!pendingRosterOperatorEligible)
+				{
+					pendingRosterSyncEligible = true;
+				}
 				setCoverageFromResult(result);
 				updateSyncButtonVisibility();
 				setStatus(profileLoadedStatus(result));
@@ -1600,6 +1624,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingClanName = name;
 		pendingRoster = roster;
 		pendingRosterSyncEligible = false;
+		pendingRosterOperatorEligible = false;
+		pendingRosterSourceSlot = null;
 		lastRenderedResult = result;
 		lastLoadedRoster = roster;
 		lastLoadedClanName = name;
@@ -1711,13 +1737,26 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		clanalyzeButton.setVisible(false);
 		revalidate();
 		repaint();
-		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster), pendingRosterSyncEligible);
+		loadFromRoster(pendingClanName, new ArrayList<>(pendingRoster), hasSyncRosterPayload());
+	}
+
+	private String operatorSyncToken()
+	{
+		String token = config.operatorSyncToken();
+		return token != null ? token.trim() : "";
+	}
+
+	private boolean operatorSyncEnabled()
+	{
+		return config.enableSync() && !operatorSyncToken().isEmpty();
 	}
 
 	private void clearSyncState()
 	{
 		clearLoadedProfileState();
 		pendingRosterSyncEligible = false;
+		pendingRosterOperatorEligible = false;
+		pendingRosterSourceSlot = null;
 		rosterSyncInFlight = false;
 		rosterSyncAccepted = false;
 		hideSyncButton();
@@ -1733,9 +1772,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	/**
-	 * Show the sync button only when a verified in-game roster is loaded. The
-	 * color and click gate reflect whether the captured roster proves an
-	 * OWNER / DEPUTY_OWNER local player can publish it.
+	 * Show the sync button only when a publishable in-game roster is loaded.
+	 * Owner/deputy rosters use public sync auth; the temporary operator path
+	 * queues a guest ClanSettings roster with the internal rebuild token.
 	 */
 	private void updateSyncButtonVisibility()
 	{
@@ -1746,22 +1785,26 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 		if (rosterSyncInFlight)
 		{
-			showSyncButton("syncing...", "syncing roster to killclog.com", KC2);
+			showSyncButton("syncing...", pendingRosterOperatorEligible
+				? "queueing roster on killclog.com" : "syncing roster to killclog.com", KC2);
 			return;
 		}
 		if (rosterSyncAccepted)
 		{
-			showSyncButton("roster synced", "roster accepted by killclog.com", KC1);
+			showSyncButton(pendingRosterOperatorEligible ? "roster queued" : "roster synced",
+				pendingRosterOperatorEligible ? "roster queued on killclog.com"
+					: "roster accepted by killclog.com", KC1);
 			return;
 		}
 		boolean canSync = hasSyncAuthority();
-		showSyncButton("sync roster", canSync ? "sync roster to killclog.com" : syncGateTooltip(),
+		showSyncButton(pendingRosterOperatorEligible ? "queue roster" : "sync roster",
+			canSync ? syncReadyTooltip() : syncGateTooltip(),
 			canSync ? KC4 : TEXT_DIM);
 	}
 
 	private boolean hasSyncRosterPayload()
 	{
-		return pendingRosterSyncEligible
+		return (pendingRosterSyncEligible || pendingRosterOperatorEligible)
 			&& pendingRoster != null
 			&& !pendingRoster.isEmpty()
 			&& pendingClanName != null
@@ -1770,9 +1813,20 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private boolean hasSyncAuthority()
 	{
+		if (pendingRosterOperatorEligible)
+		{
+			return operatorSyncEnabled();
+		}
 		return config.enableSync()
 			&& syncKeyRank() != null
 			&& syncOwnerRsn() != null;
+	}
+
+	private String syncReadyTooltip()
+	{
+		return pendingRosterOperatorEligible
+			? "queue guest roster for killclog.com rebuild"
+			: "sync roster to killclog.com";
 	}
 
 	private String syncGateTooltip()
@@ -1784,6 +1838,14 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (!hasSyncRosterPayload())
 		{
 			return "open clan tab to sync roster";
+		}
+		if (pendingRosterOperatorEligible && operatorSyncToken().isEmpty())
+		{
+			return "operator token required to queue guest roster";
+		}
+		if (pendingRosterOperatorEligible)
+		{
+			return "queue guest roster for killclog.com rebuild";
 		}
 		if (syncOwnerRsn() == null)
 		{
@@ -1902,6 +1964,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			setStatus("enable sync in plugin config first");
 			return;
 		}
+		if (pendingRosterOperatorEligible)
+		{
+			onOperatorSyncClicked();
+			return;
+		}
 
 		String keyRank = syncKeyRank();
 		String ownerRsn = syncOwnerRsn();
@@ -1957,15 +2024,76 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				}));
 	}
 
+	private void onOperatorSyncClicked()
+	{
+		String operatorToken = operatorSyncToken();
+		String observedBy = clanReader.localPlayerName();
+		if (operatorToken.isEmpty() || observedBy == null || pendingRoster == null
+			|| pendingClanName == null)
+		{
+			updateSyncButtonVisibility();
+			setStatus(syncGateTooltip());
+			return;
+		}
+
+		String clanName = pendingClanName;
+		String slug = slugify(clanName);
+		List<ClanMember> roster = new ArrayList<>(pendingRoster);
+		String sourceSlot = pendingRosterSourceSlot != null ? pendingRosterSourceSlot : "guest";
+		final int version = loadVersion;
+		if (slug.isEmpty())
+		{
+			updateSyncButtonVisibility();
+			setStatus("queue failed: missing clan");
+			return;
+		}
+
+		lastLoadedRoster = roster;
+		lastLoadedClanName = clanName;
+		lastLoadedSlug = slug;
+		rosterSyncInFlight = true;
+		rosterSyncAccepted = false;
+		updateSyncButtonVisibility();
+		setStatus("queueing roster on killclog.com...");
+
+		apiClient.operatorSyncRoster(slug, clanName, observedBy, operatorToken, sourceSlot, roster)
+			.whenComplete((resp, ex) ->
+				SwingUtilities.invokeLater(() ->
+				{
+					rosterSyncInFlight = false;
+					if (ex == null && resp != null && resp.isOk())
+					{
+						refreshBackendProfileAfterSync(slug, clanName, roster, version, resp);
+					}
+					else if (resp != null)
+					{
+						rosterSyncAccepted = false;
+						updateSyncButtonVisibility();
+						setStatus("queue failed: " + resp.describe());
+					}
+					else
+					{
+						rosterSyncAccepted = false;
+						updateSyncButtonVisibility();
+						setStatus("queue failed"
+							+ (ex != null ? ": " + ex.getMessage() : ""));
+					}
+				}));
+	}
+
 	private void refreshBackendProfileAfterSync(String slug, String clanName,
 		List<ClanMember> roster, int version, KillclogApiClient.SyncResponse syncResponse)
 	{
 		renderedFromClanalyze = false;
 		rosterSyncAccepted = true;
-		pendingRosterSyncEligible = true;
+		if (!pendingRosterOperatorEligible)
+		{
+			pendingRosterSyncEligible = true;
+		}
 		updateSyncButtonVisibility();
 		String syncSummary = syncResponse.describeSuccess();
-		setStatus("roster synced" + syncSummary + " · refreshing profile...");
+		String acceptedText = pendingRosterOperatorEligible ? "roster queued" : "roster synced";
+		setStatus(acceptedText + syncSummary + " · refreshing profile...");
 
 		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
 			SwingUtilities.invokeLater(() ->
@@ -1978,7 +2106,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				if (ex != null || result == null || !result.hasRepresentedData())
 				{
 					updateSyncButtonVisibility();
-					setStatus("roster synced to killclog.com/c/" + slug + syncSummary
+					setStatus(acceptedText + " on killclog.com/c/" + slug + syncSummary
 						+ " · profile refresh unavailable");
 					return;
 				}
@@ -1993,7 +2121,10 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 				pendingClanName = displayName;
 				pendingRoster = resultRoster;
-				pendingRosterSyncEligible = true;
+				if (!pendingRosterOperatorEligible)
+				{
+					pendingRosterSyncEligible = true;
+				}
 				lastBackendResult = result;
 				lastRenderedResult = result;
 				lastLoadedRoster = resultRoster;
@@ -2007,7 +2138,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				setCoverageFromResult(result);
 				clanProfileCache.put(displayName, slug, resultRoster, result);
 				updateSyncButtonVisibility();
-				setStatus("roster synced to killclog.com/c/" + slug + syncSummary);
+				setStatus(acceptedText + " on killclog.com/c/" + slug + syncSummary);
 			}));
 	}
 
@@ -2309,6 +2440,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingClanName = displayName;
 		pendingRoster = roster;
 		pendingRosterSyncEligible = false;
+		pendingRosterOperatorEligible = false;
+		pendingRosterSourceSlot = null;
 		lastRenderedResult = result;
 		lastLoadedRoster = roster;
 		lastLoadedClanName = displayName;

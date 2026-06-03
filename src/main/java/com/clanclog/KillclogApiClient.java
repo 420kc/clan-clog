@@ -330,6 +330,38 @@ public class KillclogApiClient
 		return postAsync(request);
 	}
 
+	public CompletableFuture<SyncResponse> operatorSyncRoster(String slug, String clanName,
+		String observedBy, String operatorToken, String sourceSlot, List<ClanMember> roster)
+	{
+		JsonObject body = new JsonObject();
+		body.addProperty("clan_name", clanName);
+		body.addProperty("observed_by", observedBy);
+		body.addProperty("roster_source", "runelite_clan_settings");
+		body.addProperty("source_slot", sourceSlot);
+		body.add("members", gson.toJsonTree(
+			roster.stream().map(m ->
+			{
+				JsonObject member = new JsonObject();
+				member.addProperty("rsn", m.getRsn());
+				member.addProperty("rank", m.getRankName() != null
+					? m.getRankName() : "GUEST");
+				if (m.getJoinDate() != null)
+				{
+					member.addProperty("join_date", m.getJoinDate().toString());
+				}
+				return member;
+			}).toArray()));
+
+		Request request = new Request.Builder()
+			.url(BASE_URL + "/api/clan/" + slug + "/operator-sync")
+			.header("User-Agent", USER_AGENT)
+			.header("X-Killclog-Rebuild-Token", operatorToken)
+			.post(RequestBody.create(JSON_TYPE, gson.toJson(body)))
+			.build();
+
+		return postAsync(request);
+	}
+
 	/**
 	 * Legacy bootstrap endpoint. The current sync path posts only the verified
 	 * roster snapshot, then lets killclog.com build and serve aggregate truth.
