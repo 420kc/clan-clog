@@ -1,5 +1,11 @@
 # clan clog: porting log
 
+LEGACY SNAPSHOT - DO NOT TREAT AS CURRENT TRUTH.
+
+This file is a historical porting record from the early scaffold. Current
+Clan Clog architecture, provider ownership, sync rules, and release gates live
+in `PROJECT_TRUTH.md`.
+
 per-component record of what was ported from kill-clog-plugin, why, and what (if anything) was adapted for clan-level use. read this alongside `RESEARCH-ROSTER-SOURCE.md`.
 
 source of truth for the ports: `~/plugins/kcpdev/` (the kill-clog-plugin dev tree). all line counts + sha refs are kcpdev-side.

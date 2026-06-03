@@ -29,9 +29,13 @@ Alpha. Active development on `master`. Public Plugin Hub submission gated on the
 
 Clan Clog reads from and (opt-in) writes to external services:
 
-- **Jagex hiscores** (`secure.runescape.com`), **Temple OSRS**, and **RuneProfile** — read-only lookups of public boss KCs, levels, and collection-log data for clan members.
-- **Wise Old Man** (`api.wiseoldman.net`) — read-only roster search for clans you are not in.
-- **killclog.com** — only when **Enable Sync** is turned on (off by default) and you hold a key clan rank. Syncing transmits the clan roster (RSNs + ranks), aggregated boss KCs, and the combined collection log so the clan profile renders at `killclog.com/c/<slug>`. Clogsworth's clan-event narration stays local and is never transmitted.
+- **killclog.com** — primary public clan-profile reads and, when **Enable Sync** is turned on (off by default) and you hold a key clan rank, verified roster syncs.
+- **Jagex hiscores** (`secure.runescape.com`), **TempleOSRS**, **RuneProfile**, and **Wise Old Man** (`api.wiseoldman.net`) — public data sources used by the Clan Clog ecosystem for hiscores, collection-log data, and roster discovery.
+- Syncing transmits the clan roster (RSNs + ranks) so killclog.com can build or refresh the profile at `killclog.com/c/<slug>`. Clogsworth's clan-event narration stays local and is never transmitted.
+
+## project truth
+
+Architecture notes, current provider ownership, sync rules, and release gates live in [`PROJECT_TRUTH.md`](PROJECT_TRUTH.md).
 
 ## development
 

@@ -1,5 +1,11 @@
 # clan clog: roster source research
 
+LEGACY SNAPSHOT - DO NOT TREAT AS CURRENT TRUTH.
+
+This file preserves the original roster-source research. Current Clan Clog
+architecture, provider ownership, sync rules, and release gates live in
+`PROJECT_TRUTH.md`.
+
 evidence-gathered audit of every plausible source for clan member rosters in osrs. the linchpin question per the foundational scout. recommendation at the bottom.
 
 all api samples below are real responses captured 2026-05-13 ~07:16 utc, not fabricated.

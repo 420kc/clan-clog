@@ -45,7 +45,6 @@ import okhttp3.ResponseBody;
  * <p>Mutation endpoints used by the sync affordance:
  * <ul>
  *   <li>{@code POST /api/clan/<slug>/sync} - owner/deputy verified roster snapshot</li>
- *   <li>{@code POST /api/clan/<slug>/result} - precomputed clan aggregate snapshot</li>
  * </ul>
  * {@code POST /events} reports verified passive roster events, not primary
  * render reads.
@@ -332,10 +331,10 @@ public class KillclogApiClient
 	}
 
 	/**
-	 * Sync the pre-computed ClanClogResult to the backend. Stores the
-	 * boss aggregates + clog union at {@code /api/clan/<slug>/result}.
-	 * Resolves to a {@link SyncResponse} carrying success + failure detail.
+	 * Legacy bootstrap endpoint. The current sync path posts only the verified
+	 * roster snapshot, then lets killclog.com build and serve aggregate truth.
 	 */
+	@Deprecated
 	public CompletableFuture<SyncResponse> syncResult(String slug,
 		String ownerRsn, String claimedRank, ClanClogResult result)
 	{
