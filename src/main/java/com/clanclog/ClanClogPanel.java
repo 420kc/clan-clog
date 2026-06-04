@@ -33,6 +33,7 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -79,14 +80,24 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
 	private static final String HEADER_BOOK_RESOURCE = "/com/clanclog/clanclog-book-28.png";
 	private static final int SYNC_CONFIRMATION_TICKS = 2;
+	private static final float SYNC_IDLE_ALPHA = 0.5f;
+	private static final Dimension SYNC_BUTTON_SIZE = new Dimension(32, 32);
+	private static final Dimension SYNC_READY_BUTTON_SIZE = new Dimension(34, 54);
 
 	private static final class HeaderSyncButton extends JButton
 	{
+		private Icon bookIcon;
 		private boolean arrowVisible;
 		private boolean readyPrompt;
 		private boolean arrowHovered;
 		private Color arrowColor = Color.WHITE;
 		private float arrowAlpha = 0.3f;
+
+		void setBookIcon(@Nullable Icon icon)
+		{
+			bookIcon = icon;
+			repaint();
+		}
 
 		void setSyncPrompt(boolean visible, boolean ready, Color color, float alpha)
 		{
@@ -118,23 +129,42 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		@Override
 		protected void paintComponent(Graphics g)
 		{
-			super.paintComponent(g);
-			if (!arrowVisible)
-			{
-				return;
-			}
-
 			Graphics2D g2 = (Graphics2D) g.create();
 			try
 			{
+				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+					RenderingHints.VALUE_ANTIALIAS_ON);
+				int iconWidth = bookIcon != null ? bookIcon.getIconWidth() : 28;
+				int iconHeight = bookIcon != null ? bookIcon.getIconHeight() : 28;
+				int iconX = Math.max(0, (getWidth() - iconWidth) / 2);
+				int iconY = Math.max(0, (getHeight() - iconHeight) / 2);
+				if (bookIcon != null)
+				{
+					bookIcon.paintIcon(this, g2, iconX, iconY);
+				}
+				if (readyPrompt)
+				{
+					float idleAlpha = arrowHovered ? 1.0f : SYNC_IDLE_ALPHA;
+					g2.setComposite(AlphaComposite.SrcOver.derive(idleAlpha));
+					g2.setColor(KC1);
+					g2.drawRect(iconX, iconY, iconWidth - 1, iconHeight - 1);
+					FontMetrics fm = g2.getFontMetrics();
+					String text = "sync";
+					int textX = Math.max(0, (getWidth() - fm.stringWidth(text)) / 2);
+					int textY = Math.min(getHeight() - fm.getDescent(),
+						iconY + iconHeight + fm.getAscent());
+					g2.drawString(text, textX, textY);
+				}
+				if (!arrowVisible)
+				{
+					return;
+				}
 				float alpha = readyPrompt && arrowHovered ? 1.0f : arrowAlpha;
 				Color color = readyPrompt && arrowHovered ? KC1 : arrowColor;
 				g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
-				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-					RenderingHints.VALUE_ANTIALIAS_ON);
 				g2.setColor(color);
 				int cx = getWidth() / 2;
-				int top = Math.max(3, getHeight() / 2 - 13);
+				int top = iconY + 5;
 				Polygon head = new Polygon(
 					new int[]{cx, cx - 5, cx + 5},
 					new int[]{top, top + 7, top + 7},
@@ -825,15 +855,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void configureHeaderSyncButton(HeaderSyncButton button)
 	{
-		ImageIcon icon = loadHeaderBook();
-		if (icon != null)
-		{
-			button.setIcon(icon);
-		}
+		button.setBookIcon(loadHeaderBook());
+		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setText("");
 		button.setMargin(new Insets(0, 0, 0, 0));
-		button.setPreferredSize(new Dimension(32, 32));
-		button.setMinimumSize(new Dimension(32, 32));
+		button.setPreferredSize(SYNC_BUTTON_SIZE);
+		button.setMinimumSize(SYNC_BUTTON_SIZE);
 		button.setFocusPainted(false);
 		button.setContentAreaFilled(false);
 		button.setBorderPainted(false);
@@ -1680,7 +1707,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		syncButton.setEnabled(true);
 		syncButton.setVisible(true);
 		syncButton.setText("");
-		syncButton.setPreferredSize(new Dimension(32, 32));
+		syncButton.setPreferredSize(SYNC_BUTTON_SIZE);
 		syncButton.setToolTipText(null);
 		syncButton.setBorderPainted(false);
 		syncButton.setBorder(new EmptyBorder(0, 0, 0, 0));
@@ -1693,12 +1720,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		boolean ready = "sync roster".equals(text) || "queue roster".equals(text);
 		syncButton.setText("");
-		syncButton.setPreferredSize(new Dimension(32, 32));
+		syncButton.setPreferredSize(ready ? SYNC_READY_BUTTON_SIZE : SYNC_BUTTON_SIZE);
 		syncButton.setEnabled(true);
 		syncButton.setToolTipText(null);
 		syncButton.setBorderPainted(false);
 		syncButton.setBorder(new EmptyBorder(0, 0, 0, 0));
-		syncButton.setSyncPrompt(true, ready, ready ? Color.WHITE : color, ready ? 0.3f : 1.0f);
+		syncButton.setSyncPrompt(true, ready, ready ? Color.WHITE : color,
+			ready ? 0.3f : 1.0f);
 		syncButton.setVisible(true);
 		revalidate();
 		repaint();

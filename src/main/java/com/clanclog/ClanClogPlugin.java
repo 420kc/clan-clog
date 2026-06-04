@@ -45,6 +45,7 @@ public class ClanClogPlugin extends Plugin
 	private static final int CLOG_ITEMS_CHILD = 37;
 	private static final int VARP_CLOG_OBTAINED = 2943;
 	private static final int VARP_CLOG_TOTAL = 2944;
+	private static final int CLAN_SETTINGS_PROBE_TICKS = 12;
 	private static final java.util.regex.Pattern OBTAINED_PATTERN =
 		java.util.regex.Pattern.compile("(\\d+)/(\\d+)");
 
@@ -96,6 +97,7 @@ public class ClanClogPlugin extends Plugin
 
 	private NavigationButton navButton;
 	private String lastVisibleClogSignature;
+	private int clanSettingsProbeTicksRemaining;
 
 	@Provides
 	ClanClogConfig provideConfig(ConfigManager configManager)
@@ -115,7 +117,7 @@ public class ClanClogPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 		tooltipController.captureDefaults(panel);
-		refreshInGameClanSoon();
+		probeClanSettingsSoon();
 		log.debug("clan clog: startUp");
 	}
 
@@ -148,7 +150,7 @@ public class ClanClogPlugin extends Plugin
 		if (groupId == InterfaceID.CLANS_SIDEPANEL
 			|| groupId == InterfaceID.CLANS_GUEST_SIDEPANEL)
 		{
-			clanReader.refresh();
+			probeClanSettingsSoon();
 		}
 	}
 
@@ -162,10 +164,11 @@ public class ClanClogPlugin extends Plugin
 	{
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
-			refreshInGameClanSoon();
+			probeClanSettingsSoon();
 		}
 		else if (event.getGameState() == GameState.LOGIN_SCREEN)
 		{
+			clanSettingsProbeTicksRemaining = 0;
 			clogCache.setActivePlayer(null);
 			lastVisibleClogSignature = null;
 		}
@@ -176,16 +179,36 @@ public class ClanClogPlugin extends Plugin
 	{
 		captureVisibleClogCategory();
 		SwingUtilities.invokeLater(panel::onGameTick);
+		if (clanSettingsProbeTicksRemaining > 0)
+		{
+			clanSettingsProbeTicksRemaining--;
+			refreshInGameClanSoon();
+		}
+	}
+
+	private void probeClanSettingsSoon()
+	{
+		clanSettingsProbeTicksRemaining = CLAN_SETTINGS_PROBE_TICKS;
+		refreshInGameClanSoon();
 	}
 
 	private void refreshInGameClanSoon()
 	{
 		clientThread.invokeLater(() ->
 		{
+			if (client.getGameState() != GameState.LOGGED_IN)
+			{
+				return;
+			}
 			refreshActivePlayer();
 			try
 			{
 				clanReader.refresh();
+				if (!clanReader.currentRoster().isEmpty()
+					|| clanReader.currentGuestSnapshot() != null)
+				{
+					clanSettingsProbeTicksRemaining = 0;
+				}
 			}
 			catch (RuntimeException ex)
 			{

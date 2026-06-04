@@ -26,9 +26,10 @@ import net.runelite.api.clan.ClanSettings;
  * dependency; no rate limits; survives WOM / Temple / RuneProfile /
  * killclog.com outages.
  *
- * <p>Cache refresh is driven by the plugin's {@code @Subscribe onWidgetLoaded}
- * hook: when the clan sidepanel opens in-game, the plugin calls
- * {@link #refresh()} on the client thread. Cache is read-mostly so listeners
+ * <p>Cache refresh is driven by clan sidepanel loads plus a short startup/login
+ * probe in {@link ClanClogPlugin}: if the player already has the clan tab open,
+ * the plugin keeps asking the live client for a few game ticks instead of
+ * requiring a chat-channel -> clan-tab toggle. Cache is read-mostly so listeners
  * can pick it up off the EDT.
  *
  * <p>Listeners (e.g. the panel) register a {@code Consumer<List<ClanMember>>}
