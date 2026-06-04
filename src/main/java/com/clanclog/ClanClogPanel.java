@@ -53,6 +53,7 @@ import net.runelite.client.ui.components.FlatTextField;
 import net.runelite.client.ui.components.IconTextField;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 
 /**
  * Main clan clog surface. Layout mirrors Kill Clog: search header and
@@ -79,10 +80,72 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
 	private static final String HEADER_BOOK_RESOURCE = "/com/clanclog/clanclog-book-28.png";
+	private static final String CLAN_LEADERBOARD_URL = "https://killclog.com/c/";
 	private static final int SYNC_CONFIRMATION_TICKS = 2;
 	private static final float SYNC_IDLE_ALPHA = 0.5f;
 	private static final Dimension SYNC_BUTTON_SIZE = new Dimension(32, 32);
 	private static final Dimension SYNC_READY_BUTTON_SIZE = new Dimension(34, 54);
+
+	private final class HeaderLinkButton extends JButton
+	{
+		private boolean hovered;
+
+		HeaderLinkButton(ImageIcon icon)
+		{
+			super(icon);
+			setHorizontalAlignment(JLabel.CENTER);
+			setToolTipText(currentClanLinkText());
+			setMargin(new Insets(0, 0, 0, 0));
+			setPreferredSize(SYNC_BUTTON_SIZE);
+			setMinimumSize(SYNC_BUTTON_SIZE);
+			setFocusPainted(false);
+			setContentAreaFilled(false);
+			setBorderPainted(false);
+			setBorder(new EmptyBorder(0, 0, 0, 0));
+			setOpaque(false);
+			addActionListener(e -> LinkBrowser.browse(currentClanProfileUrl()));
+			addMouseListener(new MouseAdapter()
+			{
+				@Override
+				public void mouseEntered(MouseEvent e)
+				{
+					hovered = true;
+					setToolTipText(currentClanLinkText());
+					showClanLinkHoverStatus();
+					repaint();
+				}
+
+				@Override
+				public void mouseExited(MouseEvent e)
+				{
+					hovered = false;
+					restoreClanLinkHoverStatus();
+					repaint();
+				}
+			});
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			super.paintComponent(g);
+			if (!hovered)
+			{
+				return;
+			}
+			Graphics2D g2 = (Graphics2D) g.create();
+			try
+			{
+				g2.setComposite(AlphaComposite.SrcOver.derive(0.65f));
+				g2.setColor(KC1);
+				g2.drawRect(1, 1, getWidth() - 3, getHeight() - 3);
+			}
+			finally
+			{
+				g2.dispose();
+			}
+		}
+	}
 
 	private static final class HeaderSyncButton extends JButton
 	{
@@ -283,6 +346,16 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	@Nullable
 	private Color statusColorBeforeSyncHover;
+
+	/** Status text visible before clan-link hover copy temporarily replaced it. */
+	@Nullable
+	private String statusBeforeClanLinkHover;
+
+	@Nullable
+	private String clanLinkHoverStatusText;
+
+	@Nullable
+	private Color statusColorBeforeClanLinkHover;
 
 	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
 	@Nullable
@@ -503,7 +576,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		ImageIcon bookIcon = loadHeaderBook();
 		if (bookIcon != null)
 		{
-			group.add(headerImageLabel(bookIcon, "Clan Clog"), hc);
+			group.add(new HeaderLinkButton(bookIcon), hc);
 			hc.gridx++;
 		}
 
@@ -529,14 +602,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		URL url = ClanClogPanel.class.getResource(HEADER_BOOK_RESOURCE);
 		return url != null ? new ImageIcon(url) : null;
-	}
-
-	private static JLabel headerImageLabel(ImageIcon icon, String tooltip)
-	{
-		JLabel label = new JLabel(icon);
-		label.setHorizontalAlignment(JLabel.CENTER);
-		label.setToolTipText(tooltip);
-		return label;
 	}
 
 	private static GridBagConstraints centeredHeaderConstraints()
@@ -1762,6 +1827,67 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		statusBeforeSyncHover = null;
 		statusColorBeforeSyncHover = null;
+	}
+
+	private String currentClanLinkText()
+	{
+		String slug = currentClanProfileSlug();
+		return slug == null ? "killclog.com/c/" : "killclog.com/c/" + slug;
+	}
+
+	private String currentClanProfileUrl()
+	{
+		String slug = currentClanProfileSlug();
+		return slug == null ? CLAN_LEADERBOARD_URL : CLAN_LEADERBOARD_URL + slug;
+	}
+
+	@Nullable
+	private String currentClanProfileSlug()
+	{
+		if (lastLoadedSlug != null && !lastLoadedSlug.isBlank())
+		{
+			return lastLoadedSlug;
+		}
+		if (pendingClanName != null)
+		{
+			String slug = slugify(pendingClanName);
+			if (!slug.isEmpty())
+			{
+				return slug;
+			}
+		}
+		return null;
+	}
+
+	private void showClanLinkHoverStatus()
+	{
+		if (statusBeforeClanLinkHover == null)
+		{
+			statusBeforeClanLinkHover = statusLabel.getText();
+			statusColorBeforeClanLinkHover = statusLabel.getForeground();
+		}
+		clanLinkHoverStatusText = currentClanLinkText();
+		setStatus(clanLinkHoverStatusText, Color.WHITE);
+	}
+
+	private void restoreClanLinkHoverStatus()
+	{
+		if (statusBeforeClanLinkHover != null
+			&& clanLinkHoverStatusText != null
+			&& clanLinkHoverStatusText.equals(statusLabel.getText()))
+		{
+			Color color = statusColorBeforeClanLinkHover != null
+				? statusColorBeforeClanLinkHover : statusColor(statusBeforeClanLinkHover);
+			setStatus(statusBeforeClanLinkHover, color);
+		}
+		clearClanLinkHoverStatus();
+	}
+
+	private void clearClanLinkHoverStatus()
+	{
+		statusBeforeClanLinkHover = null;
+		statusColorBeforeClanLinkHover = null;
+		clanLinkHoverStatusText = null;
 	}
 
 	private void cancelSyncConfirmationClear()
