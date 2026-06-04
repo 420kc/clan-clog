@@ -1,5 +1,7 @@
 package com.clanclog;
 
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -7,10 +9,12 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.Polygon;
 import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -74,6 +78,78 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final String SEARCH_PLACEHOLDER = "Search for a Clan...";
 	private static final String ACTION_BASE_COLOR_PROPERTY = "clanclog.actionBaseColor";
 	private static final String HEADER_BOOK_RESOURCE = "/com/clanclog/clanclog-book-28.png";
+	private static final int SYNC_CONFIRMATION_TICKS = 2;
+
+	private static final class HeaderSyncButton extends JButton
+	{
+		private boolean arrowVisible;
+		private boolean readyPrompt;
+		private boolean arrowHovered;
+		private Color arrowColor = Color.WHITE;
+		private float arrowAlpha = 0.3f;
+
+		void setSyncPrompt(boolean visible, boolean ready, Color color, float alpha)
+		{
+			arrowVisible = visible;
+			readyPrompt = ready;
+			arrowColor = color;
+			arrowAlpha = alpha;
+			if (!visible)
+			{
+				arrowHovered = false;
+			}
+			repaint();
+		}
+
+		void setArrowHovered(boolean hovered)
+		{
+			if (arrowHovered != hovered)
+			{
+				arrowHovered = hovered;
+				repaint();
+			}
+		}
+
+		boolean isReadyPrompt()
+		{
+			return arrowVisible && readyPrompt;
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			super.paintComponent(g);
+			if (!arrowVisible)
+			{
+				return;
+			}
+
+			Graphics2D g2 = (Graphics2D) g.create();
+			try
+			{
+				float alpha = readyPrompt && arrowHovered ? 1.0f : arrowAlpha;
+				Color color = readyPrompt && arrowHovered ? KC1 : arrowColor;
+				g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+					RenderingHints.VALUE_ANTIALIAS_ON);
+				g2.setColor(color);
+				int cx = getWidth() / 2;
+				int top = Math.max(3, getHeight() / 2 - 13);
+				Polygon head = new Polygon(
+					new int[]{cx, cx - 5, cx + 5},
+					new int[]{top, top + 7, top + 7},
+					3);
+				g2.fillPolygon(head);
+				g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND,
+					BasicStroke.JOIN_ROUND));
+				g2.drawLine(cx, top + 6, cx, top + 17);
+			}
+			finally
+			{
+				g2.dispose();
+			}
+		}
+	}
 
 	private final ClanClogConfig config;
 	private final ConfigManager configManager;
@@ -128,7 +204,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 	};
 	private final JButton clanalyzeButton = new JButton("clanalyze");
-	private final JButton syncButton = new JButton("sync");
+	private final HeaderSyncButton syncButton = new HeaderSyncButton();
 	private final ActivitiesTray activitiesTray;
 	private final Map<String, ImageIcon> clogTierIcons = new LinkedHashMap<>();
 
@@ -160,6 +236,23 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	/** True after killclog.com accepts the current roster snapshot. */
 	private boolean rosterSyncAccepted;
+
+	/** True once the accepted sync prompt has faded away for the current roster. */
+	private boolean syncAffordanceDismissed;
+
+	/** Remaining game ticks before the accepted sync affordance clears. */
+	private int syncConfirmationTicksRemaining;
+
+	/** Exact transient status text owned by the accepted sync confirmation. */
+	@Nullable
+	private String syncConfirmationStatusText;
+
+	/** Status text that was visible before sync-arrow hover copy temporarily replaced it. */
+	@Nullable
+	private String statusBeforeSyncHover;
+
+	@Nullable
+	private Color statusColorBeforeSyncHover;
 
 	/** Slug of the clan currently loading/loaded. Guards against duplicate batch fires. */
 	@Nullable
@@ -730,9 +823,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		});
 	}
 
-	private static void configureHeaderSyncButton(JButton button)
+	private void configureHeaderSyncButton(HeaderSyncButton button)
 	{
-		configureActionButton(button, "open clan tab to sync roster");
 		ImageIcon icon = loadHeaderBook();
 		if (icon != null)
 		{
@@ -742,10 +834,53 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		button.setMargin(new Insets(0, 0, 0, 0));
 		button.setPreferredSize(new Dimension(32, 32));
 		button.setMinimumSize(new Dimension(32, 32));
+		button.setFocusPainted(false);
 		button.setContentAreaFilled(false);
-		button.setBorderPainted(true);
+		button.setBorderPainted(false);
+		button.setBorder(new EmptyBorder(0, 0, 0, 0));
+		button.setOpaque(false);
+		button.setToolTipText(null);
 		button.setVisible(true);
-		setActionButtonBaseColor(button, TEXT_DIM);
+		button.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				if (button.isReadyPrompt())
+				{
+					button.setArrowHovered(true);
+					showSyncHoverStatus();
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				if (button.isReadyPrompt())
+				{
+					button.setArrowHovered(false);
+					restoreSyncHoverStatus();
+				}
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				if (button.isReadyPrompt() && SwingUtilities.isLeftMouseButton(e))
+				{
+					button.setArrowHovered(true);
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				if (button.isReadyPrompt())
+				{
+					button.setArrowHovered(button.contains(e.getPoint()));
+				}
+			}
+		});
 	}
 
 	private static void setActionButtonBaseColor(JButton button, Color color)
@@ -1374,6 +1509,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		if (!samePendingRoster)
 		{
 			rosterSyncAccepted = false;
+			syncAffordanceDismissed = false;
+			cancelSyncConfirmationClear();
 		}
 		pendingRoster = new ArrayList<>(activeRoster);
 		pendingRosterSyncEligible = !operatorRoster;
@@ -1544,22 +1681,112 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		syncButton.setVisible(true);
 		syncButton.setText("");
 		syncButton.setPreferredSize(new Dimension(32, 32));
-		syncButton.setToolTipText("open clan tab to sync roster");
-		setActionButtonBaseColor(syncButton, TEXT_DIM);
+		syncButton.setToolTipText(null);
+		syncButton.setBorderPainted(false);
+		syncButton.setBorder(new EmptyBorder(0, 0, 0, 0));
+		syncButton.setSyncPrompt(false, false, Color.WHITE, 0.0f);
 		revalidate();
 		repaint();
 	}
 
-	private void showSyncButton(String text, String tooltip, Color color)
+	private void showSyncButton(String text, Color color)
 	{
+		boolean ready = "sync roster".equals(text) || "queue roster".equals(text);
 		syncButton.setText("");
 		syncButton.setPreferredSize(new Dimension(32, 32));
 		syncButton.setEnabled(true);
-		syncButton.setToolTipText(tooltip);
-		setActionButtonBaseColor(syncButton, color);
+		syncButton.setToolTipText(null);
+		syncButton.setBorderPainted(false);
+		syncButton.setBorder(new EmptyBorder(0, 0, 0, 0));
+		syncButton.setSyncPrompt(true, ready, ready ? Color.WHITE : color, ready ? 0.3f : 1.0f);
 		syncButton.setVisible(true);
 		revalidate();
 		repaint();
+	}
+
+	private String syncHoverText()
+	{
+		return pendingRosterOperatorEligible ? "queue guest roster" : "sync clan roster";
+	}
+
+	private void showSyncHoverStatus()
+	{
+		if (statusBeforeSyncHover == null)
+		{
+			statusBeforeSyncHover = statusLabel.getText();
+			statusColorBeforeSyncHover = statusLabel.getForeground();
+		}
+		setStatus(syncHoverText(), Color.WHITE);
+	}
+
+	private void restoreSyncHoverStatus()
+	{
+		if (statusBeforeSyncHover != null && syncHoverText().equals(statusLabel.getText()))
+		{
+			Color color = statusColorBeforeSyncHover != null
+				? statusColorBeforeSyncHover : statusColor(statusBeforeSyncHover);
+			setStatus(statusBeforeSyncHover, color);
+		}
+		clearSyncHoverStatus();
+	}
+
+	private void clearSyncHoverStatus()
+	{
+		statusBeforeSyncHover = null;
+		statusColorBeforeSyncHover = null;
+	}
+
+	private void cancelSyncConfirmationClear()
+	{
+		syncConfirmationTicksRemaining = 0;
+		syncConfirmationStatusText = null;
+	}
+
+	void onGameTick()
+	{
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			SwingUtilities.invokeLater(this::onGameTick);
+			return;
+		}
+		if (syncConfirmationTicksRemaining <= 0)
+		{
+			return;
+		}
+		syncConfirmationTicksRemaining--;
+		if (syncConfirmationTicksRemaining == 0)
+		{
+			clearAcceptedSyncAffordance();
+		}
+	}
+
+	private void clearAcceptedSyncAffordance()
+	{
+		String confirmationText = syncConfirmationStatusText;
+		syncConfirmationStatusText = null;
+		syncAffordanceDismissed = true;
+		rosterSyncAccepted = false;
+		clearSyncHoverStatus();
+		hideSyncButton();
+		if (confirmationText != null && confirmationText.equals(statusLabel.getText()))
+		{
+			setStatus(" ");
+		}
+	}
+
+	private String syncConfirmationText(String slug)
+	{
+		return pendingRosterOperatorEligible
+			? "roster queued to killclog.com/c/" + slug
+			: "roster synced to killclog.com/c/" + slug;
+	}
+
+	private void showSyncConfirmation(String slug)
+	{
+		String text = syncConfirmationText(slug);
+		syncConfirmationStatusText = text;
+		syncConfirmationTicksRemaining = SYNC_CONFIRMATION_TICKS;
+		setStatus(text, KC1);
 	}
 
 	void onLocalClogCaptured(String playerName)
@@ -1759,6 +1986,9 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		pendingRosterSourceSlot = null;
 		rosterSyncInFlight = false;
 		rosterSyncAccepted = false;
+		syncAffordanceDismissed = false;
+		cancelSyncConfirmationClear();
+		clearSyncHoverStatus();
 		hideSyncButton();
 	}
 
@@ -1783,23 +2013,28 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			hideSyncButton();
 			return;
 		}
+		if (syncAffordanceDismissed)
+		{
+			hideSyncButton();
+			return;
+		}
 		if (rosterSyncInFlight)
 		{
-			showSyncButton("syncing...", pendingRosterOperatorEligible
-				? "queueing roster on killclog.com" : "syncing roster to killclog.com", KC2);
+			showSyncButton("syncing...", KC2);
 			return;
 		}
 		if (rosterSyncAccepted)
 		{
-			showSyncButton(pendingRosterOperatorEligible ? "roster queued" : "roster synced",
-				pendingRosterOperatorEligible ? "roster queued on killclog.com"
-					: "roster accepted by killclog.com", KC1);
+			showSyncButton(pendingRosterOperatorEligible ? "roster queued" : "roster synced", KC1);
 			return;
 		}
 		boolean canSync = hasSyncAuthority();
-		showSyncButton(pendingRosterOperatorEligible ? "queue roster" : "sync roster",
-			canSync ? syncReadyTooltip() : syncGateTooltip(),
-			canSync ? KC4 : TEXT_DIM);
+		if (!canSync)
+		{
+			hideSyncButton();
+			return;
+		}
+		showSyncButton(pendingRosterOperatorEligible ? "queue roster" : "sync roster", KC4);
 	}
 
 	private boolean hasSyncRosterPayload()
@@ -1820,13 +2055,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		return config.enableSync()
 			&& syncKeyRank() != null
 			&& syncOwnerRsn() != null;
-	}
-
-	private String syncReadyTooltip()
-	{
-		return pendingRosterOperatorEligible
-			? "queue guest roster for killclog.com rebuild"
-			: "sync roster to killclog.com";
 	}
 
 	private String syncGateTooltip()
@@ -1948,6 +2176,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	 */
 	private void onSyncClicked()
 	{
+		if (!rosterSyncInFlight && !syncButton.isReadyPrompt())
+		{
+			return;
+		}
+		clearSyncHoverStatus();
 		if (rosterSyncInFlight)
 		{
 			setStatus("syncing roster to killclog.com...");
@@ -1996,6 +2229,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedSlug = slug;
 		rosterSyncInFlight = true;
 		rosterSyncAccepted = false;
+		syncAffordanceDismissed = false;
+		cancelSyncConfirmationClear();
 		updateSyncButtonVisibility();
 		setStatus("syncing roster to killclog.com...");
 
@@ -2006,7 +2241,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					rosterSyncInFlight = false;
 					if (ex == null && resp != null && resp.isOk())
 					{
-						refreshBackendProfileAfterSync(slug, clanName, roster, version, resp);
+						refreshBackendProfileAfterSync(slug, clanName, roster, version);
 					}
 					else if (resp != null)
 					{
@@ -2026,6 +2261,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void onOperatorSyncClicked()
 	{
+		clearSyncHoverStatus();
 		String operatorToken = operatorSyncToken();
 		String observedBy = clanReader.localPlayerName();
 		if (operatorToken.isEmpty() || observedBy == null || pendingRoster == null
@@ -2053,6 +2289,8 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		lastLoadedSlug = slug;
 		rosterSyncInFlight = true;
 		rosterSyncAccepted = false;
+		syncAffordanceDismissed = false;
+		cancelSyncConfirmationClear();
 		updateSyncButtonVisibility();
 		setStatus("queueing roster on killclog.com...");
 
@@ -2063,7 +2301,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 					rosterSyncInFlight = false;
 					if (ex == null && resp != null && resp.isOk())
 					{
-						refreshBackendProfileAfterSync(slug, clanName, roster, version, resp);
+						refreshBackendProfileAfterSync(slug, clanName, roster, version);
 					}
 					else if (resp != null)
 					{
@@ -2082,7 +2320,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	}
 
 	private void refreshBackendProfileAfterSync(String slug, String clanName,
-		List<ClanMember> roster, int version, KillclogApiClient.SyncResponse syncResponse)
+		List<ClanMember> roster, int version)
 	{
 		renderedFromClanalyze = false;
 		rosterSyncAccepted = true;
@@ -2091,9 +2329,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 			pendingRosterSyncEligible = true;
 		}
 		updateSyncButtonVisibility();
-		String syncSummary = syncResponse.describeSuccess();
-		String acceptedText = pendingRosterOperatorEligible ? "roster queued" : "roster synced";
-		setStatus(acceptedText + syncSummary + " · refreshing profile...");
+		showSyncConfirmation(slug);
 
 		apiClient.fetchClanClog(slug).whenComplete((result, ex) ->
 			SwingUtilities.invokeLater(() ->
@@ -2106,8 +2342,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				if (ex != null || result == null || !result.hasRepresentedData())
 				{
 					updateSyncButtonVisibility();
-					setStatus(acceptedText + " on killclog.com/c/" + slug + syncSummary
-						+ " · profile refresh unavailable");
 					return;
 				}
 
@@ -2138,7 +2372,6 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				setCoverageFromResult(result);
 				clanProfileCache.put(displayName, slug, resultRoster, result);
 				updateSyncButtonVisibility();
-				setStatus(acceptedText + " on killclog.com/c/" + slug + syncSummary);
 			}));
 	}
 
@@ -2302,8 +2535,13 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void setStatus(String text)
 	{
+		setStatus(text, statusColor(text));
+	}
+
+	private void setStatus(String text, Color color)
+	{
 		statusLabel.setText(text);
-		statusLabel.setForeground(statusColor(text));
+		statusLabel.setForeground(color);
 		statusLabel.setToolTipText(text);
 		revalidate();
 		repaint();
@@ -2362,7 +2600,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static Color statusColor(String text)
 	{
 		String value = text == null ? "" : text.toLowerCase();
-		if (value.startsWith("roster synced"))
+		if (value.startsWith("roster synced") || value.startsWith("roster queued"))
 		{
 			return KC1;
 		}

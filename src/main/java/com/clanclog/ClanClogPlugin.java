@@ -175,6 +175,7 @@ public class ClanClogPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		captureVisibleClogCategory();
+		SwingUtilities.invokeLater(panel::onGameTick);
 	}
 
 	private void refreshInGameClanSoon()
