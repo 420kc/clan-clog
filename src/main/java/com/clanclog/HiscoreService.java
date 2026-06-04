@@ -162,14 +162,13 @@ public class HiscoreService
 	}
 
 	/**
-	 * Fast single-endpoint lookup for clan batch aggregation. Only fetches the
-	 * regular hiscore endpoint (every player appears on it regardless of account
-	 * type). Cuts HTTP requests to 1 per member instead of 4.
+	 * Fast single-endpoint lookup. Only fetches the regular hiscore endpoint
+	 * (every player appears on it regardless of account type), which is useful
+	 * for lightweight account discovery without probing every account type.
 	 *
-	 * <p>No retry: the batch caller ({@link ClanHiscoreBatch}) already falls
-	 * back to stale-while-revalidate cached data on null results. A retry here
-	 * would fire on the ForkJoinPool common pool, bypassing the batch's stagger
-	 * delay and creating the exact burst that triggers Jagex rate-limiting.
+	 * <p>No retry here. The richer lookup path owns retry/fallback behavior, and
+	 * callers that only need this regular endpoint should decide how much stale
+	 * cache data they can accept.
 	 */
 	public CompletableFuture<HiscoreResult> lookupRegularOnly(String playerName)
 	{

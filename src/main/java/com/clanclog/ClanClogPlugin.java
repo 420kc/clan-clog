@@ -65,12 +65,6 @@ public class ClanClogPlugin extends Plugin
 	private ClanClogPanel panel;
 
 	@Inject
-	private ClanHiscoreBatch batch;
-
-	@Inject
-	private ClanClogBatch clogBatch;
-
-	@Inject
 	private LocalClogCache clogCache;
 
 	@Inject
@@ -130,8 +124,6 @@ public class ClanClogPlugin extends Plugin
 			navButton = null;
 		}
 		tooltipController.restoreDefaults();
-		batch.shutdown();
-		clogBatch.shutdown();
 		clogCache.shutdown();
 		hiscoreCache.shutdown();
 		clanProfileCache.shutdown();

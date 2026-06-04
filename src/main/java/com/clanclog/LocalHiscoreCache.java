@@ -25,9 +25,9 @@ import net.runelite.client.RuneLite;
  * in {@code ~/.runelite/clan-clog/hiscores/} so clan re-searches are instant
  * from cache with background refresh for stale entries.
  *
- * <p>Cache TTL is 1 hour for clan batch use. Stale entries are still served
- * immediately (stale-while-revalidate) so the panel fills without waiting
- * for 100+ HTTP requests.
+ * <p>Cache TTL is 1 hour. Stale entries are still served immediately
+ * (stale-while-revalidate) so local previews can fill without blocking
+ * the panel.
  *
  * <p>Follows the same disk I/O pattern as {@link LocalClogCache}: single
  * background writer thread, daemon thread, and atomic file replacement.

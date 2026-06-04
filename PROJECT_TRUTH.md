@@ -44,16 +44,12 @@ not the RuneLite plugin. The API should take roster sources such as WOM or a
 verified in-game roster, fan out to providers, store the build, and serve the
 result back to both the web page and plugin.
 
-## Transitional Drift
+## Retired Paths
 
-The plugin still contains a manual own-clan `clanalyze` path that can fan out
-per-member hiscore/clog lookups from a verified in-game roster. Treat this as a
-legacy/bootstrap path, not as the product direction. Do not expand it without an
-explicit product decision.
-
-The next architecture cleanup should either retire the in-client provider
-fanout or narrow it to local/cache-only preview behavior that cannot be confused
-with the backend source of truth.
+The manual in-client `clanalyze` build path is retired and removed. The plugin
+may render a local cache-only preview from existing cached hiscore/clog data,
+but it must not run roster-scale provider fanout or present that preview as the
+durable clan aggregate.
 
 ## Sync Rules
 

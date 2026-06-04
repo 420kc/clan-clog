@@ -146,7 +146,7 @@ public class InGameClanReader
 
 	/**
 	 * Returns the local player's RSN cached from the last {@link #refresh()}.
-	 * Safe to call from any thread (EDT, batch callback, etc.).
+	 * Safe to call from any thread (EDT, async callback, etc.).
 	 */
 	@Nullable
 	public String localPlayerName()

@@ -12,13 +12,14 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 /**
- * Builds a {@link ClanClogResult} from in-game roster + per-member hiscore
- * data. Boss aggregates (clan_total_kc, top_3, member_coverage) come from
- * live Jagex hiscore data. Clog items are preserved from the backend/fixture
- * result when available, since hiscores alone don't carry collection log data.
+ * Builds a {@link ClanClogResult} from roster members that already carry
+ * cached hiscore and/or clog data. Boss aggregates (clan_total_kc, top_3,
+ * member_coverage) come from those attached hiscore snapshots. Clog items are
+ * preserved from the backend/fixture result when available, since hiscores
+ * alone don't carry collection log data.
  *
- * <p>Called after {@link ClanHiscoreBatch} completes so the cells surface
- * renders real clan aggregate kc instead of fixture placeholder data.
+ * <p>This is local render/cache plumbing only. Durable aggregate builds belong
+ * to killclog.com.
  */
 final class RosterClogBuilder
 {
@@ -30,13 +31,13 @@ final class RosterClogBuilder
 	 * Build or merge a ClanClogResult from roster hiscore data.
 	 *
 	 * <p>When {@code existing} is non-null (backend or fixture data arrived
-	 * before the batch finished), the boss map is replaced with live hiscore
-	 * aggregates while clog items, item_meta, and recently_acquired are
+	 * before the local cache preview), the boss map is replaced with attached
+	 * hiscore aggregates while clog items, item_meta, and recently_acquired are
 	 * preserved from the existing result.
 	 *
 	 * <p>When {@code existing} is null, a new ClanClogResult is built with only
-	 * boss data. The separate clog batch can later attach a source-neutral union
-	 * from local, killclog.com, TempleOSRS, or RuneProfile data.
+	 * boss data. Existing attached clog data can later be folded into a
+	 * source-neutral union by {@link #buildClogUnion(List)}.
 	 */
 	static ClanClogResult fromHiscores(String clanName, String slug,
 		List<ClanMember> roster, @Nullable ClanClogResult existing)

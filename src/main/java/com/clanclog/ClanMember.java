@@ -7,8 +7,8 @@ import net.runelite.api.clan.ClanRank;
  * Canonical clan clog representation of one clan member. Built from whichever
  * roster source is supplying the data (in-game runtime via
  * {@code ClanSettings.getMembers()}, WOM, RuneProfile, Temple, or eventually
- * killclog.com aggregation) and then enriched with per-member
- * {@link HiscoreResult} by {@code ClanHiscoreBatch}.
+ * killclog.com aggregation) and then optionally enriched with cached
+ * per-member {@link HiscoreResult} data.
  *
  * <p>Provider-dependent fields are nullable -- in-game source supplies
  * {@code joinDate} but not {@code build} / {@code totalXp}, WOM supplies the
@@ -27,10 +27,10 @@ public class ClanMember
 	private final String lastUpdatedAt;
 	private final LocalDate joinDate;
 
-	/** Filled in lazily after the batch hiscore fetch. Null until then. */
+	/** Optional hiscore data. Null when unavailable from the current source. */
 	private volatile HiscoreResult hiscore;
 
-	/** Filled in lazily after the batch clog fetch. Null until then. */
+	/** Optional clog data. Null when unavailable from the current source. */
 	private volatile ClogResult clog;
 
 	public ClanMember(String rsn, String displayName, String role,
@@ -75,8 +75,8 @@ public class ClanMember
 
 	/**
 	 * Build a {@code ClanMember} from RuneLite's in-game clan data. {@code build}
-	 * and {@code totalXp} stay null/0 because the runtime doesn't expose them;
-	 * the hiscore fan-out fills account type later. {@code role} prefers the
+	 * and {@code totalXp} stay null/0 because the runtime doesn't expose them.
+	 * {@code role} prefers the
 	 * clan's localized {@code ClanTitle.getName()} (custom rank names the owner
 	 * configured in-game) and falls back to the rank enum name.
 	 */
