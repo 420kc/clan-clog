@@ -42,9 +42,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToolTip;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
+import net.runelite.api.SpriteID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
@@ -83,6 +86,51 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private static final float SYNC_IDLE_ALPHA = 0.5f;
 	private static final Dimension SYNC_BUTTON_SIZE = new Dimension(32, 32);
 	private static final Dimension SYNC_READY_BUTTON_SIZE = new Dimension(34, 54);
+	private static final int STATUS_CLAN_ICON_SIZE = 13;
+	private static final int STATUS_PULSE_DELAY_MS = 125;
+	private static final int STATUS_PULSE_FRAMES = 16;
+	private static final float STATUS_PULSE_MIN_ALPHA = 0.45f;
+
+	private static final class PulsingLabel extends JLabel
+	{
+		private float paintAlpha = 1.0f;
+
+		PulsingLabel(String text)
+		{
+			super(text);
+		}
+
+		void setPaintAlpha(float alpha)
+		{
+			float bounded = Math.max(0.0f, Math.min(1.0f, alpha));
+			if (Math.abs(paintAlpha - bounded) < 0.001f)
+			{
+				return;
+			}
+			paintAlpha = bounded;
+			repaint();
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			if (paintAlpha >= 0.999f)
+			{
+				super.paintComponent(g);
+				return;
+			}
+			Graphics2D g2 = (Graphics2D) g.create();
+			try
+			{
+				g2.setComposite(AlphaComposite.SrcOver.derive(paintAlpha));
+				super.paintComponent(g2);
+			}
+			finally
+			{
+				g2.dispose();
+			}
+		}
+	}
 
 	private final class HeaderLinkButton extends JButton
 	{
@@ -254,9 +302,11 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final Cells cells;
 	private final ClanMembersPanel membersPanel;
 	private final TooltipController tooltipController;
+	private final SpriteManager spriteManager;
 	private final ItemManager itemManager;
 
-	private final JLabel statusLabel = new JLabel(" ");
+	private final JLabel statusCountLabel = new JLabel(" ");
+	private final PulsingLabel statusLabel = new PulsingLabel(" ");
 	private final JPanel coverageCounts = new JPanel(new GridBagLayout());
 	private final JLabel hiscoreCoverageLabel = new JLabel("--");
 	private final JLabel clogCoverageLabel = new JLabel("--");
@@ -295,6 +345,12 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	private final HeaderSyncButton syncButton = new HeaderSyncButton();
 	private final ActivitiesTray activitiesTray;
 	private final Map<String, ImageIcon> clogTierIcons = new LinkedHashMap<>();
+	@Nullable
+	private ImageIcon statusClanIcon;
+	@Nullable
+	private Timer statusPulseTimer;
+	private int statusPulseFrame;
+	private String currentStatusText = " ";
 
 	/** Last backend/fixture ClanClogResult used for render continuity. */
 	@Nullable
@@ -395,7 +451,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		LocalClanProfileCache clanProfileCache,
 		InGameClanReader clanReader, KillclogApiClient apiClient,
 		ClanLookupSession clanLookupSession, Cells cells, ClanMembersPanel membersPanel,
-		TooltipController tooltipController, ItemManager itemManager)
+		TooltipController tooltipController, SpriteManager spriteManager, ItemManager itemManager)
 	{
 		super(true);
 		this.config = config;
@@ -410,6 +466,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		this.cells = cells;
 		this.membersPanel = membersPanel;
 		this.tooltipController = tooltipController;
+		this.spriteManager = spriteManager;
 		this.itemManager = itemManager;
 
 		// Configure PluginPanel's scroll pane (Kill Clog parity)
@@ -502,6 +559,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 		c.gridy++;
 		add(cells.buildBossGrid(), c);
+		loadStatusClanIcon();
 		loadClogTierIcons();
 
 		clanReader.addListener(roster ->
@@ -728,10 +786,16 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		row.setPreferredSize(new Dimension(0, 18));
 
+		statusCountLabel.setFont(FontManager.getRunescapeSmallFont());
+		statusCountLabel.setForeground(TEXT_DIM);
+		statusCountLabel.setIconTextGap(3);
+		statusCountLabel.setVisible(false);
+		statusCountLabel.putClientProperty(
+			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
 		statusLabel.setFont(FontManager.getRunescapeSmallFont());
 		statusLabel.setForeground(TEXT_DIM);
 		statusLabel.setMinimumSize(new Dimension(0, 18));
-		statusLabel.setPreferredSize(new Dimension(0, 18));
 		statusLabel.putClientProperty(
 			RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
@@ -753,9 +817,15 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		GridBagConstraints rc = new GridBagConstraints();
 		rc.gridx = 0;
 		rc.gridy = 0;
+		rc.insets = new Insets(0, 0, 0, 3);
+		rc.anchor = GridBagConstraints.WEST;
+		row.add(statusCountLabel, rc);
+
+		rc.gridx = 1;
 		rc.weightx = 1.0;
 		rc.fill = GridBagConstraints.HORIZONTAL;
 		rc.anchor = GridBagConstraints.WEST;
+		rc.insets = new Insets(0, 0, 0, 0);
 		row.add(statusLabel, rc);
 
 		return row;
@@ -943,11 +1013,22 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		return grid;
 	}
 
-	private static void styleSearchBar(Container c)
+	static void styleSearchBar(Container c)
 	{
 		c.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		for (Component child : c.getComponents())
 		{
+			if (child instanceof JButton)
+			{
+				JButton button = (JButton) child;
+				button.setOpaque(false);
+				button.setContentAreaFilled(false);
+				button.setBorderPainted(false);
+			}
+			else if (child instanceof JPanel && !(child instanceof FlatTextField))
+			{
+				((JPanel) child).setOpaque(false);
+			}
 			if (child instanceof FlatTextField)
 			{
 				FlatTextField ftf = (FlatTextField) child;
@@ -959,7 +1040,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 				tf.putClientProperty(
 					RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			}
-			else if (child instanceof Container)
+			if (!(child instanceof JButton) && child instanceof Container)
 			{
 				styleSearchBar((Container) child);
 			}
@@ -1280,6 +1361,69 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		return " ";
 	}
 
+	static String statusDisplayText(String status)
+	{
+		if (!statusUsesClanIcon(status))
+		{
+			return status;
+		}
+		String count = statusMemberCountText(status);
+		String state = statusStateText(status);
+		return state == null ? count : count + " " + state;
+	}
+
+	static String statusMemberCountText(String status)
+	{
+		String prefix = statusPrefix(status);
+		String members = prefix != null ? status.substring(prefix.length()) : status;
+		return members
+			.replace(" members", "")
+			.replace(" member", "");
+	}
+
+	@Nullable
+	static String statusStateText(String status)
+	{
+		if (!statusUsesClanIcon(status))
+		{
+			return null;
+		}
+		String value = status == null ? "" : status.toLowerCase();
+		if (value.startsWith("profile building · "))
+		{
+			return "· profile building";
+		}
+		return "· profile pending";
+	}
+
+	static boolean statusUsesClanIcon(String status)
+	{
+		String value = status == null ? "" : status.toLowerCase();
+		return value.startsWith("profile pending · ")
+			|| value.startsWith("profile building · ");
+	}
+
+	static boolean statusPulses(String status)
+	{
+		String value = status == null ? "" : status.toLowerCase();
+		return value.startsWith("profile building · ");
+	}
+
+	@Nullable
+	private static String statusPrefix(String status)
+	{
+		String value = status == null ? "" : status.toLowerCase();
+		if (value.startsWith("profile pending · "))
+		{
+			return "profile pending · ";
+		}
+		if (value.startsWith("profile building · "))
+		{
+			return "profile building · ";
+		}
+		return null;
+	}
+
 	private static String formatMemberCount(int count)
 	{
 		return count == 1 ? "1 member" : String.format("%,d members", Math.max(0, count));
@@ -1491,7 +1635,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		if (statusBeforeSyncHover == null)
 		{
-			statusBeforeSyncHover = statusLabel.getText();
+			statusBeforeSyncHover = currentStatusText;
 			statusColorBeforeSyncHover = statusLabel.getForeground();
 		}
 		setStatus(syncHoverText(), Color.WHITE);
@@ -1499,7 +1643,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void restoreSyncHoverStatus()
 	{
-		if (statusBeforeSyncHover != null && syncHoverText().equals(statusLabel.getText()))
+		if (statusBeforeSyncHover != null && syncHoverText().equals(currentStatusText))
 		{
 			Color color = statusColorBeforeSyncHover != null
 				? statusColorBeforeSyncHover : statusColor(statusBeforeSyncHover);
@@ -1548,7 +1692,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		if (statusBeforeClanLinkHover == null)
 		{
-			statusBeforeClanLinkHover = statusLabel.getText();
+			statusBeforeClanLinkHover = currentStatusText;
 			statusColorBeforeClanLinkHover = statusLabel.getForeground();
 		}
 		clanLinkHoverStatusText = currentClanLinkText();
@@ -1559,7 +1703,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	{
 		if (statusBeforeClanLinkHover != null
 			&& clanLinkHoverStatusText != null
-			&& clanLinkHoverStatusText.equals(statusLabel.getText()))
+			&& clanLinkHoverStatusText.equals(currentStatusText))
 		{
 			Color color = statusColorBeforeClanLinkHover != null
 				? statusColorBeforeClanLinkHover : statusColor(statusBeforeClanLinkHover);
@@ -1607,7 +1751,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		rosterSyncAccepted = false;
 		clearSyncHoverStatus();
 		hideSyncButton();
-		if (confirmationText != null && confirmationText.equals(statusLabel.getText()))
+		if (confirmationText != null && confirmationText.equals(currentStatusText))
 		{
 			setStatus(" ");
 		}
@@ -2205,6 +2349,7 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 	public void removeNotify()
 	{
 		super.removeNotify();
+		stopStatusPulse();
 		tooltipController.hideClickTooltip();
 	}
 
@@ -2325,6 +2470,21 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 		}
 	}
 
+	private void loadStatusClanIcon()
+	{
+		spriteManager.getSpriteAsync(SpriteID.TAB_CLAN_CHAT, 0, sprite ->
+			SwingUtilities.invokeLater(() ->
+			{
+				if (sprite == null)
+				{
+					return;
+				}
+				statusClanIcon = new ImageIcon(
+					ImageUtil.resizeImage(sprite, STATUS_CLAN_ICON_SIZE, STATUS_CLAN_ICON_SIZE));
+				updateStatusIcon(currentStatusText);
+			}));
+	}
+
 	private void setStatus(String text)
 	{
 		setStatus(text, statusColor(text));
@@ -2332,11 +2492,76 @@ public class ClanClogPanel extends PluginPanel implements ClanLookupSession.List
 
 	private void setStatus(String text, Color color)
 	{
-		statusLabel.setText(text);
+		String value = text == null ? " " : text;
+		currentStatusText = value;
+		String stateText = statusStateText(value);
+		if (stateText == null)
+		{
+			statusCountLabel.setVisible(false);
+			statusCountLabel.setText(" ");
+			statusCountLabel.setToolTipText(null);
+			statusLabel.setText(value);
+		}
+		else
+		{
+			statusCountLabel.setVisible(true);
+			statusCountLabel.setText(statusMemberCountText(value));
+			statusCountLabel.setToolTipText(value);
+			statusLabel.setText(stateText);
+		}
+		statusCountLabel.setForeground(color);
 		statusLabel.setForeground(color);
-		statusLabel.setToolTipText(text);
+		statusLabel.setToolTipText(value);
+		updateStatusIcon(value);
+		updateStatusPulse(value);
 		revalidate();
 		repaint();
+	}
+
+	private void updateStatusIcon(String text)
+	{
+		statusCountLabel.setIcon(statusUsesClanIcon(text) ? statusClanIcon : null);
+	}
+
+	private void updateStatusPulse(String text)
+	{
+		if (statusPulses(text))
+		{
+			startStatusPulse();
+			return;
+		}
+		stopStatusPulse();
+	}
+
+	private void startStatusPulse()
+	{
+		if (statusPulseTimer == null)
+		{
+			statusPulseTimer = new Timer(STATUS_PULSE_DELAY_MS, e ->
+			{
+				statusPulseFrame = (statusPulseFrame + 1) % STATUS_PULSE_FRAMES;
+				double radians = 2.0 * Math.PI * statusPulseFrame / STATUS_PULSE_FRAMES;
+				double wave = (Math.cos(radians) + 1.0) / 2.0;
+				statusLabel.setPaintAlpha((float) (STATUS_PULSE_MIN_ALPHA
+					+ wave * (1.0 - STATUS_PULSE_MIN_ALPHA)));
+			});
+		}
+		if (!statusPulseTimer.isRunning())
+		{
+			statusPulseFrame = 0;
+			statusLabel.setPaintAlpha(1.0f);
+			statusPulseTimer.start();
+		}
+	}
+
+	private void stopStatusPulse()
+	{
+		if (statusPulseTimer != null)
+		{
+			statusPulseTimer.stop();
+		}
+		statusPulseFrame = 0;
+		statusLabel.setPaintAlpha(1.0f);
 	}
 
 	private void setCoverageCounts(int hiscoreHits, int clogHits)

@@ -1,13 +1,21 @@
 package com.clanclog;
 
 import com.google.gson.Gson;
+import java.awt.Component;
+import java.awt.Container;
 import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nullable;
+import javax.swing.JButton;
+import javax.swing.JPanel;
+import net.runelite.client.ui.components.IconTextField;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ClanClogPanelTest
 {
@@ -82,6 +90,48 @@ public class ClanClogPanelTest
 
 		assertEquals("profile building · 1 member",
 			ClanClogPanel.publicRosterStatus(1, shell));
+	}
+
+	@Test
+	public void profileBuildStatusCompactsToClanIconCount()
+	{
+		String status = "profile building · 402 members";
+
+		assertEquals("402", ClanClogPanel.statusMemberCountText(status));
+		assertEquals("· profile building", ClanClogPanel.statusStateText(status));
+		assertEquals("402 · profile building", ClanClogPanel.statusDisplayText(status));
+		assertTrue(ClanClogPanel.statusUsesClanIcon(status));
+		assertTrue(ClanClogPanel.statusPulses(status));
+	}
+
+	@Test
+	public void profilePendingStatusCompactsWithoutPulse()
+	{
+		String status = "profile pending · 402 members";
+
+		assertEquals("402", ClanClogPanel.statusMemberCountText(status));
+		assertEquals("· profile pending", ClanClogPanel.statusStateText(status));
+		assertEquals("402 · profile pending", ClanClogPanel.statusDisplayText(status));
+		assertTrue(ClanClogPanel.statusUsesClanIcon(status));
+		assertFalse(ClanClogPanel.statusPulses(status));
+	}
+
+	@Test
+	public void searchBarStyleKeepsClearButtonTransparent()
+	{
+		IconTextField field = new IconTextField();
+
+		ClanClogPanel.styleSearchBar(field);
+
+		JButton clearButton = findButton(field, "\u00d7");
+		assertNotNull(clearButton);
+		assertFalse(clearButton.isOpaque());
+		assertFalse(clearButton.isContentAreaFilled());
+		assertFalse(clearButton.isBorderPainted());
+		if (clearButton.getParent() instanceof JPanel)
+		{
+			assertFalse(((JPanel) clearButton.getParent()).isOpaque());
+		}
 	}
 
 	@Test
@@ -188,5 +238,26 @@ public class ClanClogPanelTest
 		}
 		json.append("]}}}");
 		return result(json.toString());
+	}
+
+	@Nullable
+	private static JButton findButton(Container root, String text)
+	{
+		for (Component child : root.getComponents())
+		{
+			if (child instanceof JButton && text.equals(((JButton) child).getText()))
+			{
+				return (JButton) child;
+			}
+			if (child instanceof Container)
+			{
+				JButton found = findButton((Container) child, text);
+				if (found != null)
+				{
+					return found;
+				}
+			}
+		}
+		return null;
 	}
 }
