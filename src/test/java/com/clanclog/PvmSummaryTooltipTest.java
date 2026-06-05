@@ -53,6 +53,23 @@ public class PvmSummaryTooltipTest
 		assertEquals(4, intField(tooltip, "toaTotal"));
 	}
 
+	@Test
+	public void clanMegararesUseQuantityTotalsNotHolderCounts()
+	{
+		ClanClogResult.ClogUnion clog = new ClanClogResult.ClogUnion(
+			Map.of("chambers_of_xeric", List.of(20997, 22486)),
+			2,
+			0,
+			Map.of(
+				"20997", new ClanClogResult.ItemMeta(14, 20),
+				"22486", new ClanClogResult.ItemMeta(13)),
+			Map.of("chambers_of_xeric", List.of(20997, 22486)));
+
+		assertEquals(20, PvmSummaryTooltip.quantityTotal(clog, 20997));
+		assertEquals(13, PvmSummaryTooltip.quantityTotal(clog, 22486));
+		assertEquals(0, PvmSummaryTooltip.quantityTotal(clog, 27277));
+	}
+
 	private static int intField(Object target, String name) throws Exception
 	{
 		Field field = target.getClass().getDeclaredField(name);

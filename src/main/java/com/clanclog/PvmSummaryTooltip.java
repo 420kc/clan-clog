@@ -177,9 +177,9 @@ public class PvmSummaryTooltip extends TitleTooltip
 	public void setClanMegarares(ClanClogResult.ClogUnion clog, ItemManager itemManager)
 	{
 		setMegarares(
-			holderCount(clog, TBOW_ID),
-			holderCount(clog, SCYTHE_ID),
-			holderCount(clog, SHADOW_ID),
+			quantityTotal(clog, TBOW_ID),
+			quantityTotal(clog, SCYTHE_ID),
+			quantityTotal(clog, SHADOW_ID),
 			itemManager);
 	}
 
@@ -417,14 +417,14 @@ public class PvmSummaryTooltip extends TitleTooltip
 		return total > 0 ? new int[]{obtained, total} : null;
 	}
 
-	private static int holderCount(ClanClogResult.ClogUnion clog, int itemId)
+	static int quantityTotal(ClanClogResult.ClogUnion clog, int itemId)
 	{
 		if (clog == null)
 		{
 			return 0;
 		}
 		ClanClogResult.ItemMeta meta = clog.getItemMeta().get(String.valueOf(itemId));
-		return meta != null ? meta.getHolderCount() : 0;
+		return meta != null ? meta.getQuantityTotal() : 0;
 	}
 
 	private static int clampToInt(long value)
