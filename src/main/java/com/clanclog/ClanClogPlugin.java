@@ -25,6 +25,8 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.PluginChanged;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -102,7 +104,7 @@ public class ClanClogPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		NativeTooltip.loadSprites(spriteManager);
+		reloadTooltipSprites();
 		navButton = NavigationButton.builder()
 			.tooltip("Clan Clog")
 			.icon(loadIcon())
@@ -113,6 +115,11 @@ public class ClanClogPlugin extends Plugin
 		tooltipController.captureDefaults(panel);
 		probeClanSettingsSoon();
 		log.debug("clan clog: startUp");
+	}
+
+	private void reloadTooltipSprites()
+	{
+		clientThread.invokeLater(() -> NativeTooltip.loadSprites(client, spriteManager));
 	}
 
 	@Override
@@ -128,6 +135,24 @@ public class ClanClogPlugin extends Plugin
 		hiscoreCache.shutdown();
 		clanProfileCache.shutdown();
 		log.debug("clan clog: shutDown");
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if ("resourcepacks".equals(event.getGroup()))
+		{
+			reloadTooltipSprites();
+		}
+	}
+
+	@Subscribe
+	public void onPluginChanged(PluginChanged event)
+	{
+		if (event.getPlugin().getClass().getSimpleName().equals("ResourcePacksPlugin"))
+		{
+			reloadTooltipSprites();
+		}
 	}
 
 	/**
@@ -156,10 +181,12 @@ public class ClanClogPlugin extends Plugin
 	{
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
+			reloadTooltipSprites();
 			probeClanSettingsSoon();
 		}
 		else if (event.getGameState() == GameState.LOGIN_SCREEN)
 		{
+			reloadTooltipSprites();
 			clanSettingsProbeTicksRemaining = 0;
 			clogCache.setActivePlayer(null);
 			lastVisibleClogSignature = null;
