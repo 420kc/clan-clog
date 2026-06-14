@@ -1344,7 +1344,7 @@ public class Cells
 		tip.setObtained(data.obtainedCount, data.totalItems);
 		tip.setInfoLine("Contributors: ", String.valueOf(data.contributorCount), Color.WHITE);
 		tip.setItems(data.totalItems, data.allItemIds, data.obtainedIds,
-			data.obtainedCounts, itemManager);
+			data.obtainedCounts, data.itemNames, itemManager);
 		return keepTooltipOnHover(owner, tip);
 	}
 

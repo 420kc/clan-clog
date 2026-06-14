@@ -1,5 +1,6 @@
 package com.clanclog;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,7 @@ final class TooltipData
 	final List<Integer> allItemIds;
 	final Set<Integer> obtainedIds;
 	final Map<Integer, Integer> obtainedCounts;
+	final Map<Integer, String> itemNames;
 
 	/** Clan-aware: how many clan members hold each item id. Null in per-player context. */
 	@Nullable final Map<Integer, Integer> holderCounts;
@@ -40,7 +42,7 @@ final class TooltipData
 				Map<Integer, Integer> obtainedCounts)
 	{
 		this(name, rank, obtainedCount, totalItems, allItemIds, obtainedIds, obtainedCounts,
-			null, null, null);
+			Collections.emptyMap(), null, null, null, 0);
 	}
 
 	/** Clan-aware constructor (added 2026-05-20 sub-phase 3b.3.3). */
@@ -52,13 +54,14 @@ final class TooltipData
 				@Nullable Map<Integer, String> firstSeenByRsn)
 	{
 		this(name, rank, obtainedCount, totalItems, allItemIds, obtainedIds, obtainedCounts,
-			holderCounts, firstSeenAt, firstSeenByRsn, 0);
+			Collections.emptyMap(), holderCounts, firstSeenAt, firstSeenByRsn, 0);
 	}
 
 	/** Clan-aware constructor with aggregate contributor count. */
 	TooltipData(String name, int rank, int obtainedCount, int totalItems,
 				List<Integer> allItemIds, Set<Integer> obtainedIds,
 				Map<Integer, Integer> obtainedCounts,
+				Map<Integer, String> itemNames,
 				@Nullable Map<Integer, Integer> holderCounts,
 				@Nullable Map<Integer, String> firstSeenAt,
 				@Nullable Map<Integer, String> firstSeenByRsn,
@@ -72,6 +75,7 @@ final class TooltipData
 		this.allItemIds = allItemIds;
 		this.obtainedIds = obtainedIds;
 		this.obtainedCounts = obtainedCounts;
+		this.itemNames = itemNames != null ? itemNames : Collections.emptyMap();
 		this.holderCounts = holderCounts;
 		this.firstSeenAt = firstSeenAt;
 		this.firstSeenByRsn = firstSeenByRsn;

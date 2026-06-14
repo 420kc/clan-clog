@@ -17,6 +17,7 @@ public abstract class TitleTooltip extends NativeTooltip
 {
 	private static final int NAME_LINE_HEIGHT = 20;
 	private static final int SEPARATOR_GAP = 6;
+	private static final String ELLIPSIS = "...";
 	private static final Font TITLE_FONT = FontManager.getRunescapeBoldFont().deriveFont(18f);
 	static final Font TITLE_FONT_SMALL = FontManager.getRunescapeBoldFont().deriveFont(16f);
 	static final Color SEPARATOR_COLOR = new Color(80, 70, 50);
@@ -97,6 +98,60 @@ public abstract class TitleTooltip extends NativeTooltip
 	protected Font getTitleFont()
 	{
 		return TITLE_FONT;
+	}
+
+	/** Optional orange text painted on the right side of the last header row. */
+	protected String getHeaderRightText()
+	{
+		return null;
+	}
+
+	protected void paintHeaderRightText(Graphics2D g2, FontMetrics fm, int w, int baseline,
+		int reservedLeftWidth)
+	{
+		String text = getHeaderRightText();
+		if (text == null || text.isEmpty())
+		{
+			return;
+		}
+
+		int inset = getInset();
+		int rightPad = getHeaderRightPad();
+		int maxWidth = w - inset * 2 - rightPad - reservedLeftWidth - 8;
+		if (maxWidth <= 0)
+		{
+			return;
+		}
+
+		String label = fitHeaderRightText(fm, text, maxWidth);
+		if (label.isEmpty())
+		{
+			return;
+		}
+
+		g2.setColor(OSRS_ORANGE);
+		g2.drawString(label, w - inset - rightPad - fm.stringWidth(label), baseline);
+	}
+
+	private static String fitHeaderRightText(FontMetrics fm, String text, int maxWidth)
+	{
+		if (fm.stringWidth(text) <= maxWidth)
+		{
+			return text;
+		}
+
+		int ellipsisWidth = fm.stringWidth(ELLIPSIS);
+		if (ellipsisWidth >= maxWidth)
+		{
+			return "";
+		}
+
+		StringBuilder out = new StringBuilder(text);
+		while (out.length() > 0 && fm.stringWidth(out.toString()) + ellipsisWidth > maxWidth)
+		{
+			out.deleteCharAt(out.length() - 1);
+		}
+		return out + ELLIPSIS;
 	}
 
 	/**
@@ -196,6 +251,7 @@ public abstract class TitleTooltip extends NativeTooltip
 		int lineY = inset + nfm.getAscent();
 		g2.setColor(OSRS_ORANGE);
 		g2.drawString(title, inset, lineY);
+		int activeLineWidth = nfm.stringWidth(title);
 
 		g2.setFont(FontManager.getRunescapeSmallFont());
 		FontMetrics fm = g2.getFontMetrics();
@@ -209,6 +265,7 @@ public abstract class TitleTooltip extends NativeTooltip
 			int labelWidth = fm.stringWidth(subtitleLabel);
 			g2.setColor(subtitleColor);
 			g2.drawString(subtitleValue, inset + labelWidth, lineY);
+			activeLineWidth = labelWidth + fm.stringWidth(subtitleValue);
 		}
 
 		// Info line (e.g. Glory for Sol Heredit)
@@ -220,6 +277,7 @@ public abstract class TitleTooltip extends NativeTooltip
 			int infoLabelWidth = fm.stringWidth(infoLabel);
 			g2.setColor(infoColor);
 			g2.drawString(infoValue, inset + infoLabelWidth, lineY);
+			activeLineWidth = infoLabelWidth + fm.stringWidth(infoValue);
 		}
 
 		// Rank line
@@ -234,7 +292,10 @@ public abstract class TitleTooltip extends NativeTooltip
 				g2.setColor(Color.WHITE);
 			}
 			g2.drawString(rankText, inset + fm.stringWidth(label), lineY);
+			activeLineWidth = fm.stringWidth(label) + fm.stringWidth(rankText);
 		}
+
+		paintHeaderRightText(g2, fm, w, lineY, activeLineWidth);
 
 		// Separator
 		int sepY = lineY + SEPARATOR_GAP;

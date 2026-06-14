@@ -2,7 +2,6 @@ package com.clanclog;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,8 +16,8 @@ public class ClogResult
 	private final Map<String, List<ClogItem>> obtainedItems;
 	/** category key -> all item IDs in that category */
 	private final Map<String, List<Integer>> categoryItems;
-	/** item IDs whose names have been resolved (concurrent: written from client thread, read from EDT) */
-	private final Set<Integer> resolvedItemIds;
+	/** item id -> display name, concurrent: written from client thread, read from EDT. */
+	private final Map<Integer, String> itemNames;
 	/** When the source last reported a collection-log sync, or null if unavailable. */
 	private final String lastChanged;
 	/** Account type carried by provider metadata, or null if unknown. */
@@ -39,10 +38,10 @@ public class ClogResult
 		this.playerName = playerName;
 		this.obtainedItems = obtainedItems;
 		this.categoryItems = categoryItems;
-		this.resolvedItemIds = ConcurrentHashMap.newKeySet();
+		this.itemNames = new ConcurrentHashMap<>();
 		if (itemNames != null)
 		{
-			resolvedItemIds.addAll(itemNames.keySet());
+			this.itemNames.putAll(itemNames);
 		}
 		this.lastChanged = lastChanged;
 		this.providerAccountType = providerAccountType;
@@ -87,7 +86,7 @@ public class ClogResult
 			null,
 			lastChanged,
 			fallback.providerAccountType);
-		result.resolvedItemIds.addAll(resolvedItemIds);
+		result.itemNames.putAll(itemNames);
 		result.uniqueObtained = uniqueObtained;
 		result.uniqueTotal = uniqueTotal;
 		return result;
@@ -115,12 +114,26 @@ public class ClogResult
 
 	public boolean isItemResolved(int id)
 	{
-		return resolvedItemIds.contains(id);
+		return itemNames.containsKey(id);
 	}
 
 	public void markItemResolved(int id)
 	{
-		resolvedItemIds.add(id);
+		itemNames.putIfAbsent(id, "Item " + id);
+	}
+
+	public void markItemResolved(int id, String name)
+	{
+		if (name == null || name.isBlank() || "null".equalsIgnoreCase(name))
+		{
+			return;
+		}
+		itemNames.put(id, name);
+	}
+
+	public String getItemName(int id)
+	{
+		return itemNames.get(id);
 	}
 
 	public static class ClogItem
